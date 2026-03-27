@@ -4,9 +4,16 @@
         "name": "Leonidas I",
         "civilization": "greek",
         "era": "540-480 BC, Classical Sparta, Ancient Greece",
-        "source_texts": ["Plutarch's Moralia", "Herodotus' Histories", "Plutarch's Sayings of Spartans"],
+        "source_texts": [
+            "Plutarch's Moralia",
+            "Herodotus' Histories",
+            "Plutarch's Sayings of Spartans"
+        ],
         "character_description": "Muscular middle-aged Spartan warrior-king, late 40s-50s, long dark hair past shoulders, full thick dark beard, deeply tanned weathered skin, prominent jaw, fierce determined eyes, wearing bronze Corinthian helmet (pushed up on forehead when not fighting), crimson red cloak over bronze breastplate, bronze greaves, carrying round bronze hoplon shield with lambda (Λ) symbol, short xiphos sword.",
-        "environment_description": "Spartan landscapes — rugged Peloponnesian mountains, the narrow pass of Thermopylae with cliffs and sea, Spartan training grounds (agoge), austere stone buildings of Sparta (no luxury), battlefield camps, Hot Gates with rocky terrain and crashing waves, shield wall formations."
+        "environment_description": "Spartan landscapes — rugged Peloponnesian mountains, the narrow pass of Thermopylae with cliffs and sea, Spartan training grounds (agoge), austere stone buildings of Sparta (no luxury), battlefield camps, Hot Gates with rocky terrain and crashing waves, shield wall formations.",
+        "character_descriptions": {
+            "dark_masculine": "A dark Spartan god of war. Massive, blood-streaked, scarred from a hundred battles. Black and crimson Spartan armor, crested helmet casting his face in shadow — only burning eyes visible. Shield battered and dented but held firm. Spear raised like a lightning bolt. Stands alone against an ocean of darkness. 300 ghosts at his back. Death incarnate, smiling."
+        }
     },
     "quotes": [
         {

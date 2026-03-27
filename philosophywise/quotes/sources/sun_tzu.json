@@ -4,9 +4,14 @@
         "name": "Sun Tzu",
         "civilization": "chinese",
         "era": "544-496 BC, Eastern Zhou Dynasty, Ancient China",
-        "source_texts": ["The Art of War"],
+        "source_texts": [
+            "The Art of War"
+        ],
         "character_description": "Middle-aged Chinese military strategist, 40s-50s, thin black beard and mustache, hair tied in traditional topknot, sharp calculating eyes, wearing dark silk robes with armor plates over chest, or scholarly dark robes when in study. Lean, disciplined build, commanding presence.",
-        "environment_description": "Ancient Chinese military camp or scholar's study, bamboo scroll maps, ink brushes, strategic board games, silk banners, wooden war tent or elegant pagoda-style study, misty mountain backdrop, ink-wash landscape aesthetic."
+        "environment_description": "Ancient Chinese military camp or scholar's study, bamboo scroll maps, ink brushes, strategic board games, silk banners, wooden war tent or elegant pagoda-style study, misty mountain backdrop, ink-wash landscape aesthetic.",
+        "character_descriptions": {
+            "dark_masculine": "A shadow general in full dark lacquered armor, faceless behind a demon war mask. Ornate but terrifying — spikes, dark iron, silk ribbons blackened with age. Stands in perfect stillness like a predator. Eyes visible through the mask glow with cold calculation. Mist and smoke coil around him. An army of shadows at his back."
+        }
     },
     "quotes": [
         {

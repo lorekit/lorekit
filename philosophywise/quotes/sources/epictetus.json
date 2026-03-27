@@ -4,9 +4,15 @@
         "name": "Epictetus",
         "civilization": "roman",
         "era": "50-135 AD, Roman Empire",
-        "source_texts": ["Discourses", "Enchiridion"],
+        "source_texts": [
+            "Discourses",
+            "Enchiridion"
+        ],
         "character_description": "Elderly Greek man living in Rome, 60s-70s, short gray beard, balding with wispy white hair, weathered dark skin, one leg slightly lame (walked with a limp), wearing simple undyed wool tunic — not a toga, as he was a freed slave. Intense dark eyes, animated hands when teaching, lean and austere appearance.",
-        "environment_description": "Simple Roman schoolroom or outdoor colonnade, stone benches, modest furnishings, students gathered around, Mediterranean daylight streaming through open arches, Nicopolis setting with Greek-Roman architecture, dusty streets."
+        "environment_description": "Simple Roman schoolroom or outdoor colonnade, stone benches, modest furnishings, students gathered around, Mediterranean daylight streaming through open arches, Nicopolis setting with Greek-Roman architecture, dusty streets.",
+        "character_descriptions": {
+            "dark_masculine": "A scarred, sinewy figure forged by suffering. Dark skin textured like cracked earth, one leg visibly damaged but stance unbroken. Bare-chested with a heavy chain still hanging from one wrist. Eyes burn with defiant fire. Lean, stripped-down, dangerous — a freed slave who could break you with words or hands. Surrounded by shattered chains."
+        }
     },
     "quotes": [
         {

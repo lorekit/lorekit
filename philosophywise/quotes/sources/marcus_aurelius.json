@@ -4,9 +4,14 @@
         "name": "Marcus Aurelius",
         "civilization": "roman",
         "era": "121-180 AD, Roman Empire",
-        "source_texts": ["Meditations"],
+        "source_texts": [
+            "Meditations"
+        ],
         "character_description": "Middle-aged Roman man, 50s, curly dark hair graying at temples, thick curly beard, prominent Roman nose, deep-set thoughtful eyes, wearing purple-bordered white toga when in Rome OR bronze military breastplate armor with red cloak when on campaign. Weathered face showing the weight of leadership.",
-        "environment_description": "Ancient Roman setting, 1st-2nd century AD, marble columns and arches, terracotta roof tiles, stone-paved roads, Mediterranean vegetation, warm golden sunlight, blue sky, historically accurate architecture."
+        "environment_description": "Ancient Roman setting, 1st-2nd century AD, marble columns and arches, terracotta roof tiles, stone-paved roads, Mediterranean vegetation, warm golden sunlight, blue sky, historically accurate architecture.",
+        "character_descriptions": {
+            "dark_masculine": "A godlike warrior-emperor carved from dark marble. Massively built, mythic proportions. Cracked obsidian skin revealing veins of molten ember. Wearing battle-scarred black iron breastplate with a tattered crimson cloak. Eyes glow faintly like dying coals. Face is a mask of cold, absolute authority — a dark god-king who has conquered death itself. Smoke and ash drift from his form."
+        }
     },
     "quotes": [
         {

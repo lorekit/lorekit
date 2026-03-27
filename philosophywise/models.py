@@ -44,8 +44,19 @@ class Philosopher(BaseModel):
     civilization: str
     era: str
     character_description: str
+    character_descriptions: dict[str, str] = {}  # theme -> character description
     source_texts: list[str] = []
     quotes: list[Quote] = []
+
+    def get_character_for_theme(self, theme: str | None = None) -> str:
+        """Return the character description for a given theme.
+
+        Falls back to the default ``character_description`` when the requested
+        theme has no override.
+        """
+        if theme and theme in self.character_descriptions:
+            return self.character_descriptions[theme]
+        return self.character_description
 
 
 class Scene(BaseModel):
@@ -64,6 +75,8 @@ class Scene(BaseModel):
 class StoryBreakdown(BaseModel):
     philosopher_id: str
     civilization: str
+    theme: str = ""  # vibe preset key (e.g. "dark_masculine", "mobile_game")
+    arc_template: str = "story"  # arc template ID (e.g. "story", "rapid_montage")
     hook_quote: Quote
     truth_quote: Quote
     scenes: list[Scene]
@@ -75,6 +88,8 @@ class VideoProject(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
     philosopher_id: str
     civilization: str
+    theme: str = ""  # vibe preset key
+    arc_template: str = "story"  # arc template ID
     story: StoryBreakdown
     status: str = "queued"
     clips: list[str] = []

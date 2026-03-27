@@ -4,9 +4,19 @@
         "name": "Seneca",
         "civilization": "roman",
         "era": "4 BC - 65 AD, Roman Empire",
-        "source_texts": ["Letters to Lucilius", "On the Shortness of Life", "On the Happy Life", "On Anger", "On Providence", "On the Tranquility of the Mind"],
+        "source_texts": [
+            "Letters to Lucilius",
+            "On the Shortness of Life",
+            "On the Happy Life",
+            "On Anger",
+            "On Providence",
+            "On the Tranquility of the Mind"
+        ],
         "character_description": "Elderly Roman man, late 60s, bald crown with short white hair on sides, clean-shaven or short-cropped gray beard, sharp intelligent eyes, aquiline nose, wearing white toga with narrow purple stripe (senatorial). Lean build, dignified posture, often depicted writing or in philosophical discourse.",
-        "environment_description": "Roman villa interior with marble floors, oil lamps, scrolls and writing materials, garden courtyard with fountain, Mediterranean plants, warm amber lighting, luxurious but tasteful Roman furnishings."
+        "environment_description": "Roman villa interior with marble floors, oil lamps, scrolls and writing materials, garden courtyard with fountain, Mediterranean plants, warm amber lighting, luxurious but tasteful Roman furnishings.",
+        "character_descriptions": {
+            "dark_masculine": "A gaunt, skeletal figure of terrifying intellect. Skin like pale weathered stone, deep hollow eye sockets with piercing white-blue eyes. Draped in heavy black robes that seem to absorb light. Veined hands like marble claws gripping a dark iron staff. An aura of cold wisdom — a philosopher who has stared into the void and speaks from it."
+        }
     },
     "quotes": [
         {

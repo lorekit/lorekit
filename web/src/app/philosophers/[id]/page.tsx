@@ -19,13 +19,16 @@ import {
   getPhilosopher,
   getQuotes,
   generateCharacterImage,
+  generateCharacterForPhilosopher,
+  getCharacterImages,
+  getVibePresets,
   clipUrl,
   updatePhilosopher,
   createQuote,
   updateQuote,
   deleteQuote,
 } from "@/lib/api";
-import type { Philosopher, Quote } from "@/lib/api";
+import type { Philosopher, Quote, CharacterImage, VibePreset } from "@/lib/api";
 import { cn, CIV_COLORS } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -379,19 +382,37 @@ export default function PhilosopherProfilePage({
   const { id } = use(params);
   const [philosopher, setPhilosopher] = useState<Philosopher | null>(null);
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [charImages, setCharImages] = useState<CharacterImage[]>([]);
+  const [vibePresets, setVibePresets] = useState<Record<string, VibePreset>>({});
+  const [selectedTheme, setSelectedTheme] = useState<string>("dark_masculine");
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [generatingImage, setGeneratingImage] = useState(false);
+  const [generatingTheme, setGeneratingTheme] = useState<string | null>(null);
   const [addingQuote, setAddingQuote] = useState(false);
+
+  const refreshCharImages = useCallback(async () => {
+    try {
+      const data = await getCharacterImages(id);
+      setCharImages(data.images);
+    } catch {}
+  }, [id]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    Promise.all([getPhilosopher(id), getQuotes({ philosopher_id: id, limit: 500 })])
-      .then(([phil, q]) => {
+    Promise.all([
+      getPhilosopher(id),
+      getQuotes({ philosopher_id: id, limit: 500 }),
+      getCharacterImages(id).catch(() => ({ images: [] as CharacterImage[] })),
+      getVibePresets().catch(() => ({ presets: {} as Record<string, VibePreset> })),
+    ])
+      .then(([phil, q, charData, vibeData]) => {
         if (cancelled) return;
         setPhilosopher(phil);
         setQuotes(q);
+        setCharImages(charData.images);
+        setVibePresets(vibeData.presets);
       })
       .catch(() => {})
       .finally(() => {
@@ -407,31 +428,25 @@ export default function PhilosopherProfilePage({
     filter === "all" ? quotes : quotes.filter((q) => q.theme === filter);
 
   const handleGenerateImage = useCallback(
-    async (force = false) => {
+    async (theme: string, force = false) => {
       if (!philosopher) return;
       setGeneratingImage(true);
+      setGeneratingTheme(theme);
       try {
-        const resp = await fetch(
-          "http://localhost:8000/api/character/generate-for-philosopher",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ philosopher_id: philosopher.id, force }),
-          }
+        const data = await generateCharacterForPhilosopher(philosopher.id, { theme, force });
+        setPhilosopher((prev) =>
+          prev ? { ...prev, character_image_url: data.image_url } : prev
         );
-        if (resp.ok) {
-          const data = await resp.json();
-          setPhilosopher((prev) =>
-            prev ? { ...prev, character_image_url: data.image_url } : prev
-          );
-        }
+        // Refresh the gallery
+        await refreshCharImages();
       } catch (err) {
         console.error("Failed to generate character image:", err);
       } finally {
         setGeneratingImage(false);
+        setGeneratingTheme(null);
       }
     },
-    [philosopher]
+    [philosopher, refreshCharImages]
   );
 
   const savePhilosopherField = useCallback(
@@ -504,47 +519,116 @@ export default function PhilosopherProfilePage({
 
       {/* Hero section */}
       <div className="flex flex-col md:flex-row gap-6">
-        {/* Character images */}
-        <div className="shrink-0">
-          {philosopher.character_image_url ? (
-            <div className="space-y-3">
-              <img
-                src={philosopher.character_image_url!}
-                alt={philosopher.name}
-                className="w-48 h-64 object-cover rounded-xl border border-slate-700 shadow-lg"
-              />
-              <button
-                onClick={() => handleGenerateImage(true)}
-                disabled={generatingImage}
-                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors"
-                title="Regenerate character images"
-              >
-                {generatingImage ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-3.5 h-3.5" />
-                )}
-                {generatingImage
-                  ? "Generating 3 angles..."
-                  : "Regenerate"}
-              </button>
-            </div>
-          ) : (
-            <div className="w-48 h-64 rounded-xl border border-dashed border-slate-700 bg-slate-900/50 flex flex-col items-center justify-center gap-3">
-              <ImageIcon className="w-10 h-10 text-slate-600" />
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => handleGenerateImage(false)}
-                disabled={generatingImage}
-              >
-                {generatingImage ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Sparkles className="w-4 h-4 mr-2" />
-                )}
-                Generate
-              </Button>
+        {/* Character images — per-theme gallery */}
+        <div className="shrink-0 space-y-4">
+          {/* Theme selector tabs */}
+          <div className="flex flex-wrap gap-1.5">
+            {Object.entries(vibePresets)
+              .filter(([k]) => k !== "custom")
+              .map(([key, preset]) => {
+                const hasImage = charImages.some((ci) => ci.theme === key && ci.url);
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setSelectedTheme(key)}
+                    className={cn(
+                      "px-2.5 py-1 rounded-full text-[11px] font-medium transition-all border",
+                      selectedTheme === key
+                        ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                        : hasImage
+                        ? "bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-500"
+                        : "bg-slate-900 text-slate-500 border-slate-800 hover:border-slate-600"
+                    )}
+                  >
+                    {preset.name}
+                    {hasImage && <span className="ml-1 text-emerald-400">●</span>}
+                  </button>
+                );
+              })}
+          </div>
+
+          {/* Active theme image */}
+          {(() => {
+            const activeImage = charImages.find((ci) => ci.theme === selectedTheme && ci.url);
+            const themeName = vibePresets[selectedTheme]?.name || selectedTheme.replace(/_/g, " ");
+            const isGeneratingThis = generatingImage && generatingTheme === selectedTheme;
+
+            if (activeImage?.url) {
+              return (
+                <div className="space-y-2">
+                  <img
+                    src={activeImage.url}
+                    alt={`${philosopher.name} — ${themeName}`}
+                    className="w-48 h-64 object-cover rounded-xl border border-slate-700 shadow-lg"
+                  />
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-slate-500">{themeName}</span>
+                    <button
+                      onClick={() => handleGenerateImage(selectedTheme, true)}
+                      disabled={generatingImage}
+                      className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-white transition-colors disabled:opacity-40"
+                    >
+                      {isGeneratingThis ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-3 h-3" />
+                      )}
+                      Regenerate
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="w-48 h-64 rounded-xl border border-dashed border-slate-700 bg-slate-900/50 flex flex-col items-center justify-center gap-3">
+                <ImageIcon className="w-10 h-10 text-slate-600" />
+                <p className="text-[11px] text-slate-500 text-center px-3">
+                  No <span className="text-slate-300">{themeName}</span> image
+                </p>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => handleGenerateImage(selectedTheme, false)}
+                  disabled={generatingImage}
+                >
+                  {isGeneratingThis ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 mr-2" />
+                  )}
+                  Generate
+                </Button>
+              </div>
+            );
+          })()}
+
+          {/* Thumbnail strip of all themed images */}
+          {charImages.filter((ci) => ci.url).length > 1 && (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {charImages
+                .filter((ci) => ci.url)
+                .map((ci) => (
+                  <button
+                    key={ci.theme}
+                    onClick={() => setSelectedTheme(ci.theme)}
+                    className={cn(
+                      "shrink-0 rounded-lg border overflow-hidden transition-all",
+                      selectedTheme === ci.theme
+                        ? "border-amber-500 ring-1 ring-amber-500/30"
+                        : "border-slate-700 hover:border-slate-500 opacity-60 hover:opacity-100"
+                    )}
+                  >
+                    <img
+                      src={ci.url!}
+                      alt={ci.theme_name}
+                      className="w-12 h-16 object-cover"
+                    />
+                    <p className="text-[9px] text-slate-400 text-center py-0.5 bg-slate-900 truncate px-1">
+                      {ci.theme_name}
+                    </p>
+                  </button>
+                ))}
             </div>
           )}
         </div>

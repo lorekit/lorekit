@@ -1,8 +1,18 @@
-"""Character image generation — create reference images for consistent video."""
+"""Character image generation — per-theme reference images for consistent video.
+
+Each philosopher can have a character image per theme (mobile_game, cinematic,
+dark_masculine, etc.).  Images are stored in ``character_images_json`` on the
+philosopher row as ``{theme: {url, local_path}}``.  The legacy
+``character_image_url`` column is kept as the "default" (no-theme) image.
+
+Helper ``get_character_image_url(philosopher_id, theme)`` is the single place
+clip generation should call to get the right portrait for Kling elements.
+"""
 
 from __future__ import annotations
 
 import asyncio
+import json as _json
 import logging
 from pathlib import Path
 
@@ -11,14 +21,165 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from philosophywise import db
-from philosophywise.config import get_settings
+from philosophywise.config import get_settings, VIBE_PRESETS
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/character", tags=["character"])
 
-# Use fal.ai Flux Kontext Pro for high-quality character portraits
-FAL_FLUX_KONTEXT_ENDPOINT = "https://queue.fal.run/fal-ai/flux-kontext/pro/v1"
+# Flux Kontext Pro — text-to-image for character portraits
+# Model ID: fal-ai/flux-pro/kontext/text-to-image
+FAL_FLUX_KONTEXT_ENDPOINT = "https://queue.fal.run/fal-ai/flux-pro/kontext/text-to-image"
 
+
+# ---------------------------------------------------------------------------
+# Per-theme portrait prompt construction
+# ---------------------------------------------------------------------------
+
+_THEME_PORTRAIT_SETTINGS: dict[str, dict[str, str]] = {
+    "dark_masculine": {
+        "framing": (
+            "Single still frame, 9:16 vertical composition, cinematic framing. "
+            "Full body, facing camera, dramatic low-angle shot."
+        ),
+        "background": (
+            "Pure black background with a single harsh rim light from behind. "
+            "Volumetric fog and faint embers in the air. "
+            "Deep crushed shadows, near-monochrome."
+        ),
+        "negative": (
+            "NOT colorful, NOT bright, NOT cartoonish, NOT cute, NOT stylized, "
+            "NOT mobile game, NOT warm lighting, NOT friendly."
+        ),
+    },
+    "cinematic": {
+        "framing": (
+            "Single still frame, 9:16 vertical composition, cinematic framing. "
+            "Full body, facing camera, dramatic golden-hour lighting."
+        ),
+        "background": (
+            "Atmospheric environment with shallow depth of field. "
+            "Rich cinematic lighting, film grain."
+        ),
+        "negative": "NOT cartoon, NOT stylized, NOT game art.",
+    },
+}
+
+_DEFAULT_PORTRAIT_SETTINGS = {
+    "framing": "Full body, front-facing, looking at camera.",
+    "background": "Plain warm gradient background.",
+    "negative": "",
+}
+
+
+def _build_character_prompt(
+    name: str,
+    char_desc: str,
+    vibe: str,
+    theme: str | None = None,
+) -> str:
+    """Build the image-gen prompt, adapting framing + background to the theme."""
+    settings = _THEME_PORTRAIT_SETTINGS.get(theme or "", _DEFAULT_PORTRAIT_SETTINGS)
+    framing = settings.get("framing", _DEFAULT_PORTRAIT_SETTINGS["framing"])
+    background = settings.get("background", _DEFAULT_PORTRAIT_SETTINGS["background"])
+    negative = settings.get("negative", "")
+
+    parts = [
+        framing,
+        f"{name}. {char_desc}.",
+        background,
+        vibe,
+    ]
+    if negative:
+        parts.append(negative)
+    return " ".join(parts)[:2500]
+
+
+# ---------------------------------------------------------------------------
+# Per-theme image storage helpers
+# ---------------------------------------------------------------------------
+
+async def _load_character_images(philosopher_id: str) -> dict[str, dict]:
+    """Load the theme -> {url, local_path} map from the DB."""
+    conn = await db.connect()
+    try:
+        cursor = await conn.execute(
+            "SELECT character_images_json, character_image_url FROM philosophers WHERE id = ?",
+            (philosopher_id,),
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return {}
+        images: dict = _json.loads(row[0] or "{}") if row[0] else {}
+        # Ensure the legacy default URL is also in the map
+        if row[1] and "default" not in images:
+            images["default"] = {"url": row[1], "local_path": None}
+        return images
+    finally:
+        await conn.close()
+
+
+async def _save_character_image(
+    philosopher_id: str,
+    theme: str,
+    url: str,
+    local_path: str,
+) -> None:
+    """Upsert one themed image into the philosopher's character_images_json."""
+    conn = await db.connect()
+    try:
+        cursor = await conn.execute(
+            "SELECT character_images_json FROM philosophers WHERE id = ?",
+            (philosopher_id,),
+        )
+        row = await cursor.fetchone()
+        images: dict = _json.loads(row[0] or "{}") if row and row[0] else {}
+
+        images[theme] = {"url": url, "local_path": local_path}
+
+        await conn.execute(
+            "UPDATE philosophers SET character_images_json = ? WHERE id = ?",
+            (_json.dumps(images), philosopher_id),
+        )
+        # Also keep legacy column in sync with the latest generation
+        await conn.execute(
+            "UPDATE philosophers SET character_image_url = ? WHERE id = ?",
+            (url, philosopher_id),
+        )
+        await conn.commit()
+    finally:
+        await conn.close()
+
+
+async def get_character_image_url(
+    philosopher_id: str,
+    theme: str | None = None,
+) -> str | None:
+    """Get the character image URL for a philosopher + theme.
+
+    This is the single function that clip generation should call.
+    Falls back: themed image → default image → None.
+    """
+    images = await _load_character_images(philosopher_id)
+    if theme and theme in images:
+        return images[theme].get("url")
+    if "default" in images:
+        return images["default"].get("url")
+    # Legacy fallback: check the old column directly
+    conn = await db.connect()
+    try:
+        cursor = await conn.execute(
+            "SELECT character_image_url FROM philosophers WHERE id = ?",
+            (philosopher_id,),
+        )
+        row = await cursor.fetchone()
+        return row[0] if row and row[0] else None
+    finally:
+        await conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Image generation
+# ---------------------------------------------------------------------------
 
 async def _generate_single_image(prompt: str, headers: dict) -> str:
     """Generate one image via Flux Kontext Pro and return its URL."""
@@ -29,14 +190,21 @@ async def _generate_single_image(prompt: str, headers: dict) -> str:
         "safety_tolerance": 6,
     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         resp = await client.post(FAL_FLUX_KONTEXT_ENDPOINT, json=payload, headers=headers)
         resp.raise_for_status()
         job = resp.json()
         request_id = job["request_id"]
-        status_url = job.get("status_url", f"{FAL_FLUX_KONTEXT_ENDPOINT}/requests/{request_id}/status")
 
-        while True:
+        # Log the full job response so we can debug URL issues
+        logger.info("Flux Kontext submit response: %s", _json.dumps(job, default=str))
+
+        status_url = job.get("status_url", f"{FAL_FLUX_KONTEXT_ENDPOINT}/requests/{request_id}/status")
+        response_url = job.get("response_url", f"{FAL_FLUX_KONTEXT_ENDPOINT}/requests/{request_id}")
+
+        logger.info("Flux Kontext job %s — status: %s — result: %s", request_id, status_url, response_url)
+
+        for _ in range(120):  # ~6 min max
             await asyncio.sleep(3)
             status_resp = await client.get(status_url, headers=headers)
             status_resp.raise_for_status()
@@ -45,9 +213,17 @@ async def _generate_single_image(prompt: str, headers: dict) -> str:
                 break
             elif status_data.get("status") in ("FAILED", "CANCELLED"):
                 raise HTTPException(status_code=500, detail="Image generation failed")
+        else:
+            raise HTTPException(status_code=504, detail="Image generation timed out")
 
-        result_url = status_url.replace("/status", "") if status_url.endswith("/status") else f"{FAL_FLUX_KONTEXT_ENDPOINT}/requests/{request_id}"
-        result_resp = await client.get(result_url, headers=headers)
+        # Try response_url first, fall back to constructed URL
+        logger.info("Flux Kontext job %s completed — fetching from %s", request_id, response_url)
+        result_resp = await client.get(response_url, headers=headers)
+        if result_resp.status_code == 404:
+            # response_url from fal may use canonical model path; try constructed URL
+            fallback_url = f"{FAL_FLUX_KONTEXT_ENDPOINT}/requests/{request_id}"
+            logger.warning("response_url 404, trying fallback: %s", fallback_url)
+            result_resp = await client.get(fallback_url, headers=headers)
         result_resp.raise_for_status()
         result_data = result_resp.json()
 
@@ -57,130 +233,135 @@ async def _generate_single_image(prompt: str, headers: dict) -> str:
     return images[0]["url"]
 
 
+async def _generate_and_store(
+    philosopher_id: str,
+    philosopher_name: str,
+    theme: str,
+    char_desc: str,
+    fal_key: str,
+) -> dict:
+    """Generate a character image for a philosopher+theme, save it, return metadata."""
+    vibe = VIBE_PRESETS.get(theme, {}).get("prompt", "")
+    if not vibe:
+        settings = get_settings()
+        vibe = settings.video_vibe
+
+    headers = {
+        "Authorization": f"Key {fal_key}",
+        "Content-Type": "application/json",
+    }
+
+    prompt = _build_character_prompt(philosopher_name, char_desc, vibe, theme)
+    image_url = await _generate_single_image(prompt, headers)
+
+    # Save locally
+    chars_dir = Path("characters")
+    chars_dir.mkdir(exist_ok=True)
+    local_path = str(chars_dir / f"{philosopher_id}_{theme}_character.png")
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        img_resp = await client.get(image_url)
+        img_resp.raise_for_status()
+        with open(local_path, "wb") as f:
+            f.write(img_resp.content)
+
+    # Store in the per-theme map
+    await _save_character_image(philosopher_id, theme, image_url, local_path)
+
+    return {
+        "image_url": image_url,
+        "local_path": local_path,
+        "theme": theme,
+        "reused": False,
+    }
+
+
+# ---------------------------------------------------------------------------
+# API endpoints
+# ---------------------------------------------------------------------------
+
 class GenerateCharacterRequest(BaseModel):
     project_id: str
     custom_description: str | None = None
-    force: bool = False  # Force regenerate even if philosopher already has one
+    theme: str | None = None
+    force: bool = False
 
 
 @router.post("/generate")
 async def generate_character_image(body: GenerateCharacterRequest) -> dict:
-    """Generate a character reference image.
+    """Generate a character reference image for a project.
 
-    If the philosopher already has a character image and force=False,
-    reuses the existing one (saves money). The image is stored on both
-    the philosopher (shared across projects) and the project (for this video).
+    Stores the image per-theme on the philosopher so it can be reused.
+    Also copies the URL to the project for quick access.
     """
     project = await db.get_project(body.project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
     philosopher_id = project["philosopher_id"]
+    theme = body.theme or "default"
 
-    # Get philosopher data
     from philosophywise.quotes.database import get_philosopher
+    from philosophywise.video.characters import get_character_description as get_themed_char
 
     conn = await db.connect()
     try:
         philosopher = await get_philosopher(conn, philosopher_id)
-
-        # Check if philosopher already has a character image
-        if not body.force and not body.custom_description:
-            cursor = await conn.execute(
-                "SELECT character_image_url FROM philosophers WHERE id = ?",
-                (philosopher_id,),
-            )
-            row = await cursor.fetchone()
-            existing_url = row[0] if row else None
-
-            if existing_url:
-                # Reuse existing — just link it to this project
-                local_path = str(Path("characters") / f"{philosopher_id}_character.png")
-                await db.update_project(
-                    body.project_id,
-                    character_image_url=existing_url,
-                    character_image_path=local_path,
-                )
-                return {
-                    "image_url": existing_url,
-                    "local_path": local_path,
-                    "reused": True,
-                }
     finally:
         await conn.close()
 
+    # Check for existing themed image (unless force regenerate)
+    if not body.force and not body.custom_description:
+        images = await _load_character_images(philosopher_id)
+        if theme in images and images[theme].get("url"):
+            existing_url = images[theme]["url"]
+            await db.update_project(
+                body.project_id,
+                character_image_url=existing_url,
+                character_image_path=images[theme].get("local_path", ""),
+            )
+            return {
+                "image_url": existing_url,
+                "local_path": images[theme].get("local_path"),
+                "reused": True,
+                "theme": theme,
+            }
+
+    # Generate new image
     settings = get_settings()
-    headers = {
-        "Authorization": f"Key {settings.fal_key}",
-        "Content-Type": "application/json",
-    }
+    char_desc = body.custom_description or get_themed_char(philosopher_id, theme=theme if theme != "default" else None)
 
-    char_desc = body.custom_description or philosopher.character_description
-
-    # One strong portrait — the character description drives everything
-    prompt = (
-        f"{philosopher.name}. {char_desc}. "
-        f"Full body, front-facing, looking at camera. "
-        f"Plain warm gradient background. "
-        f"{settings.video_vibe}"
+    result = await _generate_and_store(
+        philosopher_id, philosopher.name, theme, char_desc, settings.fal_key,
     )
 
-    frontal_url = await _generate_single_image(prompt, headers)
-    all_ref_urls = [frontal_url]
-
-    # Save frontal locally
-    chars_dir = Path("characters")
-    chars_dir.mkdir(exist_ok=True)
-
-    philosopher_path = str(chars_dir / f"{philosopher_id}_character.png")
-    project_path = str(chars_dir / f"{body.project_id}_character.png")
-
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        img_resp = await client.get(frontal_url)
-        img_resp.raise_for_status()
-        img_data = img_resp.content
-        with open(philosopher_path, "wb") as f:
-            f.write(img_data)
-        with open(project_path, "wb") as f:
-            f.write(img_data)
-
-    # Save to philosopher — frontal as main image, all as reference URLs (JSON)
-    import json as _json
-    conn = await db.connect()
-    try:
-        await conn.execute(
-            "UPDATE philosophers SET character_image_url = ?, character_ref_urls = ? WHERE id = ?",
-            (frontal_url, _json.dumps(all_ref_urls), philosopher_id),
-        )
-        await conn.commit()
-    finally:
-        await conn.close()
-
-    # Save to project
+    # Copy to project
     await db.update_project(
         body.project_id,
-        character_image_url=frontal_url,
-        character_image_path=project_path,
+        character_image_url=result["image_url"],
+        character_image_path=result["local_path"],
     )
 
-    return {
-        "image_url": frontal_url,
-        "reference_urls": all_ref_urls,
-        "local_path": project_path,
-        "reused": False,
-    }
+    return result
 
 
 class GenerateForPhilosopherRequest(BaseModel):
     philosopher_id: str
     custom_description: str | None = None
+    theme: str | None = None
     force: bool = False
 
 
 @router.post("/generate-for-philosopher")
 async def generate_character_for_philosopher(body: GenerateForPhilosopherRequest) -> dict:
-    """Generate a character image for a philosopher (no project needed)."""
+    """Generate a character image for a philosopher (no project needed).
+
+    Stores per-theme so you can generate all themes and browse them.
+    """
     from philosophywise.quotes.database import get_philosopher
+    from philosophywise.video.characters import get_character_description as get_themed_char
+
+    theme = body.theme or "default"
 
     conn = await db.connect()
     try:
@@ -188,55 +369,41 @@ async def generate_character_for_philosopher(body: GenerateForPhilosopherRequest
 
         # Check existing
         if not body.force and not body.custom_description:
-            cursor = await conn.execute(
-                "SELECT character_image_url FROM philosophers WHERE id = ?",
-                (body.philosopher_id,),
-            )
-            row = await cursor.fetchone()
-            existing_url = row[0] if row else None
-            if existing_url:
-                return {"image_url": existing_url, "reused": True}
+            images = await _load_character_images(body.philosopher_id)
+            if theme in images and images[theme].get("url"):
+                return {
+                    "image_url": images[theme]["url"],
+                    "local_path": images[theme].get("local_path"),
+                    "reused": True,
+                    "theme": theme,
+                }
     finally:
         await conn.close()
 
     settings = get_settings()
-    char_desc = body.custom_description or philosopher.character_description
-    headers = {
-        "Authorization": f"Key {settings.fal_key}",
-        "Content-Type": "application/json",
-    }
+    char_desc = body.custom_description or get_themed_char(body.philosopher_id, theme=theme if theme != "default" else None)
 
-    prompt = (
-        f"{philosopher.name}. {char_desc}. "
-        f"Full body, front-facing, looking at camera. "
-        f"Plain warm gradient background. "
-        f"{settings.video_vibe}"
+    return await _generate_and_store(
+        body.philosopher_id, philosopher.name, theme, char_desc, settings.fal_key,
     )
 
-    frontal_url = await _generate_single_image(prompt, headers)
-    image_urls = [frontal_url]
 
-    # Save locally
-    chars_dir = Path("characters")
-    chars_dir.mkdir(exist_ok=True)
-    local_path = str(chars_dir / f"{body.philosopher_id}_character.png")
+@router.get("/images/{philosopher_id}")
+async def list_character_images(philosopher_id: str) -> dict:
+    """List all themed character images for a philosopher.
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        img_resp = await client.get(frontal_url)
-        img_resp.raise_for_status()
-        with open(local_path, "wb") as f:
-            f.write(img_resp.content)
-
-    # Save to philosopher with all reference URLs
-    import json as _json
-    conn = await db.connect()
-    try:
-        await conn.execute(
-            "UPDATE philosophers SET character_image_url = ?, character_ref_urls = ? WHERE id = ?",
-            (frontal_url, _json.dumps(image_urls), body.philosopher_id),
-        )
-        await conn.commit()
-    finally:
-        await conn.close()
-
-    return {"image_url": frontal_url, "reference_urls": image_urls, "local_path": local_path, "reused": False}
+    Returns a dict of theme -> {url, local_path} so the frontend can
+    display them as a scrollable gallery with theme labels.
+    """
+    images = await _load_character_images(philosopher_id)
+    # Add theme display names
+    result: list[dict] = []
+    for theme_key, data in images.items():
+        preset = VIBE_PRESETS.get(theme_key, {})
+        result.append({
+            "theme": theme_key,
+            "theme_name": preset.get("name", theme_key.replace("_", " ").title()),
+            "url": data.get("url"),
+            "local_path": data.get("local_path"),
+        })
+    return {"philosopher_id": philosopher_id, "images": result}

@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from philosophywise.config import VIBE_PRESETS, get_settings
+from philosophywise.story.templates import ARC_TEMPLATES
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -51,6 +52,25 @@ async def get_current_settings() -> dict:
 async def get_vibe_presets() -> dict:
     """Return available vibe presets."""
     return {"presets": VIBE_PRESETS}
+
+
+@router.get("/arc-templates")
+async def get_arc_templates() -> dict:
+    """Return available arc (video format) templates."""
+    return {
+        "templates": {
+            tid: {
+                "id": t.id,
+                "name": t.name,
+                "description": t.description,
+                "min_duration": t.min_duration,
+                "max_duration": t.max_duration,
+                "min_scenes": t.min_scenes,
+                "max_scenes": t.max_scenes,
+            }
+            for tid, t in ARC_TEMPLATES.items()
+        }
+    }
 
 
 @router.patch("")

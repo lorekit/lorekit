@@ -119,11 +119,25 @@ async def generate_video(
     hook_quote_id: str | None = None,
     truth_quote_id: str | None = None,
     dry_run: bool = False,
+    theme: str | None = None,
+    arc_template: str | None = None,
 ) -> VideoProject:
-    """Full pipeline: quote select -> story -> video -> audio -> assembly -> done."""
+    """Full pipeline: quote select -> story -> video -> audio -> assembly -> done.
+
+    Args:
+        theme: Vibe preset key (e.g. "dark_masculine"). When set, uses
+            the theme's vibe prompt and per-theme character descriptions.
+            Falls back to ``settings.video_vibe_preset`` if not provided.
+        arc_template: Arc template ID (e.g. "story", "rapid_montage").
+            Defaults to "story".
+    """
     settings = get_settings()
     settings.ensure_dirs()
     await db.init_db()
+
+    # Resolve theme from settings if not explicitly provided
+    if theme is None:
+        theme = settings.video_vibe_preset
 
     # 0. Pick philosopher if not specified
     if philosopher_id is None:
@@ -152,6 +166,8 @@ async def generate_video(
         project = VideoProject(
             philosopher_id=philosopher_id,
             civilization=civilization,
+            theme=theme or "",
+            arc_template=arc_template or "story",
             story=story,
             status="queued",
         )

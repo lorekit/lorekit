@@ -17,11 +17,18 @@ from philosophywise.models import (
     Scene,
     StoryBreakdown,
 )
-from philosophywise.story.templates import UNIVERSAL_ARC, OPTIONAL_BEATS
+from philosophywise.story.templates import (
+    ArcTemplate,
+    UNIVERSAL_ARC,
+    OPTIONAL_BEATS,
+    get_arc_template,
+    DEFAULT_ARC_TEMPLATE,
+)
 from philosophywise.story.prompts.roman import ROMAN_STORY_CONTEXT
 from philosophywise.story.prompts.chinese import CHINESE_STORY_CONTEXT
 from philosophywise.story.prompts.japanese import JAPANESE_STORY_CONTEXT
 from philosophywise.story.prompts.greek import GREEK_STORY_CONTEXT
+from philosophywise.story.prompts.dark_masculine import DARK_MASCULINE_STORY_CONTEXT
 from philosophywise.story.validator import validate_story
 
 logger = logging.getLogger(__name__)
@@ -33,44 +40,69 @@ CIVILIZATION_CONTEXTS: dict[str, str] = {
     "greek": GREEK_STORY_CONTEXT,
 }
 
-_ARC_DESCRIPTION = "\n".join(
-    f"  {i+1}. {beat['beat'].upper()} ({beat['duration_range'][0]}-{beat['duration_range'][1]}s): {beat['purpose']}"
-    for i, beat in enumerate(UNIVERSAL_ARC)
-)
+# Theme-specific context overrides. When a theme key is present here,
+# its context replaces (or supplements) the civilization context.
+THEME_CONTEXTS: dict[str, str] = {
+    "dark_masculine": DARK_MASCULINE_STORY_CONTEXT,
+}
 
-_OPTIONAL_DESCRIPTION = "\n".join(
-    f"  - {beat['beat'].upper()} ({beat['duration_range'][0]}-{beat['duration_range'][1]}s): {beat['purpose']}"
-    for beat in OPTIONAL_BEATS
-)
+
+# ── Prompt construction ──────────────────────────────────────────────────
+
+
+def _format_arc_description(arc: ArcTemplate) -> str:
+    """Build the beat list section for an arc template's system prompt."""
+    return "\n".join(
+        f"  {i+1}. {beat['beat'].upper()} "
+        f"({beat['duration_range'][0]}-{beat['duration_range'][1]}s): "
+        f"{beat['purpose']}"
+        for i, beat in enumerate(arc.beats)
+    )
+
+
+def _format_optional_description(arc: ArcTemplate) -> str:
+    """Build the optional-beats section for an arc template's system prompt."""
+    if not arc.optional_beats:
+        return ""
+    return "\n".join(
+        f"  - {beat['beat'].upper()} "
+        f"({beat['duration_range'][0]}-{beat['duration_range'][1]}s): "
+        f"{beat['purpose']}"
+        for beat in arc.optional_beats
+    )
 
 
 def _build_system_prompt(
     philosopher: Philosopher,
     civilization_context: str,
     vibe: str,
+    arc: ArcTemplate,
 ) -> str:
-    """Build the system prompt for Claude story generation."""
-    return f"""You are a cinematic story director creating scene-by-scene breakdowns for 30-50 second vertical philosophy videos (9:16).
+    """Build the system prompt for LLM story generation.
+
+    The arc template's ``system_prompt_fragment`` is formatted with the
+    arc's own constraints and injected into the prompt.
+    """
+    arc_description = _format_arc_description(arc)
+    optional_description = _format_optional_description(arc)
+
+    # Format the template-specific rules section
+    arc_rules = arc.system_prompt_fragment.format(
+        arc_description=arc_description,
+        optional_description=optional_description,
+        min_duration=int(arc.min_duration),
+        max_duration=int(arc.max_duration),
+        min_scenes=arc.min_scenes,
+        max_scenes=arc.max_scenes,
+        max_scene_duration=arc.max_scene_duration,
+    )
+
+    return f"""You are a cinematic story director creating scene-by-scene breakdowns for vertical philosophy videos (9:16).
 
 PHILOSOPHER: {philosopher.name} ({philosopher.era})
 CIVILIZATION: {civilization_context}
 
-STORY ARC:
-{_ARC_DESCRIPTION}
-
-OPTIONAL BEATS (insert between conflict and stillness if needed):
-{_OPTIONAL_DESCRIPTION}
-
-RULES:
-1. Total duration MUST be 30-50 seconds, 6-8 scenes, no scene exceeds 8 seconds
-2. Something visually new every 3 seconds
-3. EVERY scene MUST have a text_overlay — this is narration that tells the story throughout the video. The text should flow as a continuous narrative across all scenes, like a voiceover script broken into scene-sized pieces.
-4. The HOOK scene text should grab attention with the hook quote or a compelling opening line
-5. The TRUTH scene text should deliver the main quote / wisdom payoff
-6. Other scenes should have short narration (1-2 sentences) that bridges the story — describing what's happening, adding context, building toward the truth. Think of it as a storyteller guiding the viewer through the journey.
-7. The LOOP scene text can echo the hook or leave a final thought
-8. The LOOP scene must mirror the HOOK scene visually for seamless replay
-9. Camera movements: slow push-in, orbital, crane, tracking shots
+{arc_rules}
 
 IMPORTANT — WHAT TO INCLUDE vs WHAT TO LEAVE OUT:
 
@@ -82,13 +114,11 @@ DO describe in visual_description:
 - When the character changes clothes (e.g., "now wearing armor" vs "wearing toga")
 
 DO NOT include in visual_description:
-- The character's physical appearance (face, hair, beard, body type) — this is handled separately by the character reference system. Just say "Marcus Aurelius" or "the philosopher" when they appear.
+- The character's physical appearance (face, hair, beard, body type) — this is handled separately by the character reference system. Just say "{philosopher.name}" or "the philosopher" when they appear.
 - Art style or rendering instructions (no "mobile game style", "colorful illustrated", "chunky 3D", etc.) — this is handled by global style settings.
 - Technical quality directives (no "8K", "photorealistic", "high quality", etc.)
 
 CHARACTER PRESENCE: Set "character_present": true when the philosopher physically appears in the scene (speaking, walking, gesturing, etc.). Set "character_present": false for environment-only scenes (establishing shots, landscapes, abstract concepts, close-ups of objects).
-
-CTA: In ONE scene (preferably truth or loop beat), describe a visual element where the word "{{{{CTA}}}}" appears naturally carved into stone, written on a scroll, or etched into marble. Mark this scene with "cta_scene": true.
 
 Keep scene descriptions focused and concise (2-4 sentences each). The video generation system will layer the character appearance and art style on top of your scene descriptions automatically."""
 
@@ -97,28 +127,52 @@ def _build_user_prompt(
     hook_quote: Quote,
     truth_quote: Quote,
     target_duration: int,
+    arc: ArcTemplate,
 ) -> str:
-    """Build the user message requesting the story breakdown."""
-    return f"""Create a scene-by-scene breakdown for a {target_duration}-second video.
+    """Build the user message requesting the story breakdown.
 
-HOOK QUOTE (displayed in scene 1): "{hook_quote.text}"
+    For rapid_montage, the prompt focuses on breaking a quote into
+    individual word/phrase cuts rather than a narrative arc.
+    """
+    # For montage templates, use a simpler beat name in the schema example
+    example_beat = arc.beats[0]["beat"] if arc.beats else "hook"
+
+    # Montage-specific instructions for how to use the quotes
+    if arc.id == "rapid_montage":
+        quote_instruction = f"""Break one or both of these quotes into individual WORDS or SHORT PHRASES (1-3 words each), one per scene.
+
+QUOTE 1: "{hook_quote.text}"
+- Theme: {hook_quote.theme}
+- Suggested visual: {hook_quote.pair_with_visual}
+
+QUOTE 2: "{truth_quote.text}"
+- Theme: {truth_quote.theme}
+- Suggested visual: {truth_quote.pair_with_visual}
+
+You can use one quote broken into words, combine key words from both, or repeat a single powerful word. Each scene's text_overlay should be 1-3 words MAX."""
+    else:
+        quote_instruction = f"""HOOK QUOTE (displayed in scene 1): "{hook_quote.text}"
 - Theme: {hook_quote.theme}
 - Suggested visual: {hook_quote.pair_with_visual}
 
 TRUTH QUOTE (displayed in truth scene): "{truth_quote.text}"
 - Theme: {truth_quote.theme}
-- Suggested visual: {truth_quote.pair_with_visual}
+- Suggested visual: {truth_quote.pair_with_visual}"""
+
+    return f"""Create a scene-by-scene breakdown for a {target_duration}-second video.
+
+{quote_instruction}
 
 Return ONLY valid JSON matching this exact schema — no markdown, no commentary:
 {{
     "scenes": [
         {{
             "scene_id": 1,
-            "beat": "hook",
-            "duration": 3.0,
+            "beat": "{example_beat}",
+            "duration": {arc.beats[0]['duration_range'][1]}.0,
             "visual_description": "detailed description of what the viewer sees",
             "camera": "camera movement description",
-            "text_overlay": "narration text for this scene (REQUIRED for every scene)",
+            "text_overlay": "text for this scene (REQUIRED for every scene)",
             "text_attribution": "— Philosopher Name (only for scenes with direct quotes, null otherwise)",
             "character_present": true,
             "cta_scene": false,
@@ -159,6 +213,9 @@ def _parse_scene(raw: dict[str, Any], philosopher_name: str) -> Scene:
         character_present=raw.get("character_present", False),
         cta_scene=raw.get("cta_scene", False),
     )
+
+
+# ── LLM calling ──────────────────────────────────────────────────────────
 
 
 async def _call_anthropic(system_prompt: str, user_prompt: str, model: str) -> str:
@@ -207,27 +264,50 @@ def _strip_code_fences(text: str) -> str:
     return text.strip()
 
 
+# ── Main entry point ─────────────────────────────────────────────────────
+
+
 async def generate_story(
     philosopher: Philosopher,
     hook_quote: Quote,
     truth_quote: Quote,
     target_duration: int = 35,
     max_retries: int = 2,
+    theme: str | None = None,
+    arc_template: str | None = None,
 ) -> StoryBreakdown:
     """Generate a full scene-by-scene breakdown using the configured LLM.
 
     Supports both Anthropic (Claude) and OpenAI providers.
     Returns validated StoryBreakdown.
+
+    Args:
+        theme: Vibe preset key (e.g. "dark_masculine"). When a theme-specific
+            story context exists, it replaces the default civilization context.
+        arc_template: Arc template ID (e.g. "story", "rapid_montage").
+            Defaults to ``DEFAULT_ARC_TEMPLATE``.
     """
     settings = get_settings()
     vibe = settings.video_vibe
 
-    civ_context = CIVILIZATION_CONTEXTS.get(
-        philosopher.civilization, ROMAN_STORY_CONTEXT
-    )
+    # Resolve arc template
+    arc = get_arc_template(arc_template or DEFAULT_ARC_TEMPLATE)
 
-    system_prompt = _build_system_prompt(philosopher, civ_context, vibe)
-    user_prompt = _build_user_prompt(hook_quote, truth_quote, target_duration)
+    # Override target_duration to the arc's midpoint if the caller used the
+    # default (35 s), which only makes sense for the "story" arc.
+    if target_duration == 35 and arc.id != "story":
+        target_duration = int((arc.min_duration + arc.max_duration) / 2)
+
+    # Use theme-specific context if available, otherwise fall back to civilization
+    if theme and theme in THEME_CONTEXTS:
+        civ_context = THEME_CONTEXTS[theme]
+    else:
+        civ_context = CIVILIZATION_CONTEXTS.get(
+            philosopher.civilization, ROMAN_STORY_CONTEXT
+        )
+
+    system_prompt = _build_system_prompt(philosopher, civ_context, vibe, arc)
+    user_prompt = _build_user_prompt(hook_quote, truth_quote, target_duration, arc)
 
     last_error: Exception | None = None
     for attempt in range(max_retries + 1):
@@ -244,6 +324,8 @@ async def generate_story(
             story = StoryBreakdown(
                 philosopher_id=philosopher.id,
                 civilization=philosopher.civilization,
+                theme=theme or "",
+                arc_template=arc.id,
                 hook_quote=hook_quote,
                 truth_quote=truth_quote,
                 scenes=scenes,
@@ -251,7 +333,7 @@ async def generate_story(
                 music_theme=data.get("music_theme", "cinematic orchestral"),
             )
 
-            issues = validate_story(story)
+            issues = validate_story(story, arc=arc)
             if issues:
                 logger.warning(
                     "Story validation issues (attempt %d/%d): %s",

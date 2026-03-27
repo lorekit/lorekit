@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import {
   getPhilosophers,
   getQuotes,
+  getVibePresets,
+  getArcTemplates,
+  getCharacterImages,
   generateStory,
 } from "@/lib/api";
-import type { Philosopher, Quote } from "@/lib/api";
+import type { Philosopher, Quote, VibePreset, ArcTemplate, CharacterImage } from "@/lib/api";
 import {
   cn,
   CIV_COLORS,
@@ -21,6 +24,9 @@ import {
   Check,
   Shuffle,
   Loader2,
+  Film,
+  Zap,
+  Palette,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -30,10 +36,11 @@ import {
 const STEPS = [
   "Choose Philosopher",
   "Pick a Quote",
+  "Format & Style",
   "Create Project",
 ] as const;
 
-type StepIndex = 0 | 1 | 2;
+type StepIndex = 0 | 1 | 2 | 3;
 
 // ---------------------------------------------------------------------------
 // Step Indicator
@@ -364,22 +371,217 @@ function StepChooseQuotes({
 }
 
 // ---------------------------------------------------------------------------
-// Step 3 – Create Project (summary + generate button)
+// Step 3 – Format & Style
+// ---------------------------------------------------------------------------
+
+const ARC_ICONS: Record<string, typeof Film> = {
+  story: Film,
+  rapid_montage: Zap,
+};
+
+const VIBE_STYLE_CLASSES: Record<string, string> = {
+  mobile_game: "border-emerald-500 bg-emerald-500/10",
+  cinematic: "border-amber-500 bg-amber-500/10",
+  stylized_cinematic: "border-purple-500 bg-purple-500/10",
+  dark_masculine: "border-slate-400 bg-slate-400/10",
+  custom: "border-slate-600 bg-slate-800",
+};
+
+function StepFormatStyle({
+  arcTemplates,
+  vibePresets,
+  selectedArc,
+  selectedVibe,
+  onSelectArc,
+  onSelectVibe,
+  loading,
+  charImages,
+}: {
+  arcTemplates: Record<string, ArcTemplate>;
+  vibePresets: Record<string, VibePreset>;
+  selectedArc: string;
+  selectedVibe: string;
+  onSelectArc: (id: string) => void;
+  onSelectVibe: (id: string) => void;
+  loading: boolean;
+  charImages: CharacterImage[];
+}) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
+        <span className="ml-3 text-slate-400">Loading options...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* Video Format */}
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold text-white">Video Format</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            Choose the structure for your video.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {Object.entries(arcTemplates).map(([id, arc]) => {
+            const isSelected = selectedArc === id;
+            const Icon = ARC_ICONS[id] ?? Film;
+
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => onSelectArc(id)}
+                className={cn(
+                  "rounded-xl border p-5 text-left transition-all",
+                  "bg-slate-900 hover:border-slate-600",
+                  isSelected
+                    ? "border-amber-500 bg-amber-500/5 shadow-[0_0_12px_rgba(245,158,11,0.08)]"
+                    : "border-slate-800"
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={cn(
+                      "flex items-center justify-center w-10 h-10 rounded-lg shrink-0",
+                      isSelected ? "bg-amber-500/20" : "bg-slate-800"
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        "w-5 h-5",
+                        isSelected ? "text-amber-400" : "text-slate-400"
+                      )}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-white">{arc.name}</p>
+                      {isSelected && (
+                        <Check className="w-4 h-4 text-amber-400 shrink-0" />
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-slate-400 leading-relaxed">
+                      {arc.description}
+                    </p>
+                    <p className="mt-2 text-[10px] text-slate-500">
+                      {arc.min_duration}-{arc.max_duration}s
+                      {" · "}
+                      {arc.min_scenes}-{arc.max_scenes} scenes
+                    </p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Visual Style */}
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+            <Palette className="w-5 h-5 text-slate-400" />
+            Visual Style
+          </h2>
+          <p className="mt-1 text-sm text-slate-400">
+            Choose the art style and vibe. This overrides the global setting for this project.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {Object.entries(vibePresets)
+            .filter(([id]) => id !== "custom")
+            .map(([id, preset]) => {
+              const isSelected = selectedVibe === id;
+              const themeImage = charImages.find((ci) => ci.theme === id && ci.url);
+
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => onSelectVibe(id)}
+                  className={cn(
+                    "rounded-xl border p-4 text-left transition-all",
+                    "hover:border-slate-600",
+                    isSelected
+                      ? VIBE_STYLE_CLASSES[id] ?? "border-amber-500 bg-amber-500/10"
+                      : "bg-slate-900 border-slate-800"
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    {themeImage?.url && (
+                      <img
+                        src={themeImage.url}
+                        alt={preset.name}
+                        className="w-10 h-14 object-cover rounded-md border border-slate-700 shrink-0"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p
+                          className={cn(
+                            "font-medium text-sm",
+                            isSelected ? "text-white" : "text-slate-300"
+                          )}
+                        >
+                          {preset.name}
+                        </p>
+                        {isSelected && (
+                          <Check className="w-4 h-4 text-amber-400 shrink-0" />
+                        )}
+                      </div>
+                      <p className="mt-1.5 text-xs text-slate-400 leading-relaxed">
+                        {preset.description}
+                      </p>
+                      {themeImage ? (
+                        <p className="mt-1 text-[10px] text-emerald-400">Character ready</p>
+                      ) : (
+                        <p className="mt-1 text-[10px] text-slate-500">No character image yet</p>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 4 – Create Project (summary + generate button)
 // ---------------------------------------------------------------------------
 
 function StepCreateProject({
   philosopher,
   selectedQuote,
+  selectedArc,
+  selectedVibe,
+  arcTemplates,
+  vibePresets,
   generating,
   error,
   onGenerate,
 }: {
   philosopher: Philosopher;
   selectedQuote: Quote | null;
+  selectedArc: string;
+  selectedVibe: string;
+  arcTemplates: Record<string, ArcTemplate>;
+  vibePresets: Record<string, VibePreset>;
   generating: boolean;
   error: string | null;
   onGenerate: () => void;
 }) {
+  const arcLabel = arcTemplates[selectedArc]?.name ?? selectedArc;
+  const vibeLabel = vibePresets[selectedVibe]?.name ?? selectedVibe;
+
   return (
     <div className="flex flex-col items-center justify-center py-16 space-y-8 max-w-lg mx-auto">
       <div className="text-center space-y-2">
@@ -416,6 +618,20 @@ function StepCreateProject({
               AI will choose the best quotes automatically
             </p>
           )}
+        </div>
+
+        <div className="flex gap-6">
+          <div>
+            <p className="text-xs text-slate-500">Format</p>
+            <p className="text-sm text-white font-medium mt-0.5">{arcLabel}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Style / Theme</p>
+            <p className="text-sm text-white font-medium mt-0.5">{vibeLabel}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">
+              Character images + clips will use this theme
+            </p>
+          </div>
         </div>
       </div>
 
@@ -466,11 +682,21 @@ export default function GenerateWizardPage() {
   const [loadingQuotes, setLoadingQuotes] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
 
-  // Step 3 state
+  // Step 3 state (format & style)
+  const [arcTemplates, setArcTemplates] = useState<Record<string, ArcTemplate>>({});
+  const [vibePresets, setVibePresets] = useState<Record<string, VibePreset>>({});
+  const [loadingOptions, setLoadingOptions] = useState(true);
+  const [selectedArc, setSelectedArc] = useState("story");
+  const [selectedVibe, setSelectedVibe] = useState("mobile_game");
+
+  // Character images for selected philosopher
+  const [charImages, setCharImages] = useState<CharacterImage[]>([]);
+
+  // Step 4 state
   const [generatingStory, setGeneratingStory] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
 
-  // ---- Fetch philosophers on mount ----
+  // ---- Fetch philosophers + options on mount ----
   useEffect(() => {
     let cancelled = false;
     setLoadingPhilosophers(true);
@@ -487,22 +713,56 @@ export default function GenerateWizardPage() {
     };
   }, []);
 
-  // ---- Fetch quotes when philosopher changes ----
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingOptions(true);
+    Promise.all([getArcTemplates(), getVibePresets()])
+      .then(([arcData, vibeData]) => {
+        if (!cancelled) {
+          setArcTemplates(arcData.templates);
+          setVibePresets(vibeData.presets);
+          // Default to the global vibe preset if it exists
+          const keys = Object.keys(vibeData.presets);
+          if (keys.length > 0 && !vibeData.presets[selectedVibe]) {
+            setSelectedVibe(keys[0]);
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoadingOptions(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---- Fetch quotes + character images when philosopher changes ----
   useEffect(() => {
     if (!selectedPhilosopher) {
       setQuotes([]);
       setSelectedQuote(null);
+      setCharImages([]);
       return;
     }
     let cancelled = false;
     setLoadingQuotes(true);
     setSelectedQuote(null);
-    getQuotes({ philosopher_id: selectedPhilosopher.id })
-      .then((data) => {
-        if (!cancelled) setQuotes(data);
+    Promise.all([
+      getQuotes({ philosopher_id: selectedPhilosopher.id }),
+      getCharacterImages(selectedPhilosopher.id).catch(() => ({ images: [] as CharacterImage[] })),
+    ])
+      .then(([quoteData, charData]) => {
+        if (!cancelled) {
+          setQuotes(quoteData);
+          setCharImages(charData.images);
+        }
       })
       .catch(() => {
-        if (!cancelled) setQuotes([]);
+        if (!cancelled) {
+          setQuotes([]);
+          setCharImages([]);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoadingQuotes(false);
@@ -519,14 +779,14 @@ export default function GenerateWizardPage() {
       next.add(currentStep);
       return next;
     });
-    setCurrentStep((prev) => Math.min(prev + 1, 2) as StepIndex);
+    setCurrentStep((prev) => Math.min(prev + 1, 3) as StepIndex);
   }
 
   function goBack() {
     setCurrentStep((prev) => Math.max(prev - 1, 0) as StepIndex);
   }
 
-  // ---- Step 3: Create project & redirect ----
+  // ---- Step 4: Create project & redirect ----
   const handleGenerateStory = useCallback(async () => {
     if (!selectedPhilosopher) return;
     setGeneratingStory(true);
@@ -535,6 +795,8 @@ export default function GenerateWizardPage() {
       const result = await generateStory({
         philosopher_id: selectedPhilosopher.id,
         quote_ids: selectedQuote ? [selectedQuote.id] : undefined,
+        arc_template: selectedArc,
+        theme: selectedVibe,
       });
       router.push(`/projects/${result.project_id}`);
     } catch (err) {
@@ -543,7 +805,7 @@ export default function GenerateWizardPage() {
       );
       setGeneratingStory(false);
     }
-  }, [selectedPhilosopher, selectedQuote, router]);
+  }, [selectedPhilosopher, selectedQuote, selectedArc, selectedVibe, router]);
 
   // ---- Can proceed logic ----
   const canGoNext = (() => {
@@ -553,6 +815,8 @@ export default function GenerateWizardPage() {
       case 1:
         return true; // quotes are optional
       case 2:
+        return true; // format/style always has a default selection
+      case 3:
         return false; // handled by generate button
       default:
         return false;
@@ -588,10 +852,27 @@ export default function GenerateWizardPage() {
           />
         )}
 
-        {currentStep === 2 && selectedPhilosopher && (
+        {currentStep === 2 && (
+          <StepFormatStyle
+            arcTemplates={arcTemplates}
+            vibePresets={vibePresets}
+            selectedArc={selectedArc}
+            selectedVibe={selectedVibe}
+            onSelectArc={setSelectedArc}
+            onSelectVibe={setSelectedVibe}
+            loading={loadingOptions}
+            charImages={charImages}
+          />
+        )}
+
+        {currentStep === 3 && selectedPhilosopher && (
           <StepCreateProject
             philosopher={selectedPhilosopher}
             selectedQuote={selectedQuote}
+            selectedArc={selectedArc}
+            selectedVibe={selectedVibe}
+            arcTemplates={arcTemplates}
+            vibePresets={vibePresets}
             generating={generatingStory}
             error={generateError}
             onGenerate={handleGenerateStory}
@@ -611,7 +892,7 @@ export default function GenerateWizardPage() {
             Back
           </Button>
 
-          {currentStep < 2 && (
+          {currentStep < 3 && (
             <Button onClick={goNext} disabled={!canGoNext}>
               Next
               <ArrowRight className="w-4 h-4 ml-2" />

@@ -18,7 +18,10 @@
             "Apology (Xenophon)"
         ],
         "character_description": "Elderly Greek man, late 60s, bald on top with wispy white hair around sides, snub nose (famously ugly), bulging eyes, thick lips, short stocky build, barefoot, wearing a simple rough himation (cloak) draped over one shoulder — deliberately plain. Animated expression when speaking, often gesturing.",
-        "environment_description": "Athenian agora (marketplace), stone colonnades, open-air gathering spaces, olive trees, the Acropolis visible in background, Athenian courtroom during his trial, prison cell with stone walls and small window, bright Mediterranean sunlight, classical Greek architecture."
+        "environment_description": "Athenian agora (marketplace), stone colonnades, open-air gathering spaces, olive trees, the Acropolis visible in background, Athenian courtroom during his trial, prison cell with stone walls and small window, bright Mediterranean sunlight, classical Greek architecture.",
+        "character_descriptions": {
+            "dark_masculine": "A hulking, grotesque figure of terrifying charisma. Barrel-chested, bald, with a face like a cracked stone gargoyle — bulging eyes that see through lies. Barefoot on broken marble. Wearing a tattered dark chiton that exposes massive arms. Holds an empty hemlock cup like a trophy. A philosophical monster who destroys your certainty with a smile that belongs on a skull."
+        }
     },
     "quotes": [
         {

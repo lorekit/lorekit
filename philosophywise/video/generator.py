@@ -42,11 +42,22 @@ INITIAL_BACKOFF = 2.0
 POLL_INTERVAL = 5.0
 
 
+def _resolve_vibe(theme: str | None) -> str:
+    """Return the vibe prompt text for a theme, falling back to settings default."""
+    if theme:
+        from philosophywise.config import VIBE_PRESETS
+        preset = VIBE_PRESETS.get(theme)
+        if preset and preset.get("prompt"):
+            return preset["prompt"]
+    return get_settings().video_vibe
+
+
 async def generate_scene_clips(
     scenes: list[Scene],
     philosopher: Philosopher,
     clips_dir: str,
     character_image_url: str | None = None,
+    theme: str | None = None,
 ) -> list[str]:
     """Generate all scene video clips with seamless loop support.
 
@@ -66,6 +77,7 @@ async def generate_scene_clips(
     settings = get_settings()
     from philosophywise.config import get_civilization
     civ_config = get_civilization(philosopher.civilization)
+    vibe_text = _resolve_vibe(theme)
 
     first_scene = scenes[0]
     last_scene = scenes[-1] if len(scenes) > 1 else None
@@ -73,7 +85,7 @@ async def generate_scene_clips(
 
     # --- Step 1: Generate scene 1's keyframe ---
     first_prompt = build_video_prompt(
-        first_scene, philosopher, civ_config.model_dump(), settings.video_vibe,
+        first_scene, philosopher, civ_config.model_dump(), vibe_text, theme=theme,
     )
     has_char_first = first_scene.character_present and character_image_url
 
@@ -93,11 +105,12 @@ async def generate_scene_clips(
         first_scene, philosopher, clips_dir, settings,
         civ_config.model_dump(), character_image_url,
         keyframe_url=hook_keyframe_url,
+        theme=theme,
     )
 
     # --- Step 3: Generate middle scenes in parallel ---
     middle_tasks = [
-        generate_single_clip(scene, philosopher, clips_dir, character_image_url)
+        generate_single_clip(scene, philosopher, clips_dir, character_image_url, theme=theme)
         for scene in middle_scenes
     ]
     middle_results = await asyncio.gather(*middle_tasks, return_exceptions=True)
@@ -112,7 +125,7 @@ async def generate_scene_clips(
     if last_scene:
         last_clip_path = await generate_single_clip(
             last_scene, philosopher, clips_dir, character_image_url,
-            end_image_url=hook_keyframe_url,
+            end_image_url=hook_keyframe_url, theme=theme,
         )
 
     # Assemble in order
@@ -131,6 +144,7 @@ async def generate_single_clip(
     clips_dir: str,
     character_image_url: str | None = None,
     end_image_url: str | None = None,
+    theme: str | None = None,
 ) -> str:
     """Generate one video clip.
 
@@ -154,6 +168,7 @@ async def generate_single_clip(
         scene, philosopher, clips_dir, settings,
         civ_config.model_dump(), character_image_url,
         end_image_url=end_image_url,
+        theme=theme,
     )
 
 
@@ -166,20 +181,24 @@ async def _generate_clip_with_keyframe(
     character_image_url: str | None = None,
     keyframe_url: str | None = None,
     end_image_url: str | None = None,
+    theme: str | None = None,
 ) -> str:
     """Core clip generation — optionally reuses a pre-generated keyframe.
 
     If keyframe_url is provided, skips keyframe generation.
     If end_image_url is provided, passes it to Kling for loop support.
     """
-    clip_path = str(Path(clips_dir) / f"scene_{scene.scene_id:03d}.mp4")
+    clips_dir_path = Path(clips_dir)
+    clips_dir_path.mkdir(parents=True, exist_ok=True)
+    clip_path = str(clips_dir_path / f"scene_{scene.scene_id:03d}.mp4")
+
+    vibe_text = _resolve_vibe(theme)
 
     full_prompt = build_video_prompt(
-        scene, philosopher, civ_config, settings.video_vibe,  # type: ignore[attr-defined]
+        scene, philosopher, civ_config, vibe_text, theme=theme,
     )
     anim_prompt = build_video_prompt(
-        scene, philosopher, civ_config, settings.video_vibe,  # type: ignore[attr-defined]
-        skip_character=True,
+        scene, philosopher, civ_config, vibe_text, skip_character=True, theme=theme,
     )
 
     has_character = scene.character_present and character_image_url
@@ -467,10 +486,7 @@ async def _submit_and_get_video(
                 error_msg = status_data.get("error", "unknown error")
                 raise RuntimeError(f"{label} job {request_id} {status}: {error_msg}")
 
-        result_url = (
-            status_url[:-7] if status_url.endswith("/status")
-            else job.get("response_url", f"{endpoint}/requests/{request_id}")
-        )
+        result_url = job.get("response_url", f"{endpoint}/requests/{request_id}")
         result_resp = await client.get(result_url, headers=headers)
         result_resp.raise_for_status()
         result_data = result_resp.json()
@@ -507,10 +523,7 @@ async def _submit_and_get_image(
             elif status in ("FAILED", "CANCELLED"):
                 raise RuntimeError(f"{label} failed: {status_data}")
 
-        result_url = (
-            status_url[:-7] if status_url.endswith("/status")
-            else f"{endpoint}/requests/{request_id}"
-        )
+        result_url = job.get("response_url", f"{endpoint}/requests/{request_id}")
         result_resp = await client.get(result_url, headers=headers)
         result_resp.raise_for_status()
         result_data = result_resp.json()

@@ -100,6 +100,16 @@ export interface VibePreset {
   prompt: string;
 }
 
+export interface ArcTemplate {
+  id: string;
+  name: string;
+  description: string;
+  min_duration: number;
+  max_duration: number;
+  min_scenes: number;
+  max_scenes: number;
+}
+
 export interface Settings {
   openai_api_key: string;
   anthropic_api_key: string;
@@ -162,7 +172,15 @@ export const deleteProject = (id: string) =>
   fetchAPI<void>(`/api/projects/${id}`, { method: "DELETE" });
 
 // Generate
-export const generateStory = (data: { philosopher_id: string; hook_quote_id?: string; truth_quote_id?: string; quote_ids?: string[]; target_duration?: number }) =>
+export const generateStory = (data: {
+  philosopher_id: string;
+  hook_quote_id?: string;
+  truth_quote_id?: string;
+  quote_ids?: string[];
+  target_duration?: number;
+  arc_template?: string;
+  theme?: string;
+}) =>
   fetchAPI<StoryBreakdown>("/api/generate/story", { method: "POST", body: JSON.stringify(data) });
 export const generateClips = (projectId: string) =>
   fetchAPI<{ job_id: string }>("/api/generate/clips", { method: "POST", body: JSON.stringify({ project_id: projectId }) });
@@ -195,13 +213,34 @@ export const updateSettings = (data: Partial<Settings>) =>
   fetchAPI<Settings>("/api/settings", { method: "PATCH", body: JSON.stringify(data) });
 export const getVibePresets = () =>
   fetchAPI<{ presets: Record<string, VibePreset> }>("/api/settings/vibe-presets");
+export const getArcTemplates = () =>
+  fetchAPI<{ templates: Record<string, ArcTemplate> }>("/api/settings/arc-templates");
 
 // Character
-export const generateCharacterImage = (projectId: string, customDescription?: string) =>
-  fetchAPI<{ image_url: string; local_path: string }>("/api/character/generate", {
+export const generateCharacterImage = (projectId: string, customDescription?: string, theme?: string) =>
+  fetchAPI<{ image_url: string; local_path: string; theme: string; reused: boolean }>("/api/character/generate", {
     method: "POST",
-    body: JSON.stringify({ project_id: projectId, custom_description: customDescription }),
+    body: JSON.stringify({ project_id: projectId, custom_description: customDescription, theme }),
   });
+
+export interface CharacterImage {
+  theme: string;
+  theme_name: string;
+  url: string | null;
+  local_path: string | null;
+}
+
+export const getCharacterImages = (philosopherId: string) =>
+  fetchAPI<{ philosopher_id: string; images: CharacterImage[] }>(`/api/character/images/${philosopherId}`);
+
+export const generateCharacterForPhilosopher = (
+  philosopherId: string,
+  opts?: { theme?: string; force?: boolean; custom_description?: string },
+) =>
+  fetchAPI<{ image_url: string; local_path: string; theme: string; reused: boolean }>(
+    "/api/character/generate-for-philosopher",
+    { method: "POST", body: JSON.stringify({ philosopher_id: philosopherId, ...opts }) },
+  );
 
 // Publish
 export const publishToYouTube = (projectId: string) =>

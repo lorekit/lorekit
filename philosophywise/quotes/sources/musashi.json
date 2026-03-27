@@ -4,9 +4,15 @@
         "name": "Miyamoto Musashi",
         "civilization": "japanese",
         "era": "1584-1645, Edo Period, Japan",
-        "source_texts": ["The Book of Five Rings", "Dokkodo"],
+        "source_texts": [
+            "The Book of Five Rings",
+            "Dokkodo"
+        ],
         "character_description": "Tall Japanese warrior, 50s-60s, wild unkempt long black hair partially tied back, rough unshaven face with stubble, intense piercing dark eyes, scarred hands and forearms, wearing simple dark kimono loosely tied — no armor, just a ronin's practical dress. Two swords (daisho) at his side. Weathered, wild appearance of a man who lived in nature.",
-        "environment_description": "Japanese wilderness and dojos, mountain caves, bamboo forests, rain-soaked forest paths, simple wooden training halls, candlelit cave where he wrote The Book of Five Rings, cherry blossoms, misty mountain peaks, zen rock gardens."
+        "environment_description": "Japanese wilderness and dojos, mountain caves, bamboo forests, rain-soaked forest paths, simple wooden training halls, candlelit cave where he wrote The Book of Five Rings, cherry blossoms, misty mountain peaks, zen rock gardens.",
+        "character_descriptions": {
+            "dark_masculine": "A blood-soaked ronin of nightmarish intensity. Massive, scarred, feral. Wild mane of dark hair whipping in storm wind. Two katanas — one drawn and dripping. Torn black hakama, bare muscular torso covered in old battle scars. Eyes of a predator — no mercy, no hesitation. Stands atop a pile of broken swords. Rain and blood mix on dark skin. A demon of the blade given human form."
+        }
     },
     "quotes": [
         {

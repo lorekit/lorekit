@@ -119,7 +119,7 @@ async def init_db(db_path: Path | None = None) -> None:
             except Exception:
                 pass  # column already exists
         # Migrate: add character columns to philosophers
-        for col in ("character_image_url TEXT", "character_ref_urls TEXT"):
+        for col in ("character_image_url TEXT", "character_ref_urls TEXT", "character_images_json TEXT"):
             try:
                 await db.execute(f"ALTER TABLE philosophers ADD COLUMN {col}")
             except Exception:

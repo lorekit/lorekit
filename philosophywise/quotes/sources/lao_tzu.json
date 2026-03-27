@@ -4,9 +4,14 @@
         "name": "Lao Tzu",
         "civilization": "chinese",
         "era": "6th century BC, Zhou Dynasty, Ancient China",
-        "source_texts": ["Tao Te Ching"],
+        "source_texts": [
+            "Tao Te Ching"
+        ],
         "character_description": "Very elderly Chinese sage, 80s-90s, long flowing white beard reaching chest, long white hair loosely gathered, deeply wrinkled gentle face with kind knowing eyes, wearing simple flowing earth-toned robes, sometimes riding a water buffalo. Serene, almost otherworldly presence.",
-        "environment_description": "Misty mountain passes, ancient Chinese wilderness, bamboo groves, waterfalls, simple mountain hut, winding mountain paths, riding westward through a mountain gate, flowing rivers, ancient forest, ink-wash landscape aesthetic with mist and mountains."
+        "environment_description": "Misty mountain passes, ancient Chinese wilderness, bamboo groves, waterfalls, simple mountain hut, winding mountain paths, riding westward through a mountain gate, flowing rivers, ancient forest, ink-wash landscape aesthetic with mist and mountains.",
+        "character_descriptions": {
+            "dark_masculine": "A spectral figure dissolving into smoke and void. Barely corporeal — his form shifts between solid and mist. White hair streams upward like flame in zero gravity. Eyes are empty white voids of pure awareness. His robes are made of darkness itself, flowing into the surrounding void. He IS the darkness — formless, infinite, terrifying in his absolute serenity."
+        }
     },
     "quotes": [
         {

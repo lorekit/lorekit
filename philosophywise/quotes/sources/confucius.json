@@ -4,9 +4,14 @@
         "name": "Confucius",
         "civilization": "chinese",
         "era": "551-479 BC, Spring and Autumn Period, Ancient China",
-        "source_texts": ["Analects"],
+        "source_texts": [
+            "Analects"
+        ],
         "character_description": "Elderly Chinese scholar, late 60s-70s, long thin white beard, hair in traditional topknot under a scholar's cap, kind but serious eyes, wearing layered silk scholar's robes in dark colors with wide sleeves, carrying a jade tablet or bamboo scroll. Tall and dignified bearing.",
-        "environment_description": "Ancient Chinese academy courtyard, students sitting on mats before the master, bamboo groves, classical Chinese pavilion with curved roof, ink and brush on low wooden desk, scrolls hanging on walls, peaceful garden with stone path, warm afternoon light."
+        "environment_description": "Ancient Chinese academy courtyard, students sitting on mats before the master, bamboo groves, classical Chinese pavilion with curved roof, ink and brush on low wooden desk, scrolls hanging on walls, peaceful garden with stone path, warm afternoon light.",
+        "character_descriptions": {
+            "dark_masculine": "An ancient colossus — an enormous bearded figure carved from dark mountain stone. Flowing robes like cascading obsidian. Eyes are deep voids that radiate ancient knowing. His beard flows like dark water. Towering, monumental, more mountain than man. Cracks in his stone form reveal a faint inner glow. Seated on a throne of roots and rock."
+        }
     },
     "quotes": [
         {

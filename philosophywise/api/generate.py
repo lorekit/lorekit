@@ -26,6 +26,8 @@ class StoryRequest(BaseModel):
     truth_quote_id: str | None = None
     quote_ids: list[str] | None = None  # flexible: user picks quotes, backend assigns roles
     target_duration: int = 35
+    arc_template: str | None = None  # "story", "rapid_montage", etc.
+    theme: str | None = None  # vibe preset key, e.g. "dark_masculine"
 
 
 class ClipsRequest(BaseModel):
@@ -115,11 +117,14 @@ async def generate_story_endpoint(body: StoryRequest) -> dict:
         hook_quote=hook_quote,
         truth_quote=truth_quote,
         target_duration=body.target_duration,
+        theme=body.theme,
+        arc_template=body.arc_template,
     )
 
     # Create project
     project_id = uuid.uuid4().hex[:12]
-    name = f"{philosopher.name} — {hook_quote.theme}"
+    arc_label = body.arc_template or "story"
+    name = f"{philosopher.name} — {hook_quote.theme} ({arc_label})"
     await db.create_project(
         project_id=project_id,
         philosopher_id=body.philosopher_id,
@@ -156,20 +161,34 @@ async def _generate_clips_task(job_id: str, project_id: str) -> None:
         story = StoryBreakdown.model_validate_json(project["story_json"])
         phil_id = project.get("philosopher_id", "")
 
+        # ---- THEME: extract from story, resolve vibe text ----
+        theme = story.theme or None  # "" → None
+        from philosophywise.config import VIBE_PRESETS
+        vibe_text = (
+            VIBE_PRESETS[theme]["prompt"]
+            if theme and theme in VIBE_PRESETS and VIBE_PRESETS[theme].get("prompt")
+            else None
+        )
+
         from philosophywise.quotes.database import get_philosopher
+        from philosophywise.api.character import get_character_image_url
 
         conn = await db.connect()
         try:
             philosopher = await get_philosopher(conn, phil_id)
-            # Fetch character image for element-based consistency
-            cursor = await conn.execute(
-                "SELECT character_image_url FROM philosophers WHERE id = ?",
-                (phil_id,),
-            )
-            row = await cursor.fetchone()
-            character_image_url = (row[0] if row and row[0] else None) or project.get("character_image_url")
         finally:
             await conn.close()
+
+        # ---- CHARACTER IMAGE: get the themed version ----
+        character_image_url = await get_character_image_url(phil_id, theme=theme)
+        # Fallback to project-level image if no themed image found
+        if not character_image_url:
+            character_image_url = project.get("character_image_url")
+
+        logger.info(
+            "Clips task — project=%s theme=%s character_image=%s",
+            project_id, theme, bool(character_image_url),
+        )
 
         await db.update_project(project_id, status="generating")
         await db.update_job(job_id, status="running", message="Generating clips...")
@@ -186,6 +205,12 @@ async def _generate_clips_task(job_id: str, project_id: str) -> None:
         from philosophywise.config import get_civilization
 
         civ_config = get_civilization(philosopher.civilization)
+
+        # Use resolved vibe text or fall back to settings default
+        active_vibe = vibe_text or settings.video_vibe
+
+        # Per-project clips directory — isolates each project's clips
+        project_clips_dir = str(settings.clips_dir / project_id)
 
         # Load existing clips so we can skip scenes that already have one
         existing_clips = json.loads(project.get("clips_json") or "[]")
@@ -215,7 +240,7 @@ async def _generate_clips_task(job_id: str, project_id: str) -> None:
         if need_hook_keyframe:
             await db.update_job(job_id, status="running", message="Generating hook keyframe for loop...")
             first_prompt = build_video_prompt(
-                first_scene, philosopher, civ_config.model_dump(), settings.video_vibe,
+                first_scene, philosopher, civ_config.model_dump(), active_vibe, theme=theme,
             )
             if first_scene.character_present and character_image_url:
                 hook_keyframe_url = await _generate_keyframe_from_portrait(
@@ -249,8 +274,8 @@ async def _generate_clips_task(job_id: str, project_id: str) -> None:
                     update={"visual_description": scene.visual_description.replace("{{CTA}}", "Subscribe")}
                 )
             clip_path = await generate_single_clip(
-                gen_scene, philosopher, str(settings.clips_dir),
-                character_image_url, end_image_url=end_image_url,
+                gen_scene, philosopher, project_clips_dir,
+                character_image_url, end_image_url=end_image_url, theme=theme,
             )
             clips.append({
                 "scene_id": scene.scene_id,
@@ -276,8 +301,8 @@ async def _generate_clips_task(job_id: str, project_id: str) -> None:
                     }
                 )
                 follow_path = await generate_single_clip(
-                    follow_scene, philosopher, str(settings.clips_dir),
-                    character_image_url, end_image_url=end_image_url,
+                    follow_scene, philosopher, project_clips_dir,
+                    character_image_url, end_image_url=end_image_url, theme=theme,
                 )
                 clips.append({
                     "scene_id": scene.scene_id,
@@ -338,19 +363,22 @@ async def _generate_single_clip_task(
 
         phil_id = project.get("philosopher_id", "")
 
+        # ---- THEME: extract from story ----
+        theme = story.theme or None
+
         from philosophywise.quotes.database import get_philosopher
+        from philosophywise.api.character import get_character_image_url
 
         conn = await db.connect()
         try:
             philosopher = await get_philosopher(conn, phil_id)
-            cursor = await conn.execute(
-                "SELECT character_image_url FROM philosophers WHERE id = ?",
-                (phil_id,),
-            )
-            row = await cursor.fetchone()
-            character_image_url = (row[0] if row and row[0] else None) or project.get("character_image_url")
         finally:
             await conn.close()
+
+        # ---- CHARACTER IMAGE: get the themed version ----
+        character_image_url = await get_character_image_url(phil_id, theme=theme)
+        if not character_image_url:
+            character_image_url = project.get("character_image_url")
 
         await db.update_job(job_id, status="running", message=f"Regenerating scene {scene_id}")
 
@@ -359,8 +387,11 @@ async def _generate_single_clip_task(
 
         from philosophywise.video.generator import generate_single_clip
 
+        # Per-project clips directory
+        project_clips_dir = str(settings.clips_dir / project_id)
+
         clip_path = await generate_single_clip(
-            scene, philosopher, str(settings.clips_dir), character_image_url
+            scene, philosopher, project_clips_dir, character_image_url, theme=theme,
         )
 
         # Update clips list
@@ -507,6 +538,10 @@ async def _render_task(job_id: str, project_id: str, raw: bool = False) -> None:
         settings = get_settings()
         settings.ensure_dirs()
 
+        # Per-project output directory — isolates each project's rendered files
+        project_output_dir = settings.output_dir / project_id
+        project_output_dir.mkdir(parents=True, exist_ok=True)
+
         # Map scene_id → clip_path (use "subscribe" variant if available, skip "follow" variants)
         clip_map: dict[int, str] = {}
         for entry in clip_entries:
@@ -537,7 +572,7 @@ async def _render_task(job_id: str, project_id: str, raw: bool = False) -> None:
             # --- RAW MODE: just concat clips with crossfades, no effects ---
             await db.update_job(job_id, status="running", progress=20, message="Concatenating raw clips...")
 
-            final_path = str(settings.output_dir / f"{project_id}_raw.mp4")
+            final_path = str(project_output_dir / "raw.mp4")
             await _raw_concat(ordered_clips, ordered_scenes, final_path, total_duration)
         else:
             # --- FULL MODE: audio + stitch + color grade + text ---
@@ -551,10 +586,11 @@ async def _render_task(job_id: str, project_id: str, raw: bool = False) -> None:
                 audio_path = await build_audio_timeline(
                     ordered_scenes, total_duration, civilization,
                     str(settings.audio_assets_dir),
+                    output_dir=str(project_output_dir),
                 )
             except Exception as audio_exc:
                 logger.warning("Audio mix failed (%s), using silent track", audio_exc)
-                silent_path = str(settings.output_dir / f"{project_id}_silent.wav")
+                silent_path = str(project_output_dir / "silent.wav")
                 import subprocess
                 subprocess.run([
                     "ffmpeg", "-y", "-f", "lavfi",
@@ -569,7 +605,7 @@ async def _render_task(job_id: str, project_id: str, raw: bool = False) -> None:
 
             from philosophywise.assembly.stitch import stitch_video
 
-            intermediate_path = str(settings.output_dir / f"{project_id}_stitched.mp4")
+            intermediate_path = str(project_output_dir / "stitched.mp4")
             await stitch_video(
                 ordered_clips, ordered_scenes, audio_path,
                 intermediate_path, civilization, total_duration,
@@ -580,7 +616,7 @@ async def _render_task(job_id: str, project_id: str, raw: bool = False) -> None:
 
             from philosophywise.assembly.overlay import add_text_overlays
 
-            final_path = str(settings.output_dir / f"{project_id}_final.mp4")
+            final_path = str(project_output_dir / "final.mp4")
             await add_text_overlays(
                 intermediate_path, ordered_scenes, civilization, final_path,
             )

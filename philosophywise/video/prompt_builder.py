@@ -7,11 +7,38 @@ Layers three concerns cleanly:
 
 The story arc should NOT contain character appearance or art style details.
 This builder combines all three at video generation time.
+
+Supports per-theme character descriptions: when a ``theme`` is provided,
+the builder uses the philosopher's theme-specific appearance instead of the
+base character description.
 """
 
 from __future__ import annotations
 
 from philosophywise.models import Philosopher, Scene
+
+# ---------------------------------------------------------------------------
+# Per-theme prompt fragments injected into video prompts
+# ---------------------------------------------------------------------------
+
+_THEME_VIDEO_OVERRIDES: dict[str, dict[str, str]] = {
+    "dark_masculine": {
+        # Injected right before the vibe text to anchor the video model
+        "prefix": (
+            "Photorealistic dark cinematic footage. Shot on ARRI Alexa 65. "
+            "Real actors, real costumes, real practical lighting. "
+            "NOT animation, NOT cartoon, NOT 3D render, NOT illustration, NOT game art. "
+        ),
+        # Replaces the generic technical directive
+        "technical": (
+            "Slow, deliberate motion. Heavy atmosphere. Volumetric fog and haze. "
+            "Real camera movement — dolly, crane, steadicam. Film grain. "
+            "No text, no subtitles, no watermarks."
+        ),
+    },
+}
+
+_DEFAULT_TECHNICAL = "Smooth fluid motion. No text, no subtitles, no watermarks."
 
 
 def build_video_prompt(
@@ -20,19 +47,27 @@ def build_video_prompt(
     civilization_config: dict,
     vibe_text: str,
     skip_character: bool = False,
+    theme: str | None = None,
 ) -> str:
     """Construct a video prompt by layering scene + character + style.
 
     Args:
         scene: The scene to build a prompt for.
-        philosopher: The philosopher (provides character_description).
+        philosopher: The philosopher (provides character descriptions).
         civilization_config: Civilization preset dict (unused currently, reserved).
         vibe_text: The active vibe/style prompt text.
         skip_character: If True, omit character description even when character_present.
             Used for Kling i2v animation prompts where the keyframe already
             contains the character's appearance.
+        theme: Vibe preset key (e.g. "dark_masculine"). When set, uses the
+            philosopher's theme-specific character description.
     """
+    overrides = _THEME_VIDEO_OVERRIDES.get(theme or "", {})
     parts: list[str] = []
+
+    # 0. Theme-specific prefix (anchors the model toward the right aesthetic)
+    if prefix := overrides.get("prefix"):
+        parts.append(prefix)
 
     # 1. Scene: what happens (the story arc output)
     parts.append(scene.visual_description)
@@ -44,13 +79,14 @@ def build_video_prompt(
     # 3. Character appearance — when the philosopher appears in this scene
     #    Skip when the keyframe already handles it (Kling i2v path)
     if scene.character_present and not skip_character:
-        parts.append(f"Character appearance: {philosopher.character_description}")
+        char_desc = philosopher.get_character_for_theme(theme)
+        parts.append(f"Character appearance: {char_desc}")
 
     # 4. Global art style / vibe
     if vibe_text:
         parts.append(f"Art style: {vibe_text}")
 
-    # 5. Technical directives
-    parts.append("Smooth fluid motion. No text, no subtitles, no watermarks.")
+    # 5. Technical directives (theme-specific or default)
+    parts.append(overrides.get("technical", _DEFAULT_TECHNICAL))
 
     return " ".join(parts)[:2500]

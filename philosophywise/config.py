@@ -36,6 +36,27 @@ VIBE_PRESETS: dict[str, dict] = {
         "description": "Arcane / animated epic — painterly, expressive, dramatic",
         "prompt": "Stylized cinematic illustration. Rich painterly textures, dramatic lighting, expressive characters with slightly exaggerated proportions but realistic emotion. Think Arcane, Castlevania, or a high-end animated film. Warm atmospheric environments with depth and detail. Characters feel like heroes in an epic animated saga — approachable but powerful. NOT photorealistic, NOT flat cartoon, NOT mobile game UI. Cinematic composition, film-quality lighting, emotional storytelling through every frame.",
     },
+    "dark_masculine": {
+        "name": "Dark Masculine",
+        "description": "Dark, desaturated, high-contrast — Sauron meets Greek statues, raw power",
+        "prompt": (
+            "Photorealistic, hyper-detailed photograph. NOT illustration, NOT painting, "
+            "NOT cartoon, NOT stylized, NOT 3D render, NOT game art, NOT anime. "
+            "Shot on ARRI Alexa 65, anamorphic lens, f/1.4, shallow depth of field. "
+            "Extremely dark, nearly monochrome aesthetic with heavy desaturation. "
+            "Deep blacks, crushed shadows, minimal highlights. "
+            "Think a real photograph of a dark fantasy film set — practical lighting, "
+            "real smoke machines, real armor and costumes. "
+            "Dramatic single-source rim lighting with volumetric haze. "
+            "Characters are imposing, powerful, godlike figures with real human skin "
+            "texture, pores, scars, sweat — NOT smooth, NOT plastic, NOT CG. "
+            "Textures: real cracked stone, real dark iron, real weathered bronze, "
+            "real smoke, real embers. Color palette: near-black with occasional "
+            "cold steel blue or deep ember orange accents. "
+            "Raw, aggressive, primal energy. The visual intensity of a Zack Snyder "
+            "film still or a dark fantasy movie poster photograph."
+        ),
+    },
     "custom": {
         "name": "Custom",
         "description": "Write your own style prompt",

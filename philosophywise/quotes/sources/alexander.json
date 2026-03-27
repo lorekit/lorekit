@@ -4,9 +4,16 @@
         "name": "Alexander the Great",
         "civilization": "greek",
         "era": "356-323 BC, Macedon and the Hellenistic World",
-        "source_texts": ["Plutarch's Life of Alexander", "Arrian's Anabasis", "Plutarch's Moralia: Sayings of Kings and Commanders"],
+        "source_texts": [
+            "Plutarch's Life of Alexander",
+            "Arrian's Anabasis",
+            "Plutarch's Moralia: Sayings of Kings and Commanders"
+        ],
         "character_description": "Young Macedonian king, late 20s-early 30s, clean-shaven (unusual for the era), wavy golden-brown hair swept back from forehead (anastole hairstyle), heterochromatic eyes (one brown, one blue according to some accounts), strong jawline, medium height but powerful athletic build, wearing ornate Macedonian bronze cuirass with gold inlay, purple cloak, or lion-skin headdress in battle. Intense, burning gaze.",
-        "environment_description": "Vast ancient landscapes — Macedonian mountains, Persian palace at Persepolis with tall columns and ornate reliefs, Egyptian desert with pyramids distant, banks of the Indus River, massive Macedonian army camp with sarissa pikes stacked, the siege of Tyre with naval warfare, Gaugamela battlefield stretching to horizon."
+        "environment_description": "Vast ancient landscapes — Macedonian mountains, Persian palace at Persepolis with tall columns and ornate reliefs, Egyptian desert with pyramids distant, banks of the Indus River, massive Macedonian army camp with sarissa pikes stacked, the siege of Tyre with naval warfare, Gaugamela battlefield stretching to horizon.",
+        "character_descriptions": {
+            "dark_masculine": "A young dark conqueror-god with the beauty of a fallen angel. Perfect classical features twisted by ambition into something inhuman. Dark Macedonian armor gilded with tarnished gold. A sword that burns with black fire. Wind-blown hair and a cloak of shadow. Mounted on a monstrous dark warhorse with ember eyes. The world burns behind him and he does not look back."
+        }
     },
     "quotes": [
         {

@@ -18,6 +18,7 @@ async def build_audio_timeline(
     total_duration: float,
     civilization: str,
     assets_dir: str,
+    output_dir: str | None = None,
 ) -> str:
     """Build a complete audio mix as a single WAV file.
 
@@ -31,12 +32,20 @@ async def build_audio_timeline(
     7. Mix everything down to a single audio file
 
     Uses ffmpeg for all mixing.
+
+    Args:
+        output_dir: Directory for the audio mix file. If None, falls back to
+            ``<assets_dir>/../../output`` for backwards compatibility.
+
     Returns path to the mixed audio file.
     """
-    assets_path = Path(assets_dir)
-    output_dir = assets_path.parent.parent.parent / "output"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = str(output_dir / "audio_mix.wav")
+    if output_dir:
+        out_dir = Path(output_dir)
+    else:
+        assets_path = Path(assets_dir)
+        out_dir = assets_path.parent.parent.parent / "output"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    output_path = str(out_dir / "audio_mix.wav")
 
     index = scan_audio_assets(assets_dir)
     dominant_mood = _get_dominant_mood(scenes)
