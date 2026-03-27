@@ -85,6 +85,33 @@ export function SceneDetail({
         </div>
       )}
 
+      {/* Character Present toggle */}
+      <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-800/40 border border-slate-700/50">
+        <div>
+          <p className="text-sm text-slate-300 font-medium">Character in Scene</p>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            {scene.character_present
+              ? "Character portrait will be composited into keyframe & video"
+              : "Environment only — no character injection"}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onUpdate(scene.id, { character_present: !scene.character_present })}
+          className={cn(
+            "relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0",
+            scene.character_present ? "bg-amber-500" : "bg-slate-600"
+          )}
+        >
+          <span
+            className={cn(
+              "inline-block h-4 w-4 rounded-full bg-white transition-transform",
+              scene.character_present ? "translate-x-6" : "translate-x-1"
+            )}
+          />
+        </button>
+      </div>
+
       {/* Duration */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -171,7 +198,7 @@ export function SceneDetail({
           ) : (
             <RotateCcw className="w-4 h-4 mr-2" />
           )}
-          Regenerate Clip
+          Generate Clip
         </Button>
         <Button variant="ghost" className="flex-1">
           <Quote className="w-4 h-4 mr-2" />

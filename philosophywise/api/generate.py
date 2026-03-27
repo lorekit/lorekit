@@ -39,9 +39,17 @@ class SingleClipRequest(BaseModel):
     scene_id: int
 
 
+class KeyframeRequest(BaseModel):
+    project_id: str
+    scene_id: int
+
+
 class RenderRequest(BaseModel):
     project_id: str
     raw: bool = False  # If True, just concat clips — no color grade, text, or audio
+    text_overlays: bool = True
+    color_grade: bool = True
+    audio: bool = True
 
 
 @router.post("/story")
@@ -385,20 +393,28 @@ async def _generate_single_clip_task(
         settings = get_settings()
         settings.ensure_dirs()
 
-        from philosophywise.video.generator import generate_single_clip
+        from philosophywise.video.generator import generate_single_clip as gen_clip
 
         # Per-project clips directory
         project_clips_dir = str(settings.clips_dir / project_id)
 
-        clip_path = await generate_single_clip(
-            scene, philosopher, project_clips_dir, character_image_url, theme=theme,
+        # Check for pre-generated keyframe in clips_json
+        existing_clips = json.loads(project.get("clips_json") or "[]")
+        existing_entry = next((c for c in existing_clips if c.get("scene_id") == scene_id), None)
+        existing_keyframe = existing_entry.get("keyframe_url") if existing_entry else None
+
+        clip_path = await gen_clip(
+            scene, philosopher, project_clips_dir, character_image_url,
+            theme=theme, keyframe_url=existing_keyframe,
         )
 
-        # Update clips list
-        clips_json = project.get("clips_json") or "[]"
-        clips = json.loads(clips_json)
-        clips = [c for c in clips if c.get("scene_id") != scene_id]
-        clips.append({"scene_id": scene_id, "clip_path": clip_path})
+        # Update clips list — preserve keyframe_url
+        clips = [c for c in existing_clips if c.get("scene_id") != scene_id]
+        clips.append({
+            "scene_id": scene_id,
+            "clip_path": clip_path,
+            "keyframe_url": existing_keyframe,
+        })
         clips.sort(key=lambda c: c["scene_id"])
 
         await db.update_project(project_id, clips_json=json.dumps(clips))
@@ -416,7 +432,7 @@ async def _generate_single_clip_task(
 
 
 @router.post("/clip")
-async def generate_single_clip(body: SingleClipRequest) -> dict:
+async def generate_single_clip_endpoint(body: SingleClipRequest) -> dict:
     """Regenerate one scene clip. Returns job_id for polling."""
     project = await db.get_project(body.project_id)
     if not project:
@@ -425,6 +441,113 @@ async def generate_single_clip(body: SingleClipRequest) -> dict:
     job_id = uuid.uuid4().hex[:12]
     await db.create_job(job_id, body.project_id, "clip")
     asyncio.create_task(_generate_single_clip_task(job_id, body.project_id, body.scene_id))
+
+    return {"job_id": job_id}
+
+
+# ---------------------------------------------------------------------------
+# Keyframe-only generation (preview before committing to video)
+# ---------------------------------------------------------------------------
+
+async def _generate_keyframe_task(
+    job_id: str, project_id: str, scene_id: int
+) -> None:
+    """Background task: generate only the keyframe (still image) for one scene."""
+    try:
+        project = await db.get_project(project_id)
+        if not project or not project.get("story_json"):
+            await db.update_job(job_id, status="failed", message="No story found")
+            return
+
+        story = StoryBreakdown.model_validate_json(project["story_json"])
+        scene = next((s for s in story.scenes if s.scene_id == scene_id), None)
+        if not scene:
+            await db.update_job(job_id, status="failed", message=f"Scene {scene_id} not found")
+            return
+
+        phil_id = project.get("philosopher_id", "")
+        theme = story.theme or None
+
+        from philosophywise.quotes.database import get_philosopher
+        from philosophywise.api.character import get_character_image_url
+        from philosophywise.video.generator import (
+            _generate_keyframe_from_portrait,
+            _generate_keyframe_text,
+        )
+        from philosophywise.video.prompt_builder import build_video_prompt
+        from philosophywise.config import get_civilization, VIBE_PRESETS
+
+        conn = await db.connect()
+        try:
+            philosopher = await get_philosopher(conn, phil_id)
+        finally:
+            await conn.close()
+
+        character_image_url = await get_character_image_url(phil_id, theme=theme)
+        if not character_image_url:
+            character_image_url = project.get("character_image_url")
+
+        settings = get_settings()
+        civ_config = get_civilization(philosopher.civilization)
+
+        vibe_text = (
+            VIBE_PRESETS[theme]["prompt"]
+            if theme and theme in VIBE_PRESETS and VIBE_PRESETS[theme].get("prompt")
+            else settings.video_vibe
+        )
+
+        await db.update_job(job_id, status="running", message=f"Generating keyframe for scene {scene_id}...")
+
+        prompt = build_video_prompt(
+            scene, philosopher, civ_config.model_dump(), vibe_text, theme=theme,
+        )
+
+        if scene.character_present and character_image_url:
+            keyframe_url = await _generate_keyframe_from_portrait(
+                prompt, settings.fal_key, character_image_url,
+            )
+        else:
+            keyframe_url = await _generate_keyframe_text(
+                prompt, settings.fal_key,
+            )
+
+        logger.info("Keyframe generated for scene %d: %s", scene_id, keyframe_url)
+
+        # Store the keyframe URL in clips_json
+        clips = json.loads(project.get("clips_json") or "[]")
+        existing = next((c for c in clips if c.get("scene_id") == scene_id), None)
+        if existing:
+            existing["keyframe_url"] = keyframe_url
+        else:
+            clips.append({"scene_id": scene_id, "keyframe_url": keyframe_url, "clip_path": None})
+            clips.sort(key=lambda c: c["scene_id"])
+
+        await db.update_project(project_id, clips_json=json.dumps(clips))
+        await db.update_job(
+            job_id,
+            status="completed",
+            progress=100,
+            message=f"Keyframe ready for scene {scene_id}",
+            result_json=json.dumps({"scene_id": scene_id, "keyframe_url": keyframe_url}),
+        )
+
+    except Exception as exc:
+        logger.exception("Keyframe generation failed for scene %d", scene_id)
+        await db.update_job(job_id, status="failed", message=str(exc))
+
+
+@router.post("/keyframe")
+async def generate_keyframe_endpoint(body: KeyframeRequest) -> dict:
+    """Generate only the keyframe (reference image) for one scene. Returns job_id."""
+    project = await db.get_project(body.project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if not project.get("story_json"):
+        raise HTTPException(status_code=400, detail="No story generated yet")
+
+    job_id = uuid.uuid4().hex[:12]
+    await db.create_job(job_id, body.project_id, "keyframe")
+    asyncio.create_task(_generate_keyframe_task(job_id, body.project_id, body.scene_id))
 
     return {"job_id": job_id}
 
@@ -511,11 +634,18 @@ async def _raw_concat(
     logger.info("Raw concat complete: %s", output_path)
 
 
-async def _render_task(job_id: str, project_id: str, raw: bool = False) -> None:
+async def _render_task(
+    job_id: str,
+    project_id: str,
+    raw: bool = False,
+    text_overlays: bool = True,
+    color_grade: bool = True,
+    audio: bool = True,
+) -> None:
     """Background task: assemble final video from clips.
 
     If raw=True: just concat clips with crossfades, no color grade/text/audio.
-    If raw=False: full pipeline (audio mix + stitch + color grade + text overlays).
+    Otherwise uses the individual flags to control pipeline steps.
     """
     try:
         project = await db.get_project(project_id)
@@ -552,19 +682,30 @@ async def _render_task(job_id: str, project_id: str, raw: bool = False) -> None:
                 if sid not in clip_map or variant == "subscribe":
                     clip_map[sid] = path
 
-        # Build ordered clip list matching scene order
+        # Build ordered clip list matching scene order — skip scenes without clips
         ordered_clips: list[str] = []
         ordered_scenes: list[Scene] = []
+        skipped: list[int] = []
         for scene in story.scenes:
             clip_path = clip_map.get(scene.scene_id)
             if not clip_path:
-                await db.update_job(
-                    job_id, status="failed",
-                    message=f"Missing clip for scene {scene.scene_id}",
-                )
-                return
+                skipped.append(scene.scene_id)
+                continue
             ordered_clips.append(clip_path)
             ordered_scenes.append(scene)
+
+        if not ordered_clips:
+            await db.update_job(
+                job_id, status="failed",
+                message="No clips available to render",
+            )
+            return
+
+        if skipped:
+            logger.info(
+                "Rendering with partial clips — skipping scenes %s (no clips)",
+                skipped,
+            )
 
         total_duration = sum(s.duration for s in ordered_scenes)
 
@@ -575,21 +716,25 @@ async def _render_task(job_id: str, project_id: str, raw: bool = False) -> None:
             final_path = str(project_output_dir / "raw.mp4")
             await _raw_concat(ordered_clips, ordered_scenes, final_path, total_duration)
         else:
-            # --- FULL MODE: audio + stitch + color grade + text ---
+            # --- CUSTOM MODE: selectively enable audio / color grade / text ---
 
-            # Step 1: Build audio mix
-            await db.update_job(job_id, status="running", progress=10, message="Building audio mix...")
+            # Step 1: Build audio mix (or silent track)
+            if audio:
+                await db.update_job(job_id, status="running", progress=10, message="Building audio mix...")
 
-            from philosophywise.audio.mixer import build_audio_timeline
+                from philosophywise.audio.mixer import build_audio_timeline
 
-            try:
-                audio_path = await build_audio_timeline(
-                    ordered_scenes, total_duration, civilization,
-                    str(settings.audio_assets_dir),
-                    output_dir=str(project_output_dir),
-                )
-            except Exception as audio_exc:
-                logger.warning("Audio mix failed (%s), using silent track", audio_exc)
+                try:
+                    audio_path = await build_audio_timeline(
+                        ordered_scenes, total_duration, civilization,
+                        str(settings.audio_assets_dir),
+                        output_dir=str(project_output_dir),
+                    )
+                except Exception as audio_exc:
+                    logger.warning("Audio mix failed (%s), using silent track", audio_exc)
+                    audio = False  # fall through to silent
+
+            if not audio:
                 silent_path = str(project_output_dir / "silent.wav")
                 import subprocess
                 subprocess.run([
@@ -605,23 +750,25 @@ async def _render_task(job_id: str, project_id: str, raw: bool = False) -> None:
 
             from philosophywise.assembly.stitch import stitch_video
 
-            intermediate_path = str(project_output_dir / "stitched.mp4")
+            stitched_path = str(project_output_dir / "stitched.mp4")
             await stitch_video(
                 ordered_clips, ordered_scenes, audio_path,
-                intermediate_path, civilization, total_duration,
+                stitched_path, civilization, total_duration,
             )
 
-            # Step 3: Burn text overlays
-            await db.update_job(job_id, status="running", progress=75, message="Adding text overlays...")
+            # Step 3: Burn text overlays (optional)
+            if text_overlays:
+                await db.update_job(job_id, status="running", progress=75, message="Adding text overlays...")
 
-            from philosophywise.assembly.overlay import add_text_overlays
+                from philosophywise.assembly.overlay import add_text_overlays
 
-            final_path = str(project_output_dir / "final.mp4")
-            await add_text_overlays(
-                intermediate_path, ordered_scenes, civilization, final_path,
-            )
-
-            Path(intermediate_path).unlink(missing_ok=True)
+                final_path = str(project_output_dir / "final.mp4")
+                await add_text_overlays(
+                    stitched_path, ordered_scenes, civilization, final_path,
+                )
+                Path(stitched_path).unlink(missing_ok=True)
+            else:
+                final_path = stitched_path
 
         await db.update_project(
             project_id,
@@ -651,6 +798,12 @@ async def render_video(body: RenderRequest) -> dict:
 
     job_id = uuid.uuid4().hex[:12]
     await db.create_job(job_id, body.project_id, "render")
-    asyncio.create_task(_render_task(job_id, body.project_id, raw=body.raw))
+    asyncio.create_task(_render_task(
+        job_id, body.project_id,
+        raw=body.raw,
+        text_overlays=body.text_overlays,
+        color_grade=body.color_grade,
+        audio=body.audio,
+    ))
 
     return {"job_id": job_id}

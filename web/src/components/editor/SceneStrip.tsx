@@ -49,6 +49,13 @@ export function SceneStrip({
                     preload="metadata"
                     aria-hidden="true"
                   />
+                ) : scene.keyframe_url ? (
+                  <img
+                    src={scene.keyframe_url}
+                    className="w-full h-full object-cover"
+                    alt={`Keyframe — ${scene.beat}`}
+                    aria-hidden="true"
+                  />
                 ) : (
                   <Film
                     className="w-6 h-6 text-slate-600"

@@ -302,14 +302,26 @@ export default function SettingsPage() {
                 placeholder="Describe the visual style you want for your videos..."
               />
             </div>
-          ) : settings.video_vibe ? (
-            <div className="space-y-2">
-              <Label>Active style prompt</Label>
-              <div className="rounded-lg bg-slate-800/50 border border-slate-700 p-3 text-sm text-slate-300 leading-relaxed">
-                {settings.video_vibe}
-              </div>
+          ) : (
+            <div className="space-y-3">
+              {settings.video_vibe && (
+                <div className="space-y-1.5">
+                  <Label className="text-slate-400 text-xs">Environment & Style prompt <span className="text-slate-600">(all scenes)</span></Label>
+                  <div className="rounded-lg bg-slate-800/50 border border-slate-700 p-3 text-sm text-slate-300 leading-relaxed">
+                    {settings.video_vibe}
+                  </div>
+                </div>
+              )}
+              {presets[settings.video_vibe_preset]?.character_prompt && (
+                <div className="space-y-1.5">
+                  <Label className="text-slate-400 text-xs">Character style prompt <span className="text-slate-600">(only when &ldquo;Character in Scene&rdquo; is ON)</span></Label>
+                  <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3 text-sm text-amber-200/80 leading-relaxed">
+                    {presets[settings.video_vibe_preset].character_prompt}
+                  </div>
+                </div>
+              )}
             </div>
-          ) : null}
+          )}
         </section>
 
         {/* YouTube */}

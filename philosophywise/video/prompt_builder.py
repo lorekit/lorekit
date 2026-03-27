@@ -81,8 +81,15 @@ def build_video_prompt(
     if scene.character_present and not skip_character:
         char_desc = philosopher.get_character_for_theme(theme)
         parts.append(f"Character appearance: {char_desc}")
+        # Add vibe's character-specific prompt (e.g. skin texture, costume style)
+        from philosophywise.config import VIBE_PRESETS
+        char_vibe = VIBE_PRESETS.get(theme or "", {}).get("character_prompt", "")
+        if char_vibe:
+            parts.append(char_vibe)
+    elif not scene.character_present:
+        parts.append("No people, no characters, no human figures, no silhouettes.")
 
-    # 4. Global art style / vibe
+    # 4. Global art style / vibe (environment + style only, no character references)
     if vibe_text:
         parts.append(f"Art style: {vibe_text}")
 

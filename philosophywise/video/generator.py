@@ -145,6 +145,7 @@ async def generate_single_clip(
     character_image_url: str | None = None,
     end_image_url: str | None = None,
     theme: str | None = None,
+    keyframe_url: str | None = None,
 ) -> str:
     """Generate one video clip.
 
@@ -153,6 +154,7 @@ async def generate_single_clip(
     - character_present=True, no portrait → Flux keyframe → Kling V3 Pro i2v
     - character_present=False → Flux keyframe → Kling O3 i2v
 
+    If keyframe_url is provided, skips keyframe generation (already previewed).
     If end_image_url is provided (loop scene), passes it to Kling so the
     video transitions toward that ending frame.
 
@@ -167,6 +169,7 @@ async def generate_single_clip(
     return await _generate_clip_with_keyframe(
         scene, philosopher, clips_dir, settings,
         civ_config.model_dump(), character_image_url,
+        keyframe_url=keyframe_url,
         end_image_url=end_image_url,
         theme=theme,
     )

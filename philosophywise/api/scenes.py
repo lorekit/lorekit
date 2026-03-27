@@ -19,6 +19,12 @@ class SceneUpdate(BaseModel):
     text_overlay: str | None = None
     text_attribution: str | None = None
     duration: float | None = None
+    character_present: bool | None = None
+
+
+class CopyKeyframeRequest(BaseModel):
+    source_scene_id: int
+    target_scene_ids: list[int]
 
 
 class ReorderRequest(BaseModel):
@@ -38,11 +44,13 @@ async def get_scenes(project_id: str) -> dict:
     story = StoryBreakdown.model_validate_json(project["story_json"])
     clips = json.loads(project.get("clips_json") or "[]")
     clip_map = {c["scene_id"]: c["clip_path"] for c in clips}
+    keyframe_map = {c["scene_id"]: c.get("keyframe_url") for c in clips if c.get("keyframe_url")}
 
     scenes = []
     for scene in story.scenes:
         s = scene.model_dump()
         s["clip_path"] = clip_map.get(scene.scene_id)
+        s["keyframe_url"] = keyframe_map.get(scene.scene_id)
         scenes.append(s)
 
     return {"scenes": scenes, "total_duration": story.total_duration}
@@ -97,3 +105,47 @@ async def reorder_scenes(project_id: str, body: ReorderRequest) -> dict:
     await db.update_project(project_id, story_json=story.model_dump_json())
 
     return {"scenes": [s.model_dump() for s in story.scenes]}
+
+
+@router.post("/{project_id}/copy-keyframe")
+async def copy_keyframe(project_id: str, body: CopyKeyframeRequest) -> dict:
+    """Copy a keyframe from one scene to one or more target scenes."""
+    project = await db.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    clips = json.loads(project.get("clips_json") or "[]")
+
+    # Find source keyframe URL
+    source_entry = next(
+        (c for c in clips if c.get("scene_id") == body.source_scene_id and c.get("keyframe_url")),
+        None,
+    )
+    if not source_entry or not source_entry.get("keyframe_url"):
+        raise HTTPException(status_code=400, detail="Source scene has no keyframe")
+
+    keyframe_url = source_entry["keyframe_url"]
+
+    # Apply to each target scene
+    existing_scenes = {c["scene_id"] for c in clips}
+    for target_id in body.target_scene_ids:
+        if target_id == body.source_scene_id:
+            continue
+        if target_id in existing_scenes:
+            # Update existing entry — set keyframe, keep clip_path if present
+            for c in clips:
+                if c["scene_id"] == target_id:
+                    c["keyframe_url"] = keyframe_url
+                    break
+        else:
+            # Create new entry with just the keyframe
+            clips.append({
+                "scene_id": target_id,
+                "keyframe_url": keyframe_url,
+                "clip_path": None,
+                "variant": None,
+            })
+
+    await db.update_project(project_id, clips_json=json.dumps(clips))
+
+    return {"copied_to": body.target_scene_ids, "keyframe_url": keyframe_url}

@@ -44,8 +44,10 @@ export interface Scene {
   text_overlay: string;
   camera: string;
   clip_url: string | null;
+  keyframe_url: string | null;
   quote_id: string | null;
   cta_scene?: boolean;
+  character_present?: boolean;
 }
 
 export interface Project {
@@ -98,6 +100,7 @@ export interface VibePreset {
   name: string;
   description: string;
   prompt: string;
+  character_prompt?: string;
 }
 
 export interface ArcTemplate {
@@ -186,23 +189,40 @@ export const generateClips = (projectId: string) =>
   fetchAPI<{ job_id: string }>("/api/generate/clips", { method: "POST", body: JSON.stringify({ project_id: projectId }) });
 export const generateClip = (projectId: string, sceneId: string) =>
   fetchAPI<{ job_id: string }>("/api/generate/clip", { method: "POST", body: JSON.stringify({ project_id: projectId, scene_id: sceneId }) });
-export const renderProject = (projectId: string) =>
-  fetchAPI<{ job_id: string }>("/api/generate/render", { method: "POST", body: JSON.stringify({ project_id: projectId }) });
+export const generateKeyframe = (projectId: string, sceneId: number) =>
+  fetchAPI<{ job_id: string }>("/api/generate/keyframe", { method: "POST", body: JSON.stringify({ project_id: projectId, scene_id: sceneId }) });
+export interface RenderOptions {
+  raw?: boolean;
+  text_overlays?: boolean;
+  color_grade?: boolean;
+  audio?: boolean;
+}
+export const renderProject = (projectId: string, options: RenderOptions = {}) =>
+  fetchAPI<{ job_id: string }>("/api/generate/render", {
+    method: "POST",
+    body: JSON.stringify({ project_id: projectId, ...options }),
+  });
 
 // Scenes
 export const getScenes = async (projectId: string): Promise<Scene[]> => {
-  const data = await fetchAPI<{ scenes: Array<Scene & { clip_path?: string }>; total_duration: number }>(`/api/scenes/${projectId}`);
-  // Map backend clip_path to frontend clip_url
+  const data = await fetchAPI<{ scenes: Array<Scene & { clip_path?: string; keyframe_url?: string }>; total_duration: number }>(`/api/scenes/${projectId}`);
+  // Map backend clip_path to frontend clip_url; pass through keyframe_url
   return (data.scenes ?? []).map((s, idx) => ({
     ...s,
     id: s.id ?? String(s.scene_id ?? idx),
     clip_url: s.clip_url ?? s.clip_path ?? null,
+    keyframe_url: s.keyframe_url ?? null,
   }));
 };
 export const updateScene = (projectId: string, sceneId: string, data: Partial<Scene>) =>
   fetchAPI<Scene>(`/api/scenes/${projectId}/${sceneId}`, { method: "PATCH", body: JSON.stringify(data) });
 export const reorderScenes = (projectId: string, sceneIds: string[]) =>
   fetchAPI<void>(`/api/scenes/${projectId}/reorder`, { method: "POST", body: JSON.stringify({ scene_ids: sceneIds }) });
+export const copyKeyframe = (projectId: string, sourceSceneId: number, targetSceneIds: number[]) =>
+  fetchAPI<{ copied_to: number[]; keyframe_url: string }>(`/api/scenes/${projectId}/copy-keyframe`, {
+    method: "POST",
+    body: JSON.stringify({ source_scene_id: sourceSceneId, target_scene_ids: targetSceneIds }),
+  });
 
 // Jobs
 export const getJob = (id: string) => fetchAPI<Job>(`/api/jobs/${id}`);

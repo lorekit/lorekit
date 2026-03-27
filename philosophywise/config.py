@@ -46,15 +46,19 @@ VIBE_PRESETS: dict[str, dict] = {
             "Extremely dark, nearly monochrome aesthetic with heavy desaturation. "
             "Deep blacks, crushed shadows, minimal highlights. "
             "Think a real photograph of a dark fantasy film set — practical lighting, "
-            "real smoke machines, real armor and costumes. "
+            "real smoke machines. "
             "Dramatic single-source rim lighting with volumetric haze. "
-            "Characters are imposing, powerful, godlike figures with real human skin "
-            "texture, pores, scars, sweat — NOT smooth, NOT plastic, NOT CG. "
             "Textures: real cracked stone, real dark iron, real weathered bronze, "
             "real smoke, real embers. Color palette: near-black with occasional "
             "cold steel blue or deep ember orange accents. "
             "Raw, aggressive, primal energy. The visual intensity of a Zack Snyder "
             "film still or a dark fantasy movie poster photograph."
+        ),
+        # Only injected when character_present=True
+        "character_prompt": (
+            "Characters are imposing, powerful, godlike figures with real human skin "
+            "texture, pores, scars, sweat — NOT smooth, NOT plastic, NOT CG. "
+            "Real armor and costumes."
         ),
     },
     "custom": {

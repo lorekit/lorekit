@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -11,6 +11,7 @@ import {
   Download,
   Sparkles,
   RotateCcw,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,7 @@ import { ScenePreview } from "@/components/editor/ScenePreview";
 import { Timeline } from "@/components/editor/Timeline";
 import { QuotePicker } from "@/components/editor/QuotePicker";
 import { StoryOverview } from "@/components/editor/StoryOverview";
+import { KeyframeCopyPopover } from "@/components/editor/KeyframeCopyPopover";
 import { useProjectStore } from "@/stores/project-store";
 import {
   getProject,
@@ -27,13 +29,16 @@ import {
   updateScene as updateSceneAPI,
   generateClip,
   generateClips,
+  generateKeyframe,
   generateCharacterImage,
   renderProject,
+  copyKeyframe,
   publishToYouTube,
   getJob,
   clipUrl,
+  API_BASE,
 } from "@/lib/api";
-import type { Scene, Quote } from "@/lib/api";
+import type { Scene, Quote, RenderOptions } from "@/lib/api";
 import { cn, formatDuration } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -227,6 +232,26 @@ export default function ProjectEditorPage({
   const [allClipsProgress, setAllClipsProgress] = useState<string | null>(null);
   const [clipJobs, setClipJobs] = useState<Record<string, ClipJobState>>({});
   const [generatingCharacter, setGeneratingCharacter] = useState(false);
+  const [renderMenuOpen, setRenderMenuOpen] = useState(false);
+  const [renderOpts, setRenderOpts] = useState<RenderOptions>({
+    text_overlays: false,
+    color_grade: true,
+    audio: true,
+  });
+
+  const renderMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close render menu on outside click
+  useEffect(() => {
+    if (!renderMenuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (renderMenuRef.current && !renderMenuRef.current.contains(e.target as Node)) {
+        setRenderMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [renderMenuOpen]);
 
   const selectedScene = selectedSceneFn();
   const totalDuration = totalDurationFn();
@@ -338,6 +363,48 @@ export default function ProjectEditorPage({
     [id, setGenerating, refreshProject]
   );
 
+  const handleGenerateKeyframe = useCallback(
+    async (sceneId: string, sceneNum: number) => {
+      setGenerating(true);
+      setClipJobs((prev) => ({
+        ...prev,
+        [sceneId]: { sceneId, progress: 0, message: "Generating keyframe..." },
+      }));
+
+      try {
+        const { job_id } = await generateKeyframe(id, sceneNum);
+        await pollJob(job_id, (progress, message) => {
+          setClipJobs((prev) => ({
+            ...prev,
+            [sceneId]: { sceneId, progress, message },
+          }));
+        });
+
+        await refreshProject();
+      } catch (err) {
+        console.error("Keyframe generation failed:", err);
+      } finally {
+        setGenerating(false);
+        setClipJobs((prev) => {
+          const next = { ...prev };
+          delete next[sceneId];
+          return next;
+        });
+      }
+    },
+    [id, setGenerating, refreshProject]
+  );
+
+  const handleCopyKeyframe = useCallback(
+    async (targetSceneIds: number[]) => {
+      if (!selectedScene) return;
+      const sourceId = selectedScene.scene_id ?? Number(selectedScene.id);
+      await copyKeyframe(id, sourceId, targetSceneIds);
+      await refreshProject();
+    },
+    [id, selectedScene, refreshProject]
+  );
+
   const handleGenerateAllClips = useCallback(async () => {
     setGeneratingAll(true);
     setAllClipsProgress("Starting clip generation...");
@@ -366,10 +433,11 @@ export default function ProjectEditorPage({
   const handleRender = useCallback(async () => {
     if (!project) return;
     setIsRendering(true);
+    setRenderMenuOpen(false);
     setRenderProgress("Starting render...");
 
     try {
-      const { job_id } = await renderProject(id);
+      const { job_id } = await renderProject(id, renderOpts);
       await pollJob(job_id, (_progress, message) => {
         setRenderProgress(message || "Rendering...");
       });
@@ -381,7 +449,7 @@ export default function ProjectEditorPage({
       setIsRendering(false);
       setRenderProgress(null);
     }
-  }, [id, project, refreshProject]);
+  }, [id, project, refreshProject, renderOpts]);
 
   const handlePublish = useCallback(async () => {
     if (!project) return;
@@ -501,19 +569,62 @@ export default function ProjectEditorPage({
                 : "Generate All Clips"}
           </Button>
 
-          {/* Render */}
-          <Button
-            onClick={handleRender}
-            disabled={isRendering || scenes.length === 0}
-            className="gap-2"
-          >
-            {isRendering ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Clapperboard className="w-4 h-4" />
+          {/* Render split button */}
+          <div className="relative" ref={renderMenuRef}>
+            <div className="flex">
+              <Button
+                onClick={handleRender}
+                disabled={isRendering || scenes.length === 0}
+                className="gap-2 rounded-r-none"
+              >
+                {isRendering ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Clapperboard className="w-4 h-4" />
+                )}
+                {isRendering ? "Rendering..." : "Render"}
+              </Button>
+              <Button
+                disabled={isRendering || scenes.length === 0}
+                className="px-2 rounded-l-none border-l border-white/20"
+                onClick={() => setRenderMenuOpen((v) => !v)}
+              >
+                <ChevronDown className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {renderMenuOpen && (
+              <div className="absolute right-0 top-full mt-1 z-50 bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl min-w-[200px] space-y-2">
+                <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={renderOpts.text_overlays ?? true}
+                    onChange={(e) => setRenderOpts((o) => ({ ...o, text_overlays: e.target.checked }))}
+                    className="rounded"
+                  />
+                  Text overlays
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={renderOpts.color_grade ?? true}
+                    onChange={(e) => setRenderOpts((o) => ({ ...o, color_grade: e.target.checked }))}
+                    className="rounded"
+                  />
+                  Color grading
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={renderOpts.audio ?? true}
+                    onChange={(e) => setRenderOpts((o) => ({ ...o, audio: e.target.checked }))}
+                    className="rounded"
+                  />
+                  Audio
+                </label>
+              </div>
             )}
-            {isRendering ? "Rendering..." : "Render"}
-          </Button>
+          </div>
 
           {/* Publish */}
           <Button
@@ -551,61 +662,120 @@ export default function ProjectEditorPage({
         >
           <ScenePreview scene={selectedScene} />
 
-          {/* Video download for selected scene */}
-          {selectedScene?.clip_url && (
-            <div className="mt-3 flex gap-2">
-              <a
-                href={clipUrl(selectedScene.clip_url)}
-                download={`scene_${selectedScene.scene_id ?? selectedScene.id}.mp4`}
-              >
-                <Button variant="secondary" size="sm" className="gap-2">
-                  <Download className="w-4 h-4" />
-                  Download Clip
-                </Button>
-              </a>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-2"
-                onClick={() => handleRegenerateClip(selectedScene.id)}
-                disabled={isGenerating}
-              >
-                {isGenerating && clipJobs[selectedScene.id] ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <RotateCcw className="w-4 h-4" />
-                )}
-                Regenerate
-              </Button>
-            </div>
-          )}
+          {/* ---- Two-step generation: Keyframe → Clip ---- */}
+          {selectedScene && (
+            <div className="mt-3 space-y-3">
+              
 
-          {/* Generate clip button if none exists */}
-          {selectedScene && !selectedScene.clip_url && !clipJobs[selectedScene.id] && (
-            <div className="mt-3">
-              <Button
-                onClick={() => handleRegenerateClip(selectedScene.id)}
-                disabled={isGenerating}
-                className="gap-2"
-              >
-                <Sparkles className="w-4 h-4" />
-                Generate Clip
-              </Button>
-            </div>
-          )}
+              {/* Clip exists — show download + regenerate */}
+              {selectedScene.clip_url && (
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={clipUrl(selectedScene.clip_url)}
+                    download={`scene_${selectedScene.scene_id ?? selectedScene.id}.mp4`}
+                  >
+                    <Button variant="secondary" size="sm" className="gap-2">
+                      <Download className="w-4 h-4" />
+                      Download Clip
+                    </Button>
+                  </a>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => handleRegenerateClip(selectedScene.id)}
+                    disabled={isGenerating}
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Generate Clip
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => handleGenerateKeyframe(selectedScene.id, selectedScene.scene_id ?? Number(selectedScene.id))}
+                    disabled={isGenerating}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    New Keyframe
+                  </Button>
+                  {selectedScene.keyframe_url && (
+                    <KeyframeCopyPopover
+                      scenes={scenes}
+                      currentSceneId={selectedScene.scene_id ?? Number(selectedScene.id)}
+                      onCopy={handleCopyKeyframe}
+                      disabled={isGenerating}
+                    />
+                  )}
+                </div>
+              )}
 
-          {/* Progress bar for clip being generated */}
-          {selectedScene && clipJobs[selectedScene.id] && (
-            <div className="mt-3 space-y-2">
-              <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-amber-500 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.round(clipJobs[selectedScene.id].progress * 100)}%` }}
-                />
-              </div>
-              <p className="text-xs text-amber-400">
-                {clipJobs[selectedScene.id].message}
-              </p>
+              {/* Keyframe exists but no clip — show Generate Clip + New Keyframe + Copy */}
+              {!selectedScene.clip_url && selectedScene.keyframe_url && !clipJobs[selectedScene.id] && (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => handleRegenerateClip(selectedScene.id)}
+                    disabled={isGenerating}
+                    className="gap-2"
+                  >
+                    <Film className="w-4 h-4" />
+                    Generate Clip
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="gap-2"
+                    onClick={() => handleGenerateKeyframe(selectedScene.id, selectedScene.scene_id ?? Number(selectedScene.id))}
+                    disabled={isGenerating}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    New Keyframe
+                  </Button>
+                  <KeyframeCopyPopover
+                    scenes={scenes}
+                    currentSceneId={selectedScene.scene_id ?? Number(selectedScene.id)}
+                    onCopy={handleCopyKeyframe}
+                    disabled={isGenerating}
+                  />
+                </div>
+              )}
+
+              {/* No keyframe and no clip — show both options */}
+              {!selectedScene.clip_url && !selectedScene.keyframe_url && !clipJobs[selectedScene.id] && (
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => handleGenerateKeyframe(selectedScene.id, selectedScene.scene_id ?? Number(selectedScene.id))}
+                    disabled={isGenerating}
+                    className="gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Generate Keyframe
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => handleRegenerateClip(selectedScene.id)}
+                    disabled={isGenerating}
+                    className="gap-2 text-slate-400"
+                  >
+                    <Film className="w-4 h-4" />
+                    Skip to Clip
+                  </Button>
+                </div>
+              )}
+
+              {/* Progress bar for active generation */}
+              {clipJobs[selectedScene.id] && (
+                <div className="space-y-2">
+                  <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-amber-500 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.round(clipJobs[selectedScene.id].progress * 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-amber-400">
+                    {clipJobs[selectedScene.id].message}
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -671,17 +841,6 @@ export default function ProjectEditorPage({
             isGenerating={isGenerating}
           />
         </section>
-      </div>
-
-      {/* ================================================================ */}
-      {/*  TIMELINE                                                        */}
-      {/* ================================================================ */}
-      <div className="px-4 py-3 border-t border-slate-800 flex-shrink-0">
-        <Timeline
-          scenes={scenes}
-          selectedSceneId={selectedSceneId}
-          onSelectScene={selectScene}
-        />
       </div>
 
       {/* ================================================================ */}
