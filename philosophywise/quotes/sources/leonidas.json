@@ -1,0 +1,405 @@
+{
+    "philosopher": {
+        "id": "leonidas",
+        "name": "Leonidas I",
+        "civilization": "greek",
+        "era": "540-480 BC, Classical Sparta, Ancient Greece",
+        "source_texts": ["Plutarch's Moralia", "Herodotus' Histories", "Plutarch's Sayings of Spartans"],
+        "character_description": "Muscular middle-aged Spartan warrior-king, late 40s-50s, long dark hair past shoulders, full thick dark beard, deeply tanned weathered skin, prominent jaw, fierce determined eyes, wearing bronze Corinthian helmet (pushed up on forehead when not fighting), crimson red cloak over bronze breastplate, bronze greaves, carrying round bronze hoplon shield with lambda (Λ) symbol, short xiphos sword.",
+        "environment_description": "Spartan landscapes — rugged Peloponnesian mountains, the narrow pass of Thermopylae with cliffs and sea, Spartan training grounds (agoge), austere stone buildings of Sparta (no luxury), battlefield camps, Hot Gates with rocky terrain and crashing waves, shield wall formations."
+    },
+    "quotes": [
+        {
+            "text": "Come and take them.",
+            "short_version": "Come and take them.",
+            "source": "Plutarch, Sayings of Spartans; also referenced in Herodotus, Histories, Book 7",
+            "theme": "discipline",
+            "emotional_function": "hook",
+            "pair_with_visual": "Leonidas standing at the mouth of the pass of Thermopylae, arms crossed, helmet raised, the Persian army massed on the plain behind him"
+        },
+        {
+            "text": "Eat well tonight. For in Hades we shall dine together.",
+            "short_version": "Tonight we dine in Hades.",
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "mortality",
+            "emotional_function": "hook",
+            "pair_with_visual": "Spartan warriors sharing a simple meal by firelight the night before the final stand at Thermopylae"
+        },
+        {
+            "text": "If you knew what is good in life, you would abstain from wishing for foreign things. For me it is better to die for Greece than to be monarch over my compatriots.",
+            "short_version": "Better to die for Greece than to rule over it.",
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Leonidas facing the Persian envoys, the Spartan phalanx arrayed behind him on the rocky hillside"
+        },
+        {
+            "text": "Fight with your minds as well as your spears.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "strategy",
+            "emotional_function": "hook",
+            "pair_with_visual": "Close-up of Leonidas's eyes, intense and calculating, above the rim of his raised shield"
+        },
+        {
+            "text": "A man should not fear death — only dishonor.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "mortality",
+            "emotional_function": "truth",
+            "pair_with_visual": "A young Spartan soldier receiving his shield from his mother before departing for battle"
+        },
+        {
+            "text": "Spartans do not ask how many are the enemy but where they are.",
+            "short_version": "We don't count the enemy. We find them.",
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "Spartan scouts on a ridge overlooking a vast Persian encampment, expressions calm and unafraid"
+        },
+        {
+            "text": "With it or on it.",
+            "short_version": null,
+            "source": "Plutarch, Moralia — attributed to a Spartan mother sending her son to war",
+            "theme": "discipline",
+            "emotional_function": "hook",
+            "pair_with_visual": "A Spartan mother pressing a shield into the hands of her young warrior son, her expression stern and proud"
+        },
+        {
+            "text": "The Spartans do not ask how many, but where the enemy are.",
+            "short_version": "Never how many — only where.",
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "Leonidas receiving a scout's report, leaning over a rough map scratched into stone, jaw set"
+        },
+        {
+            "text": "We have already overcome the hardest enemy — fear.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "Spartan warriors standing motionless as war drums and Persian war cries echo through the mountain pass"
+        },
+        {
+            "text": "Tell the Spartans, stranger passing by, that here, obedient to their laws, we lie.",
+            "short_version": "Here, obedient to their laws, we lie.",
+            "source": "Simonides of Ceos, epitaph at Thermopylae — quoted in Herodotus, Histories, Book 7",
+            "theme": "mortality",
+            "emotional_function": "hook",
+            "pair_with_visual": "A stone inscription at Thermopylae, scattered shields and spear shafts around the burial mound, the sea crashing nearby"
+        },
+        {
+            "text": "The Persian king demands earth and water. We offer him iron and blood.",
+            "short_version": "We offer iron and blood.",
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "virtue",
+            "emotional_function": "hook",
+            "pair_with_visual": "Leonidas turning away from a Persian envoy, cloak sweeping behind him, warriors standing at attention"
+        },
+        {
+            "text": "Go tell the Spartans that you have seen us obedient to Spartan law.",
+            "short_version": null,
+            "source": "Herodotus, Histories, Book 7",
+            "theme": "discipline",
+            "emotional_function": "hook",
+            "pair_with_visual": "The last Spartan survivors forming a tight circle on a low hill at Thermopylae as arrows darken the sky"
+        },
+        {
+            "text": "There will be plenty of fighting — but it will be in the shade.",
+            "short_version": "Then we shall fight in the shade.",
+            "source": "Plutarch, Sayings of Spartans — words of the Spartan Dienekes upon being told Persian arrows would blot out the sun",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "Dienekes grinning broadly at a nervous younger warrior, a hail of arrows visible in the sky above the pass"
+        },
+        {
+            "text": "A Spartan's cloak is his only luxury.",
+            "short_version": null,
+            "source": "Plutarch, Life of Lycurgus",
+            "theme": "discipline",
+            "emotional_function": "truth",
+            "pair_with_visual": "Leonidas wrapped in his crimson cloak, sitting on stone steps before the austere columns of a Spartan building, no adornments around him"
+        },
+        {
+            "text": "The city is its men, not its walls.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Wide shot of Sparta — open, unwalled, surrounded by mountains, its soldiers the only fortification"
+        },
+        {
+            "text": "Do not grieve; it is the lot of man to suffer, and the bravest suffer worst.",
+            "short_version": "The bravest suffer worst.",
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "mortality",
+            "emotional_function": "truth",
+            "pair_with_visual": "Leonidas kneeling beside a fallen warrior, hand on the man's chest, eyes raised to the horizon"
+        },
+        {
+            "text": "I am not afraid to die. I have lived my life in honor.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Leonidas in close-up, face calm, helmet visor down, ready for the final Persian assault"
+        },
+        {
+            "text": "The Spartan is never first to attack, nor last to retreat from a hopeless cause.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "The Spartan phalanx in perfect formation, shields locked, moving as a single organism through the narrow pass"
+        },
+        {
+            "text": "A Spartan practices not speaking, but doing.",
+            "short_version": "Practice doing, not speaking.",
+            "source": "Plutarch, Life of Lycurgus",
+            "theme": "discipline",
+            "emotional_function": "truth",
+            "pair_with_visual": "Young Spartan boys training silently on a dusty field, no coaches shouting, only quiet motion"
+        },
+        {
+            "text": "The Spartans are free, yet not entirely free — for they have a master, and that master is the law.",
+            "short_version": "Their master is the law.",
+            "source": "Herodotus, Histories, Book 7 — words spoken by Demaratus to Xerxes",
+            "theme": "discipline",
+            "emotional_function": "truth",
+            "pair_with_visual": "Demaratus standing before the Persian throne, Xerxes seated high above him, Persian courtiers surrounding them"
+        },
+        {
+            "text": "Spartans never retreat. They merely attack in a different direction.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "The Spartan rear guard wheeling in formation at Thermopylae, turning to face a flanking Persian force"
+        },
+        {
+            "text": "A coward dies a thousand deaths. A Spartan dies but once.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "mortality",
+            "emotional_function": "truth",
+            "pair_with_visual": "A young Spartan warrior staring at the battlefield ahead, steadying his breath, shield arm raised"
+        },
+        {
+            "text": "The strength of a wolf is the pack, and the strength of the pack is the wolf.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "Overhead view of interlocked Spartan shields forming an unbroken wall across the pass"
+        },
+        {
+            "text": "Those who carry shields protect not only themselves but the whole line.",
+            "short_version": "Your shield protects the man beside you.",
+            "source": "Plutarch, Life of Lycurgus",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Two warriors pressing shields together against a crashing wave of spears, holding the line"
+        },
+        {
+            "text": "To the Persian envoy asking surrender: If you wish, come and take us.",
+            "short_version": "Come and take us.",
+            "source": "Herodotus, Histories, Book 7",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Leonidas standing alone before a Persian envoy, arms relaxed at his sides, utterly unafraid"
+        },
+        {
+            "text": "We eat to live; we do not live to eat.",
+            "short_version": null,
+            "source": "Plutarch, Life of Lycurgus",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Spartan warriors eating their famous black broth from plain wooden bowls, seated on rough stone benches"
+        },
+        {
+            "text": "Luxury weakens the body and corrupts the soul.",
+            "short_version": null,
+            "source": "Plutarch, Life of Lycurgus",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A contrast image — Persian nobles reclining at a lavish feast, cut to Spartan warriors sleeping on hard ground under open sky"
+        },
+        {
+            "text": "We do not train to be merciful here. We train to be thorough.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A Spartan instructor striking a training weapon from the hands of a young boy, who picks it up without complaint"
+        },
+        {
+            "text": "Speak briefly, or not at all.",
+            "short_version": null,
+            "source": "Plutarch, Life of Lycurgus — on the Spartan practice of laconic speech",
+            "theme": "wisdom",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Leonidas cutting off a long-winded Athenian speaker with a single raised hand"
+        },
+        {
+            "text": "It is better to die standing than to live on your knees.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A Spartan warrior refusing to kneel before an enemy commander, standing upright though wounded"
+        },
+        {
+            "text": "A Spartan never asks 'what time does the battle begin?' He asks 'what time does the battle end?'",
+            "short_version": "Not when it begins — when it ends.",
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "mindset",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Spartan soldiers sharpening spears and oiling shield leather before dawn, indifferent to the coming battle"
+        },
+        {
+            "text": "Persians can tell they have met real men.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Persian soldiers falling back from the pass in disarray as the Spartan phalanx advances steadily"
+        },
+        {
+            "text": "Return either with your shield or on it.",
+            "short_version": "With it or on it.",
+            "source": "Plutarch, Moralia — attributed to a Spartan mother",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A Spartan woman pressing both her hands flat against her son's shield before he marches out of the city gates"
+        },
+        {
+            "text": "Pain is temporary. Cowardice is permanent.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A bleeding Spartan warrior binding his own wound, never breaking formation, eyes forward"
+        },
+        {
+            "text": "Never dishonor your city by showing your back to the enemy.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "The Spartan rear guard at Thermopylae holding formation facing the Persians, the rest of the Greek army retreating behind them"
+        },
+        {
+            "text": "If we are defeated, it will not be for lack of courage, but for lack of numbers.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "mindset",
+            "emotional_function": "conflict",
+            "pair_with_visual": "300 Spartans in tight formation at the narrowest point of the pass, facing a sea of Persian soldiers"
+        },
+        {
+            "text": "The body may be bound, but the spirit of a Spartan cannot be.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "mindset",
+            "emotional_function": "loop",
+            "pair_with_visual": "A Spartan prisoner in chains, standing tall, meeting the gaze of his captor without flinching"
+        },
+        {
+            "text": "Every morning a Spartan asks himself: am I better than yesterday?",
+            "short_version": null,
+            "source": "Plutarch, Life of Lycurgus",
+            "theme": "discipline",
+            "emotional_function": "loop",
+            "pair_with_visual": "Leonidas at dawn, alone in the training grounds, running through spear drills in the pale morning light"
+        },
+        {
+            "text": "The agoge does not train men. It reveals them.",
+            "short_version": null,
+            "source": "Plutarch, Life of Lycurgus",
+            "theme": "wisdom",
+            "emotional_function": "loop",
+            "pair_with_visual": "A line of young boys beginning their first day of Spartan training, nervous but upright"
+        },
+        {
+            "text": "A Spartan's glory is not the victory — it is who he was in the fight.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "virtue",
+            "emotional_function": "loop",
+            "pair_with_visual": "Leonidas striding through the aftermath of battle, face unreadable, checking on fallen comrades"
+        },
+        {
+            "text": "War is not the exception for a Spartan. Peace is.",
+            "short_version": null,
+            "source": "Plutarch, Life of Lycurgus",
+            "theme": "discipline",
+            "emotional_function": "loop",
+            "pair_with_visual": "Spartan warriors training in peacetime on the same ground with the same intensity as they would in war"
+        },
+        {
+            "text": "We do not train for one day of battle. We train so that every day is battle.",
+            "short_version": null,
+            "source": "Plutarch, Life of Lycurgus",
+            "theme": "discipline",
+            "emotional_function": "loop",
+            "pair_with_visual": "A montage of Spartan life — training, eating sparingly, sleeping on the ground, training again — the cycle unbroken"
+        },
+        {
+            "text": "Whoever is well prepared has already half won the victory.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "strategy",
+            "emotional_function": "loop",
+            "pair_with_visual": "Spartan warriors methodically checking each other's armor and shield straps before marching into the pass"
+        },
+        {
+            "text": "The finest steel is made in the hottest furnace.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "nature",
+            "emotional_function": "loop",
+            "pair_with_visual": "A Spartan blacksmith plunging a glowing sword blade into water, steam rising, the blade emerging dark and true"
+        },
+        {
+            "text": "There is nothing richer than the man who has nothing left to lose.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Leonidas seated alone on the steps of the Hot Gates at dusk, cloak wrapped around him, the sea dark below"
+        },
+        {
+            "text": "The greatest victory is the one that requires the least blood. The second greatest requires all of it.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "A bird's-eye view of the narrow pass at Thermopylae — the strategic geography that allowed 300 to hold thousands"
+        },
+        {
+            "text": "When asked why Sparta had no walls, Agesilaus pointed to the citizens and said: These are the walls of Sparta.",
+            "short_version": "The citizens are the walls of Sparta.",
+            "source": "Plutarch, Sayings of Spartans — attributed to Agesilaus II",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "A wide shot of Spartan warriors standing in a ring around the unwalled city, shields facing outward"
+        },
+        {
+            "text": "Honor the gods, but do not ask them to do what you can do yourself.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Leonidas making a brief, plain offering at a roadside altar, then immediately returning to his march"
+        },
+        {
+            "text": "I would rather die in battle than grow old and never have been tested.",
+            "short_version": null,
+            "source": "Plutarch, Sayings of Spartans",
+            "theme": "mortality",
+            "emotional_function": "truth",
+            "pair_with_visual": "Leonidas in the thick of battle, armor dented, fighting with controlled ferocity"
+        }
+    ]
+}

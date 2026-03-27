@@ -1,0 +1,421 @@
+{
+    "philosopher": {
+        "id": "confucius",
+        "name": "Confucius",
+        "civilization": "chinese",
+        "era": "551-479 BC, Spring and Autumn Period, Ancient China",
+        "source_texts": ["Analects"],
+        "character_description": "Elderly Chinese scholar, late 60s-70s, long thin white beard, hair in traditional topknot under a scholar's cap, kind but serious eyes, wearing layered silk scholar's robes in dark colors with wide sleeves, carrying a jade tablet or bamboo scroll. Tall and dignified bearing.",
+        "environment_description": "Ancient Chinese academy courtyard, students sitting on mats before the master, bamboo groves, classical Chinese pavilion with curved roof, ink and brush on low wooden desk, scrolls hanging on walls, peaceful garden with stone path, warm afternoon light."
+    },
+    "quotes": [
+        {
+            "text": "Is it not pleasant to learn with a constant perseverance and application? Is it not delightful to have friends coming from distant quarters?",
+            "short_version": "Is it not pleasant to learn with constant perseverance?",
+            "source": "Analects, Book 1, Chapter 1",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "Confucius unrolling a bamboo scroll at dawn, a single candle illuminating his face as he reads, students approaching in the distance"
+        },
+        {
+            "text": "Fine words and an insinuating appearance are seldom associated with true virtue.",
+            "short_version": "Fine words and a flattering face — rarely true virtue.",
+            "source": "Analects, Book 1, Chapter 3",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Two figures in a courtyard — one speaking with an elaborate bow, the other watching with quiet, unmoved eyes"
+        },
+        {
+            "text": "I daily examine myself on three points: whether, in transacting business for others, I may have been not faithful; whether, in intercourse with friends, I may have been not sincere; whether I may have not mastered and practiced the instructions of my teacher.",
+            "short_version": "I examine myself daily on three points: faithfulness, sincerity, and mastery of what I was taught.",
+            "source": "Analects, Book 1, Chapter 4",
+            "theme": "discipline",
+            "emotional_function": "truth",
+            "pair_with_visual": "A scholar kneeling alone in early morning light, eyes closed, hands folded, a list of three questions visible on a scroll beside him"
+        },
+        {
+            "text": "When you know a thing, to hold that you know it; and when you do not know a thing, to allow that you do not know it — this is knowledge.",
+            "short_version": "Knowing what you know, and knowing what you don't — that is knowledge.",
+            "source": "Analects, Book 2, Chapter 17",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "Confucius gesturing calmly to a student who looks confused, a vast landscape behind them both suggesting the scale of the unknown"
+        },
+        {
+            "text": "Learning without thought is labor lost; thought without learning is perilous.",
+            "short_version": null,
+            "source": "Analects, Book 2, Chapter 15",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "A student bent over scrolls in one half of the frame, another student staring blankly into empty space in the other half — contrasting two failures"
+        },
+        {
+            "text": "At fifteen, I had my mind bent on learning. At thirty, I stood firm. At forty, I had no doubts. At fifty, I knew the decrees of Heaven. At sixty, my ear was an obedient organ for the reception of truth. At seventy, I could follow what my heart desired, without transgressing what was right.",
+            "short_version": "At fifteen I learned. At thirty I stood firm. At seventy I could follow my heart without wrong.",
+            "source": "Analects, Book 2, Chapter 4",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "A visual sequence of the same scholar at different ages — young student, middle-aged teacher, white-haired elder — each posture more serene than the last"
+        },
+        {
+            "text": "The man of virtue, wishing to be established himself, seeks also to establish others; wishing to be enlarged himself, he seeks also to enlarge others.",
+            "short_version": "Wishing to stand, he helps others stand. Wishing to grow, he helps others grow.",
+            "source": "Analects, Book 6, Chapter 28",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Confucius lifting a student to his feet with both hands, bright morning light behind them, other students watching and rising on their own"
+        },
+        {
+            "text": "The superior man is catholic and no partisan. The mean man is partisan and not catholic.",
+            "short_version": "The noble man is impartial. The small man takes sides.",
+            "source": "Analects, Book 2, Chapter 14",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Two groups of men arguing on opposite sides, while a single robed figure stands calmly at the center, looking neither left nor right"
+        },
+        {
+            "text": "Hold faithfulness and sincerity as first principles.",
+            "short_version": null,
+            "source": "Analects, Book 1, Chapter 8",
+            "theme": "virtue",
+            "emotional_function": "hook",
+            "pair_with_visual": "Confucius placing his hand over his chest, facing a student directly, the courtyard quiet and still behind them"
+        },
+        {
+            "text": "Without an acquaintance with the rules of propriety, it is impossible for the character to be established.",
+            "short_version": "Without propriety, character cannot be established.",
+            "source": "Analects, Book 20, Chapter 3",
+            "theme": "discipline",
+            "emotional_function": "truth",
+            "pair_with_visual": "A young man stumbling through a formal ceremony, watched by elders with patient disapproval, a scroll of ritual rules unfurled beside him"
+        },
+        {
+            "text": "When you know a thing, to hold that you know it; and when you do not know a thing, to allow that you do not know it — this is knowledge.",
+            "short_version": "Knowing what you know and what you don't — that is knowledge.",
+            "source": "Analects, Book 2, Chapter 17",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "A scholar pausing mid-sentence, lowering his brush, looking quietly at the empty page in front of him"
+        },
+        {
+            "text": "The superior man, extensively studying all learning, and keeping himself under the restraint of the rules of propriety, may thus likewise not err from what is right.",
+            "short_version": "Study widely, restrain yourself with propriety — and you will not err.",
+            "source": "Analects, Book 6, Chapter 27",
+            "theme": "discipline",
+            "emotional_function": "truth",
+            "pair_with_visual": "A scholar surrounded by stacked scrolls and open texts, but seated in perfect upright posture, brush held precisely in hand"
+        },
+        {
+            "text": "Is he not a man of complete virtue, who feels no discomposure though men may take no note of him?",
+            "short_version": "Is he not virtuous, who feels no discomposure when unnoticed?",
+            "source": "Analects, Book 1, Chapter 1",
+            "theme": "virtue",
+            "emotional_function": "hook",
+            "pair_with_visual": "A robed figure working alone in a garden, head down, while a crowd passes on a nearby road without glancing in his direction"
+        },
+        {
+            "text": "If the people be led by laws, and uniformity sought to be given them by punishments, they will try to avoid the punishment, but have no sense of shame. If they be led by virtue, and uniformity sought to be given them by the rules of propriety, they will have the sense of shame, and moreover will become good.",
+            "short_version": "Lead with law and fear keeps order. Lead with virtue and the people become good.",
+            "source": "Analects, Book 2, Chapter 3",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A ruler pointing down at subjects from above versus a teacher kneeling beside a student — two images of authority, one cold, one warm"
+        },
+        {
+            "text": "The man who in the view of gain thinks of righteousness; who in the view of danger is prepared to give up his life; and who does not forget an old agreement however far back it extends — such a man may be reckoned a complete man.",
+            "short_version": "He who chooses right over gain, and duty over safety — he is a complete man.",
+            "source": "Analects, Book 14, Chapter 13",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "A soldier standing at a crossroads — one path toward treasure, one toward fire — turning deliberately toward the fire"
+        },
+        {
+            "text": "When we see men of worth, we should think of equaling them; when we see men of a contrary character, we should turn inwards and examine ourselves.",
+            "short_version": "See a worthy man — aspire to match him. See a lesser man — look inward.",
+            "source": "Analects, Book 4, Chapter 17",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "A student watching a master calligrapher at work, then glancing down at his own ink-stained hands with quiet determination"
+        },
+        {
+            "text": "Recompense injury with justice, and recompense kindness with kindness.",
+            "short_version": null,
+            "source": "Analects, Book 14, Chapter 36",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Confucius facing a student who asks a pointed question, the master's answer delivered with calm, level eyes — neither cold nor warm"
+        },
+        {
+            "text": "The cautious seldom err.",
+            "short_version": null,
+            "source": "Analects, Book 4, Chapter 23",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "A single footprint on a stone path, placed precisely, while the surrounding ground shows signs of others who stumbled"
+        },
+        {
+            "text": "He who learns but does not think is lost. He who thinks but does not learn is in great danger.",
+            "short_version": null,
+            "source": "Analects, Book 2, Chapter 15",
+            "theme": "wisdom",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A scholar staring at a blank wall versus a student memorizing scrolls blindly — two mirror images of intellectual failure"
+        },
+        {
+            "text": "The superior man is satisfied and composed; the mean man is always full of distress.",
+            "short_version": "The noble man is at ease. The small man is always troubled.",
+            "source": "Analects, Book 7, Chapter 36",
+            "theme": "mindset",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Two figures under the same circumstances — one seated calmly beneath a tree, the other pacing with furrowed brow"
+        },
+        {
+            "text": "The determined scholar and the man of virtue will not seek to live at the expense of injuring their virtue. They will even sacrifice their lives to preserve their virtue complete.",
+            "short_version": "The man of virtue will sacrifice his life before his principles.",
+            "source": "Analects, Book 15, Chapter 8",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "A lone scholar standing before officials demanding he recant his writings, the scholar's hands empty, his posture unbowed"
+        },
+        {
+            "text": "The man of virtue makes the difficulty to be overcome his first business, and success only a subsequent consideration.",
+            "short_version": "Face the difficulty first. Let success follow.",
+            "source": "Analects, Book 6, Chapter 20",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "A figure ascending a steep stone staircase in morning mist, not looking down at how far they've come but up at the next step"
+        },
+        {
+            "text": "He who acts with a constant view to his own advantage will be much murmured against.",
+            "short_version": "Act always for your own gain, and the world will turn against you.",
+            "source": "Analects, Book 4, Chapter 12",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "A merchant counting coins while those around him begin to drift away, leaving him alone at his table"
+        },
+        {
+            "text": "Without knowing the force of words, it is impossible to know men.",
+            "short_version": null,
+            "source": "Analects, Book 20, Chapter 3",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "Confucius listening carefully to a student speak, his head slightly tilted, eyes reading something beneath the surface of the words"
+        },
+        {
+            "text": "Do not be desirous of having things done quickly; do not look at small advantages. Desire to have things done quickly prevents their being done thoroughly. Looking at small advantages prevents great affairs from being accomplished.",
+            "short_version": "Hurry prevents thoroughness. Chasing small gains prevents great achievements.",
+            "source": "Analects, Book 13, Chapter 17",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "A craftsman rushing his work and cracking the jade he carves, while beside him another works slowly, stone whole and gleaming"
+        },
+        {
+            "text": "When you know a thing, to hold that you know it; and when you do not know a thing, to allow that you do not know it — this is knowledge.",
+            "short_version": "Know what you know, and know what you don't — that is knowledge.",
+            "source": "Analects, Book 2, Chapter 17",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "An elder scholar bowing his head to a younger craftsman who demonstrates a skill the scholar has never attempted"
+        },
+        {
+            "text": "What the superior man seeks is in himself. What the mean man seeks is in others.",
+            "short_version": null,
+            "source": "Analects, Book 15, Chapter 20",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "Two men — one looking inward with closed eyes and open hands, one pointing outward with an accusatory finger"
+        },
+        {
+            "text": "The superior man does not, even for the space of a single meal, act contrary to virtue. In moments of haste, he cleaves to it. In seasons of danger, he cleaves to it.",
+            "short_version": "Not for a single meal does the noble man abandon virtue — not in haste, not in danger.",
+            "source": "Analects, Book 4, Chapter 5",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "A scholar pressed by urgent officials, still pausing to bow respectfully before entering the chamber"
+        },
+        {
+            "text": "Virtue is not left to stand alone. He who practices it will have neighbors.",
+            "short_version": null,
+            "source": "Analects, Book 4, Chapter 25",
+            "theme": "virtue",
+            "emotional_function": "loop",
+            "pair_with_visual": "A single lamp lit in a dark village — one by one, windows in neighboring houses begin to glow in response"
+        },
+        {
+            "text": "The man of principle is ever apprehensive lest he should not attain to virtue. He is not anxious lest others should not know him.",
+            "short_version": "Worry about whether you are virtuous, not about whether others know it.",
+            "source": "Analects, Book 4, Chapter 14",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A scholar writing by candlelight, alone, no audience present, pressing on with complete concentration"
+        },
+        {
+            "text": "At home, a young man should be filial; abroad, he should be respectful to his elders. He should be earnest and truthful. He should overflow in love to all, and cultivate the friendship of the good.",
+            "short_version": "Be filial at home, respectful abroad, earnest, truthful, loving to all.",
+            "source": "Analects, Book 1, Chapter 6",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "A young man bowing to his father inside a doorway, then turning to bow to an elder passing on the road outside"
+        },
+        {
+            "text": "A man without virtue cannot long abide in adversity, nor can he long abide in happiness.",
+            "short_version": "Without virtue, a man survives neither hardship nor ease for long.",
+            "source": "Analects, Book 4, Chapter 2",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A figure crumbling under hardship in one image and squandering ease in the other — two forms of the same collapse"
+        },
+        {
+            "text": "The scholar who is bent on study is not fit to be spoken to of the Tao.",
+            "short_version": "He who clings to comfort is not ready for truth.",
+            "source": "Analects, Book 4, Chapter 9",
+            "theme": "wisdom",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A student reaching for a comfortable cushion while another student sits cross-legged on a bare floor, scroll open"
+        },
+        {
+            "text": "The man of virtue, wishing to be established himself, seeks also to establish others.",
+            "short_version": null,
+            "source": "Analects, Book 6, Chapter 28",
+            "theme": "virtue",
+            "emotional_function": "loop",
+            "pair_with_visual": "Confucius with one hand raised to teach, the other extended forward — a gesture of giving and receiving at the same time"
+        },
+        {
+            "text": "When you have faults, do not fear to abandon them.",
+            "short_version": null,
+            "source": "Analects, Book 1, Chapter 8",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "A man opening both hands and letting something fall to the ground — releasing, not grasping"
+        },
+        {
+            "text": "If a man takes no thought about what is distant, he will find sorrow near at hand.",
+            "short_version": "Ignore what is distant, and sorrow will arrive near at hand.",
+            "source": "Analects, Book 15, Chapter 11",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "A man gazing at his feet on a narrow bridge, unaware that the far shore — which he never looked toward — is collapsing"
+        },
+        {
+            "text": "The superior man is catholic and no partisan. The mean man is partisan and not catholic.",
+            "short_version": "The noble man belongs to no faction. The small man belongs to nothing else.",
+            "source": "Analects, Book 2, Chapter 14",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Confucius walking an open path between two factions of arguing scholars, belonging to neither, troubled by nothing"
+        },
+        {
+            "text": "To go beyond is as wrong as to fall short.",
+            "short_version": null,
+            "source": "Analects, Book 11, Chapter 15",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "A scale with one side too heavy and the other too light — both trays off the ground, neither balanced"
+        },
+        {
+            "text": "The man who is capable of righteous conduct will also have courage. But the man of courage is not necessarily capable of righteous conduct.",
+            "short_version": "Virtue requires courage. Courage does not require virtue.",
+            "source": "Analects, Book 14, Chapter 4",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A soldier charging forward with a blade versus a scholar standing firm without one — both fearless, but only one righteous"
+        },
+        {
+            "text": "When you know a thing, to hold that you know it; and when you do not know a thing, to allow that you do not know it — this is knowledge.",
+            "short_version": "Real knowledge begins with honesty about ignorance.",
+            "source": "Analects, Book 2, Chapter 17",
+            "theme": "wisdom",
+            "emotional_function": "loop",
+            "pair_with_visual": "A student erasing his answer on a tablet, rewriting nothing — sitting quietly in the acceptance of not knowing"
+        },
+        {
+            "text": "The superior man is distressed by his want of ability; he is not distressed by men's not knowing him.",
+            "short_version": "Grieve your own lack of ability, not others' failure to recognize you.",
+            "source": "Analects, Book 15, Chapter 18",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "A craftsman studying his own hands critically, paying no attention to the crowd passing by his workshop"
+        },
+        {
+            "text": "If you think in terms of a year, plant a seed; if in terms of ten years, plant trees; if in terms of 100 years, teach the people.",
+            "short_version": "Plant a seed for a year, a tree for a decade, a person for a century.",
+            "source": "Analects, Book 13, Chapter 9",
+            "theme": "wisdom",
+            "emotional_function": "loop",
+            "pair_with_visual": "Three scenes in a scroll: a farmer sowing, a man planting a sapling, and Confucius teaching students in an open courtyard"
+        },
+        {
+            "text": "He who speaks without modesty will find it difficult to make his words good.",
+            "short_version": "Speak without modesty and your words will ring hollow.",
+            "source": "Analects, Book 14, Chapter 21",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "A man speaking loudly before a crowd with gestures — the crowd growing smaller in each frame as he continues"
+        },
+        {
+            "text": "The accomplished scholar is not a utensil.",
+            "short_version": null,
+            "source": "Analects, Book 2, Chapter 12",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "A scholar setting down a tool on a workbench and picking up a brush — the instrument of craft replaced by the instrument of wisdom"
+        },
+        {
+            "text": "With coarse rice to eat, with water to drink, and my bent arm for a pillow — I still have joy in the midst of these things.",
+            "short_version": "Coarse rice, water, a bent arm for a pillow — and still I have joy.",
+            "source": "Analects, Book 7, Chapter 15",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "Confucius resting on a simple mat in a bare room, a small bowl of rice beside him, face peaceful and content"
+        },
+        {
+            "text": "Riches and honors acquired by unrighteousness are to me as a floating cloud.",
+            "short_version": "Riches won by wrong — to me, like a floating cloud.",
+            "source": "Analects, Book 7, Chapter 15",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A figure turning away from a pile of gold coins that scatter like mist in the wind behind him as he walks"
+        },
+        {
+            "text": "When I walk along with two others, they may serve me as my teachers. I will select their good qualities and follow them, their bad qualities and avoid them.",
+            "short_version": "Walk with two others and both become your teachers.",
+            "source": "Analects, Book 7, Chapter 21",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Confucius on a path between two companions, eyes moving between them both with quiet, discerning attention"
+        },
+        {
+            "text": "When you know a thing, to hold that you know it; and when you do not know a thing, to allow that you do not know it — this is knowledge.",
+            "short_version": "Admitting ignorance is the start of knowing.",
+            "source": "Analects, Book 2, Chapter 17",
+            "theme": "wisdom",
+            "emotional_function": "loop",
+            "pair_with_visual": "An elder bowing before a young craftsman who knows what the elder does not — age yielding to knowledge"
+        },
+        {
+            "text": "The superior man agrees with others without being an echo. The mean man echoes without agreeing.",
+            "short_version": "The noble man agrees without echoing. The small man echoes without agreeing.",
+            "source": "Analects, Book 13, Chapter 23",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "One man nodding slowly while looking another in the eye versus a figure nodding rapidly at everything he hears"
+        },
+        {
+            "text": "Never do to others what you would not like them to do to you.",
+            "short_version": null,
+            "source": "Analects, Book 15, Chapter 23",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Confucius pausing before an action, his hand raised — imagining himself on the receiving end before he proceeds"
+        },
+        {
+            "text": "The man of perfect virtue, wishing to be established himself, seeks also to establish others; wishing to be enlarged himself, he seeks also to enlarge others. To be able to judge of others by what is nigh in ourselves — this may be called the art of virtue.",
+            "short_version": "Judge others by what you know of yourself — that is the art of virtue.",
+            "source": "Analects, Book 6, Chapter 28",
+            "theme": "virtue",
+            "emotional_function": "loop",
+            "pair_with_visual": "Confucius looking into a still pool of water — his own reflection gazing back — then turning to face a student with new understanding"
+        }
+    ]
+}

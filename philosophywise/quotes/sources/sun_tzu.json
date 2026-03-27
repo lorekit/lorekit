@@ -1,0 +1,413 @@
+{
+    "philosopher": {
+        "id": "sun_tzu",
+        "name": "Sun Tzu",
+        "civilization": "chinese",
+        "era": "544-496 BC, Eastern Zhou Dynasty, Ancient China",
+        "source_texts": ["The Art of War"],
+        "character_description": "Middle-aged Chinese military strategist, 40s-50s, thin black beard and mustache, hair tied in traditional topknot, sharp calculating eyes, wearing dark silk robes with armor plates over chest, or scholarly dark robes when in study. Lean, disciplined build, commanding presence.",
+        "environment_description": "Ancient Chinese military camp or scholar's study, bamboo scroll maps, ink brushes, strategic board games, silk banners, wooden war tent or elegant pagoda-style study, misty mountain backdrop, ink-wash landscape aesthetic."
+    },
+    "quotes": [
+        {
+            "text": "The supreme art of war is to subdue the enemy without fighting.",
+            "short_version": "Subdue the enemy without fighting.",
+            "source": "The Art of War, Chapter 3: Attack by Stratagem",
+            "theme": "strategy",
+            "emotional_function": "hook",
+            "pair_with_visual": "Two armies facing each other across a misty valley, one general sheathing his sword as the opposing force lays down their weapons — no battle, only stillness."
+        },
+        {
+            "text": "All warfare is based on deception.",
+            "short_version": null,
+            "source": "The Art of War, Chapter 1: Laying Plans",
+            "theme": "strategy",
+            "emotional_function": "hook",
+            "pair_with_visual": "A shadowy figure behind a mask in a war tent, candlelight casting double shadows across a tactical map, reflections distorted in polished armor."
+        },
+        {
+            "text": "In the midst of chaos, there is also opportunity.",
+            "short_version": null,
+            "source": "The Art of War, Chapter 7: Maneuvering",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "A lone general standing calmly at the center of a chaotic battlefield, dust and banners swirling around him, eyes focused and still."
+        },
+        {
+            "text": "Know yourself and know your enemy, and in a hundred battles you will never be in peril.",
+            "short_version": "Know yourself and your enemy — never be in peril.",
+            "source": "The Art of War, Chapter 3: Attack by Stratagem",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "A strategist studying two mirrored scrolls simultaneously — one bearing his own face, the other bearing a rival's — reflected in still water below."
+        },
+        {
+            "text": "Opportunities multiply as they are seized.",
+            "short_version": null,
+            "source": "The Art of War, Chapter 4: Tactical Dispositions",
+            "theme": "strategy",
+            "emotional_function": "hook",
+            "pair_with_visual": "A hand reaching to pluck a single fruit from a branch, causing a cascade of ripe fruit to fall — abundance from a single decisive act."
+        },
+        {
+            "text": "The general who wins the battle makes many calculations in his temple before the battle is fought.",
+            "short_version": "The winner calculates before the battle is fought.",
+            "source": "The Art of War, Chapter 1: Laying Plans",
+            "theme": "strategy",
+            "emotional_function": "hook",
+            "pair_with_visual": "A general kneeling before a temple altar at night, surrounded by candles and scrolls, deep in silent calculation before dawn reveals the battlefield."
+        },
+        {
+            "text": "Move swift as the Wind and closely-formed as the Wood. Attack like the Fire and be still as the Mountain.",
+            "short_version": "Swift as wind, still as a mountain.",
+            "source": "The Art of War, Chapter 7: Maneuvering",
+            "theme": "strategy",
+            "emotional_function": "hook",
+            "pair_with_visual": "A split-frame composition: fire racing across a dry plain on one side, a solitary mountain unmoved by storm on the other — elemental opposites in perfect balance."
+        },
+        {
+            "text": "He who knows when he can fight and when he cannot will be victorious.",
+            "short_version": null,
+            "source": "The Art of War, Chapter 3: Attack by Stratagem",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "A general raising his hand to halt a charge, scanning the horizon with calm eyes while his eager army waits behind him."
+        },
+        {
+            "text": "Victorious warriors win first and then go to war, while defeated warriors go to war first and then seek to win.",
+            "short_version": "Win first, then go to war.",
+            "source": "The Art of War, Chapter 4: Tactical Dispositions",
+            "theme": "strategy",
+            "emotional_function": "hook",
+            "pair_with_visual": "Two generals side by side: one studying maps and counting tokens by lamplight before dawn; the other charging blindly into fog and dust."
+        },
+        {
+            "text": "The skilful employer of men will employ the wise man, the brave man, the covetous man, and the stupid man.",
+            "short_version": "Employ every kind of man — each has his use.",
+            "source": "The Art of War, Chapter 9: The Army on the March",
+            "theme": "strategy",
+            "emotional_function": "hook",
+            "pair_with_visual": "A general seated at the head of a table surrounded by advisors of distinctly different characters — the scholar, the warrior, the merchant, the fool — each contributing to a shared plan."
+        },
+        {
+            "text": "If you know the enemy and know yourself, you need not fear the result of a hundred battles.",
+            "short_version": "Know yourself and your enemy — fear nothing.",
+            "source": "The Art of War, Chapter 3: Attack by Stratagem",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "A warrior standing before a mirror, the reflection slowly shifting into the face of an enemy — both figures becoming one in the glass."
+        },
+        {
+            "text": "If you know neither the enemy nor yourself, you will succumb in every battle.",
+            "short_version": null,
+            "source": "The Art of War, Chapter 3: Attack by Stratagem",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "A soldier stumbling blindfolded through a dense fog, sword drawn but swinging at nothing, the forms of enemies circling just beyond his perception."
+        },
+        {
+            "text": "There is no instance of a country having benefited from prolonged warfare.",
+            "short_version": "No nation has ever benefited from prolonged war.",
+            "source": "The Art of War, Chapter 2: Waging War",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "A once-prosperous city reduced to ash and rubble, a flag of victory planted atop ruins — triumph over nothing."
+        },
+        {
+            "text": "The good fighters of old first put themselves beyond the possibility of defeat, and then waited for an opportunity to defeat the enemy.",
+            "short_version": "First make yourself undefeatable, then seek victory.",
+            "source": "The Art of War, Chapter 4: Tactical Dispositions",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "A general standing behind a great stone wall, patient and unmoved, watching the horizon through a narrow window as storms pass and enemies tire."
+        },
+        {
+            "text": "He who exercises no forethought but makes light of his opponents is sure to be captured by them.",
+            "short_version": "Underestimate your opponent and be captured.",
+            "source": "The Art of War, Chapter 12: The Attack by Fire",
+            "theme": "discipline",
+            "emotional_function": "truth",
+            "pair_with_visual": "An overconfident commander laughing at a crude map of his enemy's camp, unaware of a shadow army already surrounding him in the dark."
+        },
+        {
+            "text": "Pretend inferiority and encourage his arrogance.",
+            "short_version": null,
+            "source": "The Art of War, Chapter 1: Laying Plans",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "A warrior bowing with exaggerated humility before a boastful rival, eyes lowered but carrying a small, knowing smile."
+        },
+        {
+            "text": "The quality of decision is like the well-timed swoop of a falcon which enables it to strike and destroy its victim.",
+            "short_version": "Decide like a falcon — swift and precise.",
+            "source": "The Art of War, Chapter 5: Energy",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "A falcon frozen at the apex of its dive, the world below blurred with speed, the target pin-sharp in its unwavering gaze."
+        },
+        {
+            "text": "Let your plans be dark and impenetrable as night, and when you move, fall like a thunderbolt.",
+            "short_version": "Dark as night in planning, swift as thunder in action.",
+            "source": "The Art of War, Chapter 7: Maneuvering",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "A moonless night over a silent camp — then a single lightning strike illuminates an entire army already in motion, mid-charge."
+        },
+        {
+            "text": "Speed is the essence of war. Take advantage of the enemy's unpreparedness; travel by unexpected routes and strike him where he has taken no precautions.",
+            "short_version": "Speed is the essence of war.",
+            "source": "The Art of War, Chapter 11: The Nine Situations",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "A small force moving silently through a mountain pass at night while an oblivious army sleeps in a fortified valley far below."
+        },
+        {
+            "text": "The line between disorder and order lies in logistics.",
+            "short_version": null,
+            "source": "The Art of War, Chapter 5: Energy",
+            "theme": "discipline",
+            "emotional_function": "truth",
+            "pair_with_visual": "Two supply lines: one disciplined and flowing like a river, the other tangled and broken — the armies they feed reflecting the same contrast."
+        },
+        {
+            "text": "The expert in battle seeks his victory from strategic advantage and does not demand it from his men.",
+            "short_version": "Seek victory through advantage, not from your men.",
+            "source": "The Art of War, Chapter 5: Energy",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "A general studying the terrain from a high ridge, repositioning his smaller force to hold a mountain pass — the landscape itself becoming his weapon."
+        },
+        {
+            "text": "Supreme excellence consists in breaking the enemy's resistance without fighting.",
+            "short_version": "Supreme excellence: break resistance without fighting.",
+            "source": "The Art of War, Chapter 3: Attack by Stratagem",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "A city gate swinging open from within — no siege, no blood — as the defenders, outmaneuvered and convinced, choose surrender."
+        },
+        {
+            "text": "When the enemy is relaxed, make them toil. When full, starve them. When settled, make them move.",
+            "short_version": "When they rest, exhaust them. When full, starve them.",
+            "source": "The Art of War, Chapter 6: Weak Points and Strong",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "A resting army being forced from their camp by a feint — fires lit in the distance, drums sounding, boots moving before dawn."
+        },
+        {
+            "text": "Regard your soldiers as your children, and they will follow you into the deepest valleys; look on them as your own beloved sons, and they will stand by you even unto death.",
+            "short_version": "Treat soldiers as sons — they will stand by you unto death.",
+            "source": "The Art of War, Chapter 10: Terrain",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "A general kneeling to tend to a wounded soldier by firelight, the watching troops straightening with renewed resolve behind him."
+        },
+        {
+            "text": "If words of command are not clear and distinct, if orders are not thoroughly understood, the general is to blame.",
+            "short_version": "Unclear orders — the general is to blame.",
+            "source": "The Art of War, Chapter 1: Laying Plans",
+            "theme": "discipline",
+            "emotional_function": "truth",
+            "pair_with_visual": "A squad of soldiers moving in confused directions, each interpreting a vague order differently, while their general watches from the rear in silence."
+        },
+        {
+            "text": "When you surround an army, leave an outlet free. Do not press a desperate foe too hard.",
+            "short_version": "Leave a desperate enemy an outlet.",
+            "source": "The Art of War, Chapter 7: Maneuvering",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "An encircled army with one narrow road left open — the surrounding general pointing his commanders away from that gap, allowing escape rather than inviting a last stand."
+        },
+        {
+            "text": "A leader leads by example, not by force.",
+            "short_version": null,
+            "source": "The Art of War, Chapter 9: The Army on the March",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "A general marching on foot ahead of mounted officers, carrying the same pack as his soldiers through mud and rain."
+        },
+        {
+            "text": "To secure ourselves against defeat lies in our own hands, but the opportunity to defeat the enemy is provided by the enemy himself.",
+            "short_version": "Defense is in your hands; the enemy gives you the opening.",
+            "source": "The Art of War, Chapter 4: Tactical Dispositions",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A general building fortifications with one hand while watching through a spyglass with the other, waiting for the enemy's wall to crack."
+        },
+        {
+            "text": "When the enemy is at ease, be able to weary him; when well fed, to starve him; when at rest, to make him move.",
+            "short_version": "Force the enemy off balance at every turn.",
+            "source": "The Art of War, Chapter 6: Weak Points and Strong",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A rested enemy roused from sleep by distant fires and drumbeats, stumbling to arms in disarray as a composed force watches from the dark."
+        },
+        {
+            "text": "There are roads which must not be followed, armies which must not be attacked, towns which must not be besieged, positions which must not be contested.",
+            "short_version": "Some roads must not be taken. Some battles must not be fought.",
+            "source": "The Art of War, Chapter 8: Variation in Tactics",
+            "theme": "wisdom",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A general halting his army at a fork in the road, pointing away from the wider, inviting path toward a narrow trail through the hills."
+        },
+        {
+            "text": "He will win who knows when to fight and when not to fight.",
+            "short_version": null,
+            "source": "The Art of War, Chapter 3: Attack by Stratagem",
+            "theme": "wisdom",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A general seated quietly on horseback while his officers gesture urgently to charge — his stillness sharper than any sword."
+        },
+        {
+            "text": "If the campaign is protracted, the resources of the State will not be equal to the strain.",
+            "short_version": "A prolonged campaign drains even the strongest state.",
+            "source": "The Art of War, Chapter 2: Waging War",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Empty granaries, broken carts, exhausted soldiers — the infrastructure of a once-powerful empire crumbling under the weight of endless war."
+        },
+        {
+            "text": "When ten to the enemy's one, surround him; when five times his strength, attack him; if double his strength, divide him.",
+            "short_version": "Match your tactics to your numbers.",
+            "source": "The Art of War, Chapter 3: Attack by Stratagem",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A tactical diagram scratched into dirt — arrows splitting around a smaller force, encircling it from every angle as torchlight flickers."
+        },
+        {
+            "text": "Throw your soldiers into positions from which there is no escape, and they will prefer death to flight.",
+            "short_version": "Cornered soldiers choose death over flight.",
+            "source": "The Art of War, Chapter 11: The Nine Situations",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Soldiers with their backs to a cliff, a river below, enemy advancing — faces hardening from fear into fierce resolve."
+        },
+        {
+            "text": "The general who advances without coveting fame and retreats without fearing disgrace, whose only thought is to protect his country and do good service for his sovereign, is the jewel of the kingdom.",
+            "short_version": "Advance without craving fame, retreat without fearing disgrace.",
+            "source": "The Art of War, Chapter 10: Terrain",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A general issuing the order to withdraw from a winning position, his officers stunned, the general's face calm — protecting the whole over the part."
+        },
+        {
+            "text": "If he is in superior strength, evade him.",
+            "short_version": null,
+            "source": "The Art of War, Chapter 1: Laying Plans",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A small patrol dissolving into the forest as a vast army thunders past on the road below, oblivious."
+        },
+        {
+            "text": "Attack where he is unprepared, appear where you are not expected.",
+            "short_version": "Strike the unprepared. Appear where least expected.",
+            "source": "The Art of War, Chapter 1: Laying Plans",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Warriors emerging from a hidden tunnel beneath a garrison wall, appearing inside the fortress before the gate guards have raised the alarm."
+        },
+        {
+            "text": "The art of war teaches us to rely not on the likelihood of the enemy's not coming, but on our own readiness to receive him.",
+            "short_version": "Rely not on the enemy not coming — rely on your readiness.",
+            "source": "The Art of War, Chapter 8: Variation in Tactics",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Sentries posted and sharpened at every wall while soldiers sleep in full armor, weapons within arm's reach — a camp at rest but never off guard."
+        },
+        {
+            "text": "If your opponent is of choleric temper, seek to irritate him.",
+            "short_version": null,
+            "source": "The Art of War, Chapter 1: Laying Plans",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A diplomat delivering a calculated insult wrapped in courtesy, watching the enemy commander's composure fracture across the negotiating table."
+        },
+        {
+            "text": "The whole secret lies in confusing the enemy, so that he cannot fathom our real intent.",
+            "short_version": "Confuse the enemy — hide your true intent.",
+            "source": "The Art of War, Chapter 11: The Nine Situations",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Multiple feints of firelight and marching silhouettes in every direction — the enemy general spinning, unable to locate the real army among the shadows."
+        },
+        {
+            "text": "Water shapes its course according to the nature of the ground over which it flows; the soldier works out his victory in relation to the foe whom he is facing.",
+            "short_version": "Like water — shape your tactics to the enemy before you.",
+            "source": "The Art of War, Chapter 6: Weak Points and Strong",
+            "theme": "nature",
+            "emotional_function": "loop",
+            "pair_with_visual": "A river splitting around a great boulder, each channel finding its own path forward — never forcing, always flowing."
+        },
+        {
+            "text": "Just as water retains no constant shape, so in warfare there are no constant conditions.",
+            "short_version": "Water holds no fixed shape. Warfare holds no fixed conditions.",
+            "source": "The Art of War, Chapter 6: Weak Points and Strong",
+            "theme": "nature",
+            "emotional_function": "loop",
+            "pair_with_visual": "Water pouring into a series of different containers — taking the shape of each in turn — as a strategist reshapes his plans to match each new terrain."
+        },
+        {
+            "text": "He who can modify his tactics in relation to his opponent and thereby succeed in winning may be called a heaven-born captain.",
+            "short_version": "Adapt your tactics to your opponent — that is mastery.",
+            "source": "The Art of War, Chapter 6: Weak Points and Strong",
+            "theme": "strategy",
+            "emotional_function": "loop",
+            "pair_with_visual": "A general rewriting his battle plan at midnight, tearing up the old scroll and beginning again as new intelligence arrives by torchlight."
+        },
+        {
+            "text": "The five elements do not always have the same predominance; the four seasons make way for each other in turn.",
+            "short_version": "No force dominates forever. Seasons yield to seasons.",
+            "source": "The Art of War, Chapter 5: Energy",
+            "theme": "nature",
+            "emotional_function": "loop",
+            "pair_with_visual": "A time-lapse of the same battlefield: spring green, summer gold, autumn rust, winter white — the land unchanged, the armies long gone."
+        },
+        {
+            "text": "There are not more than five musical notes, yet the combinations of these five give rise to more melodies than can ever be heard.",
+            "short_version": "Five notes — endless melodies. Few principles — infinite strategy.",
+            "source": "The Art of War, Chapter 5: Energy",
+            "theme": "wisdom",
+            "emotional_function": "loop",
+            "pair_with_visual": "A musician's hand plucking a stringed instrument, simple notes spiraling outward into complex, layered harmonics that fill a vast hall."
+        },
+        {
+            "text": "There are not more than five primary colors, yet in combination they produce more hues than can ever been seen.",
+            "short_version": "Five colors — infinite hues. Simple truths — infinite expression.",
+            "source": "The Art of War, Chapter 5: Energy",
+            "theme": "wisdom",
+            "emotional_function": "loop",
+            "pair_with_visual": "A painter with only five pigments creating a vast landscape painting of breathtaking depth and variety — the whole world from a few pure colors."
+        },
+        {
+            "text": "Ponder and deliberate before you make a move.",
+            "short_version": null,
+            "source": "The Art of War, Chapter 7: Maneuvering",
+            "theme": "discipline",
+            "emotional_function": "loop",
+            "pair_with_visual": "A general alone in a candlelit tent at night, hand poised over a map of battle tokens, motionless in deep thought as the candle burns low."
+        },
+        {
+            "text": "If you wait by the river long enough, the bodies of your enemies will float by.",
+            "short_version": null,
+            "source": "The Art of War, Chapter 6: Weak Points and Strong",
+            "theme": "strategy",
+            "emotional_function": "loop",
+            "pair_with_visual": "A lone figure seated calmly at the riverbank, watching the current with patient eyes, as distant sounds of a self-destroying enemy echo from upstream."
+        },
+        {
+            "text": "In conflict, straightforward actions generally lead to engagement, surprising actions generally lead to victory.",
+            "short_version": "Straightforward engages. Surprising wins.",
+            "source": "The Art of War, Chapter 5: Energy",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "Two columns of soldiers: the frontal force drawing the enemy's eyes, while a smaller flanking force circles silently through the mist."
+        },
+        {
+            "text": "To fight and conquer in all your battles is not supreme excellence; supreme excellence consists in breaking the enemy's resistance without fighting.",
+            "short_version": "Conquering in battle is not supreme. Victory without battle is.",
+            "source": "The Art of War, Chapter 3: Attack by Stratagem",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "An unopened gate swinging wide as a general's envoy delivers a single scroll — the city surrendering before an arrow is loosed."
+        }
+    ]
+}

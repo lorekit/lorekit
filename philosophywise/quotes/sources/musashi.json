@@ -1,0 +1,421 @@
+{
+    "philosopher": {
+        "id": "musashi",
+        "name": "Miyamoto Musashi",
+        "civilization": "japanese",
+        "era": "1584-1645, Edo Period, Japan",
+        "source_texts": ["The Book of Five Rings", "Dokkodo"],
+        "character_description": "Tall Japanese warrior, 50s-60s, wild unkempt long black hair partially tied back, rough unshaven face with stubble, intense piercing dark eyes, scarred hands and forearms, wearing simple dark kimono loosely tied — no armor, just a ronin's practical dress. Two swords (daisho) at his side. Weathered, wild appearance of a man who lived in nature.",
+        "environment_description": "Japanese wilderness and dojos, mountain caves, bamboo forests, rain-soaked forest paths, simple wooden training halls, candlelit cave where he wrote The Book of Five Rings, cherry blossoms, misty mountain peaks, zen rock gardens."
+    },
+    "quotes": [
+        {
+            "text": "Do nothing that is of no use.",
+            "short_version": null,
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "discipline",
+            "emotional_function": "hook",
+            "pair_with_visual": "Musashi sitting motionless in a candlelit cave, brush held still above paper, every movement deliberate"
+        },
+        {
+            "text": "Think lightly of yourself and deeply of the world.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 4",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "Musashi alone on a misty mountain peak, small against the vast landscape, gazing outward"
+        },
+        {
+            "text": "Today is victory over yourself of yesterday; tomorrow is your victory over lesser men.",
+            "short_version": "Today, beat yesterday's self.",
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "discipline",
+            "emotional_function": "hook",
+            "pair_with_visual": "Musashi training alone at dawn in an empty dojo, shadow of himself cast behind him on the wall"
+        },
+        {
+            "text": "Step by step walk the thousand-mile road.",
+            "short_version": null,
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "discipline",
+            "emotional_function": "hook",
+            "pair_with_visual": "A lone figure walking a mist-shrouded mountain road through bamboo forest, one deliberate step at a time"
+        },
+        {
+            "text": "Strategy is the craft of the warrior.",
+            "short_version": null,
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "strategy",
+            "emotional_function": "hook",
+            "pair_with_visual": "Musashi's weathered hand moving a carved piece on a strategy board in dim firelight"
+        },
+        {
+            "text": "The Way is in training.",
+            "short_version": null,
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "discipline",
+            "emotional_function": "hook",
+            "pair_with_visual": "Musashi drilling a sword cut in the rain, alone in a clearing, over and over"
+        },
+        {
+            "text": "Never stray from the Way.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 21",
+            "theme": "discipline",
+            "emotional_function": "hook",
+            "pair_with_visual": "A narrow forest path stretching into darkness, a single lantern illuminating only a few steps ahead"
+        },
+        {
+            "text": "Do not fear death.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 17",
+            "theme": "mortality",
+            "emotional_function": "hook",
+            "pair_with_visual": "Musashi standing calmly before a stormy sea, hands at his sides, facing the horizon"
+        },
+        {
+            "text": "Do not regret what you have done.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 6",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "Musashi walking away from a duel site without looking back, sword at his side"
+        },
+        {
+            "text": "Accept everything just the way it is.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 1",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "Musashi sitting cross-legged in a mountain cave, rain pouring outside, expression utterly still"
+        },
+        {
+            "text": "You may abandon your own body, but you must preserve your honor.",
+            "short_version": "Lose your body, not your honor.",
+            "source": "Dokkodo, Precept 20",
+            "theme": "virtue",
+            "emotional_function": "hook",
+            "pair_with_visual": "Musashi standing upright before a burning building, unwilling to flee, face resolute"
+        },
+        {
+            "text": "Perceive that which cannot be seen with the eye.",
+            "short_version": null,
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "Musashi's eyes closed in a forest, sensing the wind direction, birds going silent"
+        },
+        {
+            "text": "Both in fighting and in everyday life you should be determined though calm. Meet situations without tenseness yet not recklessly, your spirit settled yet unbiased.",
+            "short_version": "Determined but calm. Settled but unbiased.",
+            "source": "The Book of Five Rings, The Water Book",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "Musashi in the moment before a duel, face relaxed, hands loose at his sides, opponent already tense"
+        },
+        {
+            "text": "Perception is strong and sight weak. In strategy it is important to see distant things as if they were close and to take a distanced view of close things.",
+            "short_version": "Sight sees. Perception understands.",
+            "source": "The Book of Five Rings, The Water Book",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "Musashi observing a mountain valley from above, reading the terrain, planning a route unseen by others"
+        },
+        {
+            "text": "The important thing in strategy is to suppress the enemy's useful actions but allow his useless actions.",
+            "short_version": null,
+            "source": "The Book of Five Rings, The Fire Book",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "A chess-like board of the battlefield, pieces being guided into corners by an unseen hand"
+        },
+        {
+            "text": "In contests of strategy, you always want to lead the enemy about rather than be led about by the enemy.",
+            "short_version": "Lead. Do not be led.",
+            "source": "The Book of Five Rings, The Fire Book",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "Musashi circling an opponent, controlling the space, opponent always reacting and off-balance"
+        },
+        {
+            "text": "For men who want to learn my strategy, this is the Way: Do not think dishonestly. The Way is in training. Become acquainted with every art. Know the Ways of all professions. Distinguish between gain and loss in worldly matters. Perceive those things which cannot be seen. Pay attention even to trifles. Do nothing useless.",
+            "short_version": "Do not think dishonestly. Train. Know every art. Do nothing useless.",
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Musashi writing by candlelight in Reigando cave, ink-stained fingers, the full manuscript spread before him"
+        },
+        {
+            "text": "When you are thoroughly conversant with strategy, you will recognize the enemy's intentions and thus have many opportunities to win.",
+            "short_version": null,
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "Musashi watching an opponent's first movement, already knowing what will come next"
+        },
+        {
+            "text": "There is timing in the whole life of the warrior, in his thriving and declining, in his harmony and discord.",
+            "short_version": "There is timing in all things.",
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Cherry blossoms falling, petals mid-air, a warrior standing still among them — in the fullness of his season"
+        },
+        {
+            "text": "You should not have a favorite weapon. To become over-familiar with one weapon is as much a fault as not knowing it sufficiently well.",
+            "short_version": "No favorite weapon. No blind attachment.",
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "A rack of varied weapons in a dojo — sword, staff, spear — all equally worn from use"
+        },
+        {
+            "text": "Be detached from desire your whole life long.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 5",
+            "theme": "discipline",
+            "emotional_function": "truth",
+            "pair_with_visual": "Musashi passing through a market without glancing at goods or food, eyes straight ahead"
+        },
+        {
+            "text": "In all things have no preferences.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 11",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "Musashi sleeping in rain on bare ground, no tent, no comfort sought — indifferent to hardship"
+        },
+        {
+            "text": "Do not seek pleasure for its own sake.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 2",
+            "theme": "discipline",
+            "emotional_function": "truth",
+            "pair_with_visual": "A feast laid before Musashi, untouched, as he reads by candlelight instead"
+        },
+        {
+            "text": "Respect Buddha and the gods without counting on their help.",
+            "short_version": "Honor them. Do not rely on them.",
+            "source": "Dokkodo, Precept 19",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Musashi bowing briefly before a small roadside shrine, then rising and walking on without pause"
+        },
+        {
+            "text": "Do not, under any circumstances, depend on a partial feeling.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 3",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "Musashi pausing before a decision — a crossroads in fog — waiting for full clarity before stepping"
+        },
+        {
+            "text": "Do not hold on to possessions you no longer need.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 14",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Musashi setting down his last possessions before disciples before walking into the mountain to die"
+        },
+        {
+            "text": "Do not act following customary beliefs.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 15",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "Musashi fighting two-sword style in an era when no one else did — a crowd watching in stunned silence"
+        },
+        {
+            "text": "It is said the warrior's way is the twofold Way of pen and sword, and he should have a taste for both Ways.",
+            "short_version": "The warrior masters both pen and sword.",
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Musashi at a low table, brush in hand, a painting taking form beside a sheathed sword"
+        },
+        {
+            "text": "Even if you kill an enemy, if it is not based on what you have learned it is not the true Way.",
+            "short_version": null,
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "discipline",
+            "emotional_function": "truth",
+            "pair_with_visual": "Musashi standing over a fallen opponent, expression troubled, questioning whether the victory was earned correctly"
+        },
+        {
+            "text": "In the void is virtue, and no evil.",
+            "short_version": null,
+            "source": "The Book of Five Rings, The Void Book",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Musashi meditating in total darkness inside Reigando cave, dissolved in absolute stillness"
+        },
+        {
+            "text": "Never be jealous.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 7",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Musashi watching a younger warrior celebrated by a crowd, face showing neither pride nor envy — only observation"
+        },
+        {
+            "text": "This is the truth: when you sacrifice your life, you must make fullest use of your weaponry. Not to do so, and to die with a weapon not yet drawn, is false.",
+            "short_version": "If you sacrifice your life, use everything.",
+            "source": "The Book of Five Rings, The Fire Book",
+            "theme": "mortality",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A warrior fallen mid-draw, sword half out — contrasted with Musashi fully committed, blade singing in the air"
+        },
+        {
+            "text": "The primary thing when you take a sword in your hands is your intention to cut the enemy, whatever the means. Whenever you parry, hit, spring, strike or touch the enemy's cutting sword, you must cut the enemy in the same movement.",
+            "short_version": "Every parry, every touch — cut.",
+            "source": "The Book of Five Rings, The Fire Book",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Musashi's blade meeting another mid-air, already angling through the deflection toward the opponent's body"
+        },
+        {
+            "text": "When the enemy attacks, remain undisturbed but feign weakness.",
+            "short_version": null,
+            "source": "The Book of Five Rings, The Fire Book",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Musashi appearing to stagger under a blow — then exploding forward as the overconfident attacker steps in"
+        },
+        {
+            "text": "Do not let yourself be guided by the feeling of lust or love.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 10",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Musashi walking past a woman reaching for his sleeve, gaze fixed down the empty road ahead"
+        },
+        {
+            "text": "Resentment and complaint are appropriate neither for oneself nor others.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 9",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Musashi after a loss — sitting alone with his wounds, face neutral, already thinking of what to improve"
+        },
+        {
+            "text": "Someone once said: 'Immature strategy is the cause of grief.' That was a true saying.",
+            "short_version": "Immature strategy is the cause of grief.",
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Bodies after a battle — the aftermath of soldiers who charged without thinking, plans that collapsed at first contact"
+        },
+        {
+            "text": "Because you can win quickly by taking the lead, it is one of the most important things in strategy.",
+            "short_version": "Take the lead. Win quickly.",
+            "source": "The Book of Five Rings, The Fire Book",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Musashi exploding forward before his opponent has fully settled into stance — seizing the moment of hesitation"
+        },
+        {
+            "text": "In strategy, you have effectively won when you forestall the enemy.",
+            "short_version": null,
+            "source": "The Book of Five Rings, The Fire Book",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Musashi positioning himself between an opponent and the sun, controlling the angle before a single strike is thrown"
+        },
+        {
+            "text": "Never let yourself be saddened by a separation.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 8",
+            "theme": "mindset",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Musashi on a road at dawn, a student watching from a gate behind him — Musashi does not look back"
+        },
+        {
+            "text": "Do not seek to possess either goods or fiefs for your old age.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 18",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Lords in their castle courts accumulating land, contrasted with Musashi sitting on bare rock, possessing nothing"
+        },
+        {
+            "text": "It is not difficult to wield a sword in one hand; the Way to learn this is to train with two long swords, one in each hand. It will seem difficult at first, but everything is difficult at first.",
+            "short_version": "Everything is difficult at first.",
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A student struggling with two heavy swords, arms shaking — Musashi watching, neither helping nor turning away"
+        },
+        {
+            "text": "Be indifferent to where you live.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 12",
+            "theme": "mindset",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Musashi sleeping under a pine tree in winter, wrapped only in his kimono, utterly at peace"
+        },
+        {
+            "text": "Do not collect weapons or practice with weapons beyond what is useful.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 16",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A wealthy samurai's armory full of ceremonial blades never used — contrasted with Musashi's two plain worn swords"
+        },
+        {
+            "text": "Do not pursue the taste of good food.",
+            "short_version": null,
+            "source": "Dokkodo, Precept 13",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Musashi eating plain rice alone by a fire, indifferent, the meal fuel and nothing more"
+        },
+        {
+            "text": "From one thing, know ten thousand things.",
+            "short_version": null,
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "wisdom",
+            "emotional_function": "loop",
+            "pair_with_visual": "Musashi observing a single drop of water fall into a still pool — rings spreading outward to the edges"
+        },
+        {
+            "text": "Timing in strategy cannot be mastered without a great deal of practice.",
+            "short_version": null,
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "discipline",
+            "emotional_function": "loop",
+            "pair_with_visual": "Time-lapse of seasons passing over an empty dojo — Musashi still practicing inside as snow, rain, and sun cycle outside"
+        },
+        {
+            "text": "When you attain the Way of Strategy there will not be one thing you cannot see. You must study hard.",
+            "short_version": "Master strategy. See all things.",
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "wisdom",
+            "emotional_function": "loop",
+            "pair_with_visual": "Musashi on a mountaintop at dawn, the full landscape below revealed by rising light — nothing hidden"
+        },
+        {
+            "text": "Study strategy over the years and achieve the spirit of the warrior. Today you will overcome your self of yesterday.",
+            "short_version": "Years of study. The spirit of the warrior.",
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "discipline",
+            "emotional_function": "loop",
+            "pair_with_visual": "A scroll of Musashi's life laid flat — each duel, each year of training, each manuscript page a step in the long road"
+        },
+        {
+            "text": "The true science of martial arts means practicing them in such a way that they will be useful at any time.",
+            "short_version": "Train so it is useful at any moment.",
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "discipline",
+            "emotional_function": "loop",
+            "pair_with_visual": "Musashi suddenly rising from sleep, sword already in hand, alert in an instant — the body knowing before the mind wakes"
+        },
+        {
+            "text": "Know the smallest things and the biggest things, the shallowest things and the deepest things.",
+            "short_version": null,
+            "source": "The Book of Five Rings, The Earth Book",
+            "theme": "wisdom",
+            "emotional_function": "loop",
+            "pair_with_visual": "Musashi's gaze moving from an ant on the ground to mountains on the horizon — the full scale of the world held in one view"
+        }
+    ]
+}

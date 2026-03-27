@@ -1,0 +1,1 @@
+"""PhilosophyWise API routes."""

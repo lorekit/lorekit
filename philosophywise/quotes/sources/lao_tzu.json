@@ -1,0 +1,501 @@
+{
+    "philosopher": {
+        "id": "lao_tzu",
+        "name": "Lao Tzu",
+        "civilization": "chinese",
+        "era": "6th century BC, Zhou Dynasty, Ancient China",
+        "source_texts": ["Tao Te Ching"],
+        "character_description": "Very elderly Chinese sage, 80s-90s, long flowing white beard reaching chest, long white hair loosely gathered, deeply wrinkled gentle face with kind knowing eyes, wearing simple flowing earth-toned robes, sometimes riding a water buffalo. Serene, almost otherworldly presence.",
+        "environment_description": "Misty mountain passes, ancient Chinese wilderness, bamboo groves, waterfalls, simple mountain hut, winding mountain paths, riding westward through a mountain gate, flowing rivers, ancient forest, ink-wash landscape aesthetic with mist and mountains."
+    },
+    "quotes": [
+        {
+            "text": "The Tao that can be told is not the eternal Tao. The name that can be named is not the eternal Name.",
+            "short_version": "The Tao that can be told is not the eternal Tao.",
+            "source": "Tao Te Ching, Chapter 1",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "Lao Tzu gazing into misty mountain void at dawn, fog swallowing the peaks, ink-wash aesthetic, viewer pulled into the depth of emptiness"
+        },
+        {
+            "text": "When people see some things as beautiful, other things become ugly. When people see some things as good, other things become bad.",
+            "short_version": "When you call something beautiful, something else becomes ugly.",
+            "source": "Tao Te Ching, Chapter 2",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "Split scene: blooming lotus above murky water, the sage watching both with equal stillness, soft ink-wash light"
+        },
+        {
+            "text": "The Tao is like a well: used but never used up. It is like the eternal void: filled with infinite possibilities.",
+            "short_version": "Used but never used up.",
+            "source": "Tao Te Ching, Chapter 4",
+            "theme": "nature",
+            "emotional_function": "hook",
+            "pair_with_visual": "Ancient stone well in a bamboo grove, morning mist rising from the water below, infinite depth suggested by darkness"
+        },
+        {
+            "text": "The highest good is like water. Water gives life to the ten thousand things and does not strive. It flows in places men reject and so is like the Tao.",
+            "short_version": "The highest good is like water.",
+            "source": "Tao Te Ching, Chapter 8",
+            "theme": "virtue",
+            "emotional_function": "hook",
+            "pair_with_visual": "Water flowing over ancient stones in a mountain stream, finding every crevice effortlessly, dawn light catching the current"
+        },
+        {
+            "text": "Fill your bowl to the brim and it will spill. Keep sharpening your knife and it will blunt. Chase after money and security and your heart will never unclench.",
+            "short_version": "Fill your bowl to the brim and it will spill.",
+            "source": "Tao Te Ching, Chapter 9",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "A bowl overflowing with water, the sage watching serenely from beside a mountain stream, the excess flowing away into the earth"
+        },
+        {
+            "text": "Thirty spokes share the wheel's hub; it is the center hole that makes it useful. Shape clay into a vessel; it is the space within that makes it useful. Cut doors and windows for a room; it is the holes which make it useful.",
+            "short_version": "It is the empty space that makes it useful.",
+            "source": "Tao Te Ching, Chapter 11",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "Close-up of an ancient wooden cartwheel hub, mist-covered mountains in the background, the empty center perfectly still"
+        },
+        {
+            "text": "Knowing others is intelligence; knowing yourself is true wisdom. Mastering others is strength; mastering yourself is true power.",
+            "short_version": "Mastering yourself is true power.",
+            "source": "Tao Te Ching, Chapter 33",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "The sage sitting in deep stillness beside a mountain pool, his reflection perfectly clear in the calm water below"
+        },
+        {
+            "text": "The ancient Masters were profound and subtle. Their wisdom was unfathomable. There is no way to describe it; all we can describe is their appearance. They were careful as someone crossing an iced-over stream.",
+            "short_version": "Their wisdom was unfathomable.",
+            "source": "Tao Te Ching, Chapter 15",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "Lao Tzu moving with extreme deliberateness across stepping stones in a misty river, ancient forest reflected in still water"
+        },
+        {
+            "text": "A journey of a thousand miles begins with a single step.",
+            "short_version": null,
+            "source": "Tao Te Ching, Chapter 64",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "A single sandaled foot stepping onto an ancient mountain path, the path winding up into mist and clouds above"
+        },
+        {
+            "text": "He who stands on tiptoe doesn't stand firm. He who rushes ahead doesn't go far. He who tries to shine dims his own light.",
+            "short_version": "He who rushes ahead doesn't go far.",
+            "source": "Tao Te Ching, Chapter 24",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "A figure straining on tiptoe at the edge of a mountain precipice, while the sage sits rooted and still further back on the path"
+        },
+        {
+            "text": "Not-knowing is true knowledge. Presuming to know is a disease. First realize that you are sick; then you can move toward health.",
+            "short_version": "Not-knowing is true knowledge.",
+            "source": "Tao Te Ching, Chapter 71",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "The sage gesturing toward vast mountains hidden entirely in cloud, the enormity of what cannot be seen filling the frame"
+        },
+        {
+            "text": "Being and non-being create each other. Difficult and easy support each other. Long and short define each other. High and low depend on each other. Before and after follow each other.",
+            "short_version": "Being and non-being create each other.",
+            "source": "Tao Te Ching, Chapter 2",
+            "theme": "nature",
+            "emotional_function": "truth",
+            "pair_with_visual": "Yin-yang pattern in flowing water, mountain and valley mirrored, ink-wash landscape showing the interdependence of opposites"
+        },
+        {
+            "text": "Empty your mind of all thoughts. Let your heart be at peace. Watch the turmoil of beings, but contemplate their return. Each separate being in the universe returns to the common source. Returning to the source is serenity.",
+            "short_version": "Returning to the source is serenity.",
+            "source": "Tao Te Ching, Chapter 16",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "Lao Tzu seated in deep meditation as mountain fog swirls and settles, seasons shifting around his stillness in time-lapse"
+        },
+        {
+            "text": "When the Master governs, the people are hardly aware that he exists. Next best is a leader who is loved. Next, one who is feared. The worst is one who is despised.",
+            "short_version": "The best leader, people barely know he exists.",
+            "source": "Tao Te Ching, Chapter 17",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "A village going about daily life naturally, a distant sage figure barely visible at the mountain edge, presence felt but not imposed"
+        },
+        {
+            "text": "If you want to become whole, let yourself be partial. If you want to become straight, let yourself be crooked. If you want to become full, let yourself be empty.",
+            "short_version": "If you want to become full, let yourself be empty.",
+            "source": "Tao Te Ching, Chapter 22",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "Empty bowl beside a full river, a bent old tree bearing fruit while straight young trees stand bare, mountain paradox in ink-wash"
+        },
+        {
+            "text": "The gentlest thing in the world overcomes the hardest thing in the world. That which has no substance enters where there is no room.",
+            "short_version": "The gentlest thing overcomes the hardest.",
+            "source": "Tao Te Ching, Chapter 43",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "Water seeping through solid rock, roots cracking stone, soft moss covering ancient boulders, all in slow inevitable process"
+        },
+        {
+            "text": "Men are born soft and supple; dead, they are stiff and hard. Plants are born tender and pliant; dead, they are brittle and dry. Thus whoever is stiff and inflexible is a disciple of death. Whoever is soft and yielding is a disciple of life.",
+            "short_version": "Whoever is soft and yielding is a disciple of life.",
+            "source": "Tao Te Ching, Chapter 76",
+            "theme": "nature",
+            "emotional_function": "truth",
+            "pair_with_visual": "Living bamboo bending gracefully in wind, dead rigid branches snapping, the sage's flowing robes moving like water"
+        },
+        {
+            "text": "Nothing in the world is as soft and yielding as water. Yet for dissolving the hard and inflexible, nothing can surpass it. The soft overcomes the hard; the gentle overcomes the rigid.",
+            "short_version": "The soft overcomes the hard.",
+            "source": "Tao Te Ching, Chapter 78",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "Water carving through canyon walls over millennia, the Grand Canyon of ancient China, the sage sitting at the river's edge in peace"
+        },
+        {
+            "text": "True words aren't eloquent; eloquent words aren't true. Wise men don't need to prove their point; men who need to prove their point aren't wise.",
+            "short_version": "True words aren't eloquent.",
+            "source": "Tao Te Ching, Chapter 81",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "The sage writing in silence, brush barely touching paper, mountains speaking for themselves in the background"
+        },
+        {
+            "text": "I have just three things to teach: simplicity, patience, compassion. These three are your greatest treasures.",
+            "short_version": "Simplicity, patience, compassion — your greatest treasures.",
+            "source": "Tao Te Ching, Chapter 67",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "The sage holding up three fingers in teaching pose, bamboo grove framing him, morning light filtering through mist"
+        },
+        {
+            "text": "Simple in actions and thoughts, you return to the source of being. Patient with both friends and enemies, you accord with the way things are. Compassionate toward yourself, you reconcile all beings in the world.",
+            "short_version": "Patient with both friends and enemies, you accord with the way things are.",
+            "source": "Tao Te Ching, Chapter 67",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "The sage walking peacefully through a village, touching a stone wall, a tree, an old woman's hand, all with equal gentle presence"
+        },
+        {
+            "text": "If you realize that you have enough, you are truly rich. If you stay in the center and embrace death with your whole heart, you will endure forever.",
+            "short_version": "If you realize that you have enough, you are truly rich.",
+            "source": "Tao Te Ching, Chapter 33",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "The sage eating a simple meal beside a mountain stream, surrounded by overwhelming natural abundance, perfectly content"
+        },
+        {
+            "text": "In pursuit of learning, every day something is acquired. In pursuit of Tao, every day something is dropped. Less and less is done until non-action is achieved. When nothing is done, nothing is left undone.",
+            "short_version": "Less and less is done, until nothing is left undone.",
+            "source": "Tao Te Ching, Chapter 48",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "The sage's hands releasing a bird into mountain sky, letting go completely, the bird dissolving into mist and cloud"
+        },
+        {
+            "text": "Prevent trouble before it arises. Put things in order before they exist. The giant pine tree grows from a tiny sprout. The journey of a thousand miles starts from beneath your feet.",
+            "short_version": "Prevent trouble before it arises.",
+            "source": "Tao Te Ching, Chapter 64",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "A tiny pine seedling beside a towering ancient tree, the sage kneeling to examine the seedling with careful attention"
+        },
+        {
+            "text": "It is upon misery that happiness rests; it is under happiness that misery lies. Who knows when the turning point will come?",
+            "short_version": "It is upon misery that happiness rests.",
+            "source": "Tao Te Ching, Chapter 58",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Mountain light shifting, shadow becoming sun, sun becoming shadow across ancient valley, the eternal rhythm made visible"
+        },
+        {
+            "text": "Seeing what is small is called enlightenment. Keeping to weakness is called strength. Using the outer light, return to insight, and in this way be saved from harm.",
+            "short_version": "Seeing what is small is called enlightenment.",
+            "source": "Tao Te Ching, Chapter 52",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "The sage studying a single drop of water on a leaf, the entire mountain landscape reflected within it"
+        },
+        {
+            "text": "The best athlete wants his opponent at his best. The best general enters the mind of his enemy. The best businessman serves the communal good. The best leader follows the will of the people.",
+            "short_version": "The best do not compete.",
+            "source": "Tao Te Ching, Chapter 68",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "Two figures practicing together in a mountain clearing, neither fighting against the other, both moving like water around stone"
+        },
+        {
+            "text": "Fame or integrity: which is more important? Money or happiness: which is more valuable? Success or failure: which is more destructive? If you look to others for fulfillment, you will never truly be fulfilled.",
+            "short_version": "If you look to others for fulfillment, you will never be fulfilled.",
+            "source": "Tao Te Ching, Chapter 44",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "A man clutching gold coins in a dark room, the sage visible through the window sitting peacefully in moonlit bamboo"
+        },
+        {
+            "text": "Express yourself completely, then keep quiet. Be like the forces of nature: when it blows, there is only wind; when it rains, there is only rain; when the clouds pass, the sun shines through.",
+            "short_version": "Be like the forces of nature.",
+            "source": "Tao Te Ching, Chapter 23",
+            "theme": "nature",
+            "emotional_function": "truth",
+            "pair_with_visual": "Storm breaking over mountains, rain falling completely, then clearing to perfect sunlight, a full cycle in one continuous shot"
+        },
+        {
+            "text": "In dwelling, live close to the ground. In thinking, keep to the simple. In conflict, be fair and generous. In governing, don't try to control. In work, do what you enjoy. In family life, be completely present.",
+            "short_version": "In dwelling, live close to the ground.",
+            "source": "Tao Te Ching, Chapter 8",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "The sage's simple mountain hut, earthen floor, a single lantern, through the open door a view of mountains and flowing river"
+        },
+        {
+            "text": "When you realize there is nothing lacking, the whole world belongs to you.",
+            "short_version": null,
+            "source": "Tao Te Ching, Chapter 44",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "The sage's arms open wide on a mountain summit, the entirety of the landscape stretching boundlessly in all directions"
+        },
+        {
+            "text": "He who knows does not speak. He who speaks does not know.",
+            "short_version": null,
+            "source": "Tao Te Ching, Chapter 56",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "The sage's lips sealed, eyes bright with knowing, mountains speaking volumes behind him in their ancient silence"
+        },
+        {
+            "text": "In order to contract, it is necessary first to expand. In order to weaken, it is necessary first to strengthen. In order to destroy, it is necessary first to promote. This is called subtle illumination.",
+            "short_version": "In order to weaken, it is necessary first to strengthen.",
+            "source": "Tao Te Ching, Chapter 36",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A river swelling broad and shallow before plunging into a narrow gorge with tremendous power, the compression visible"
+        },
+        {
+            "text": "Do you have the patience to wait until your mud settles and the water is clear? Can you remain unmoving until the right action arises by itself?",
+            "short_version": "Can you wait until the mud settles?",
+            "source": "Tao Te Ching, Chapter 15",
+            "theme": "mindset",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A murky pool slowly clearing as the sage watches, patience made visible, the bottom becoming visible only through stillness"
+        },
+        {
+            "text": "When the great Tao is forgotten, goodness and piety appear. When the body's intelligence declines, cleverness and knowledge step forth.",
+            "short_version": "When the great Tao is forgotten, goodness and piety appear.",
+            "source": "Tao Te Ching, Chapter 18",
+            "theme": "wisdom",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Men debating virtues in a marketplace while behind them a river flows silently and perfectly on its own"
+        },
+        {
+            "text": "Throw away holiness and wisdom, and people will be a hundred times happier. Throw away morality and justice, and people will do the right thing. Throw away industry and profit, and there won't be any thieves.",
+            "short_version": "Throw away holiness and wisdom, and people will be a hundred times happier.",
+            "source": "Tao Te Ching, Chapter 19",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A village living simply without walls or ceremony, children playing freely, the natural order undisturbed"
+        },
+        {
+            "text": "The Master doesn't try to be powerful; thus he is truly powerful. The ordinary man keeps reaching for power; thus he never has enough.",
+            "short_version": "The Master doesn't try to be powerful; thus he is truly powerful.",
+            "source": "Tao Te Ching, Chapter 38",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A warlord straining to lift a heavy sword, the sage holding a feather that somehow parts the mountain fog"
+        },
+        {
+            "text": "Success is as dangerous as failure. Hope is as hollow as fear. What does it mean that success is as dangerous as failure? Whether you go up the ladder or down it, your position is shaky.",
+            "short_version": "Success is as dangerous as failure.",
+            "source": "Tao Te Ching, Chapter 13",
+            "theme": "mindset",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A figure balanced on a narrow mountain ridge, both ascent and descent equally precarious, the sage watching from stable ground"
+        },
+        {
+            "text": "There is no greater illusion than fear, no greater wrong than preparing to defend yourself, no greater misfortune than having an enemy.",
+            "short_version": "There is no greater illusion than fear.",
+            "source": "Tao Te Ching, Chapter 46",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A warrior building walls, then the sage dissolving through those same walls like morning mist, the futility made visible"
+        },
+        {
+            "text": "The world is ruled by letting things take their course. It cannot be ruled by interfering.",
+            "short_version": "The world is ruled by letting things take their course.",
+            "source": "Tao Te Ching, Chapter 48",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Men struggling to redirect a river with their hands while the sage watches, then a dam breaking and the river finding its own course"
+        },
+        {
+            "text": "He who clings to his work will create nothing that endures. If you want to accord with the Tao, just do your job, then let go.",
+            "short_version": "Just do your job, then let go.",
+            "source": "Tao Te Ching, Chapter 9",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A craftsman finishing a perfect bowl, then releasing it downstream, the work complete, the attachment gone"
+        },
+        {
+            "text": "Those who know don't talk. Those who talk don't know. Close your mouth, block off your senses, blunt your sharpness, untie your knots, soften your glare, settle your dust.",
+            "short_version": "Those who know don't talk. Those who talk don't know.",
+            "source": "Tao Te Ching, Chapter 56",
+            "theme": "wisdom",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A crowd of voices arguing at a city gate, the sage seated quietly above them on a mountain, his silence containing more than all their words"
+        },
+        {
+            "text": "Stop thinking, and end your problems. What difference between yes and no? What difference between success and failure? Must you value what others value, avoid what others avoid? How ridiculous!",
+            "short_version": "Stop thinking, and end your problems.",
+            "source": "Tao Te Ching, Chapter 20",
+            "theme": "mindset",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Busy men arguing over a scale weighing gold, the sage observing from the mountain with the mountains behind him immeasurable and free"
+        },
+        {
+            "text": "Do you think you can take over the universe and improve it? I do not believe it can be done. The universe is sacred. You cannot improve it. If you try to change it, you will ruin it. If you try to hold it, you will lose it.",
+            "short_version": "The universe is sacred. You cannot improve it.",
+            "source": "Tao Te Ching, Chapter 29",
+            "theme": "nature",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Men clearing a forest to build a city, then the ruins of that city being reclaimed by trees, the sage watching both with the same expression"
+        },
+        {
+            "text": "He who knows that enough is enough will always have enough.",
+            "short_version": null,
+            "source": "Tao Te Ching, Chapter 46",
+            "theme": "mindset",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A single lamp lighting a humble room, outside the dark mountains vast and full, the contrast between wanting and having"
+        },
+        {
+            "text": "Act without expectation, accomplish without ado, conquer without force.",
+            "short_version": null,
+            "source": "Tao Te Ching, Chapter 63",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Water flowing around a boulder without effort, eventually cutting through, the sage watching the effortless process"
+        },
+        {
+            "text": "Respond to anger with virtue. Deal with difficulties while they are still easy. Handle the great while it is still small.",
+            "short_version": "Respond to anger with virtue.",
+            "source": "Tao Te Ching, Chapter 63",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A man raising his fist in anger, the sage bowing gently in return, the anger dissolving like morning frost"
+        },
+        {
+            "text": "Returning to the source is stillness, which is the way of nature. The way of nature is unchanging.",
+            "short_version": "Returning to the source is stillness.",
+            "source": "Tao Te Ching, Chapter 16",
+            "theme": "nature",
+            "emotional_function": "loop",
+            "pair_with_visual": "A river flowing away from mountains, then clouds forming, rain falling back onto the same mountains — the eternal cycle completing"
+        },
+        {
+            "text": "The Tao goes back and forth; its movement, returning. Its character, yielding. All things are born of being; being is born of non-being.",
+            "short_version": "All things are born of being; being is born of non-being.",
+            "source": "Tao Te Ching, Chapter 40",
+            "theme": "nature",
+            "emotional_function": "loop",
+            "pair_with_visual": "The mountain disappearing completely into fog, then re-emerging, a cycle of appearing and vanishing, ending exactly where it began"
+        },
+        {
+            "text": "The valley spirit never dies. It is called the mysterious female. The gateway of the mysterious female is called the root of heaven and earth. Dimly visible, it seems as if it were there, yet use will never drain it.",
+            "short_version": "The valley spirit never dies.",
+            "source": "Tao Te Ching, Chapter 6",
+            "theme": "nature",
+            "emotional_function": "loop",
+            "pair_with_visual": "A mountain valley filling with mist at dusk, the mist clearing at dawn, the valley unchanged — persistent as the eternal"
+        },
+        {
+            "text": "Know the white, yet keep the black: be the pattern of the world. Being the pattern of the world, eternal virtue will never leave you. You will return again to the infinite.",
+            "short_version": "Know the white, yet keep the black.",
+            "source": "Tao Te Ching, Chapter 28",
+            "theme": "wisdom",
+            "emotional_function": "loop",
+            "pair_with_visual": "Ink circle: white fading to black fading back to white, the sage's face at the center unchanging through the transformation"
+        },
+        {
+            "text": "Whoever relies on the Tao in governing men doesn't try to force issues or defeat enemies by force of arms. For every force there is a counterforce. Violence, even well intentioned, always rebounds upon oneself.",
+            "short_version": "For every force there is a counterforce.",
+            "source": "Tao Te Ching, Chapter 30",
+            "theme": "strategy",
+            "emotional_function": "loop",
+            "pair_with_visual": "A stone thrown into a mountain pool creating ripples that return to their source, the pattern repeating, force meeting force"
+        },
+        {
+            "text": "The Tao gives birth to one. One gives birth to two. Two gives birth to three. Three gives birth to ten thousand things.",
+            "short_version": "The Tao gives birth to one. One gives birth to two.",
+            "source": "Tao Te Ching, Chapter 42",
+            "theme": "nature",
+            "emotional_function": "loop",
+            "pair_with_visual": "A single droplet of water multiplying into streams, rivers, and oceans, then evaporating and returning to a single cloud"
+        },
+        {
+            "text": "Nature does not hurry, yet everything is accomplished.",
+            "short_version": null,
+            "source": "Tao Te Ching, Chapter 15",
+            "theme": "nature",
+            "emotional_function": "loop",
+            "pair_with_visual": "Time-lapse of a mountain season passing — snow melting, flowers blooming, leaves falling, snow returning — all without effort"
+        },
+        {
+            "text": "Go to the people. Live with them. Learn from them. Love them. Start with what they know. Build with what they have. But with the best leaders, when the work is done, the task accomplished, the people will say: we have done this ourselves.",
+            "short_version": "The best leaders: when the work is done, the people say, we did this ourselves.",
+            "source": "Tao Te Ching, Chapter 17",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "A village completing work together joyfully, the sage's hut visible in the far mountains, his presence felt though he is not seen"
+        },
+        {
+            "text": "Countless words count less than the silent balance between yin and yang.",
+            "short_version": "Countless words count less than the silent balance.",
+            "source": "Tao Te Ching, Chapter 5",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "A scholar surrounded by scrolls and texts, while outside his window, the mountain and the valley hold perfect wordless balance"
+        },
+        {
+            "text": "Man follows the earth. Earth follows heaven. Heaven follows the Tao. The Tao follows only itself.",
+            "short_version": "The Tao follows only itself.",
+            "source": "Tao Te Ching, Chapter 25",
+            "theme": "nature",
+            "emotional_function": "truth",
+            "pair_with_visual": "Ascending layers: a farmer bowing to earth, earth cradling mountains, mountains disappearing into sky, sky dissolving into infinite Tao"
+        },
+        {
+            "text": "When the best student hears about the Tao, he practices it assiduously. When the average student hears about the Tao, he thinks about it now and then. When the worst student hears about the Tao, he laughs out loud.",
+            "short_version": "When the worst student hears about the Tao, he laughs out loud.",
+            "source": "Tao Te Ching, Chapter 41",
+            "theme": "wisdom",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Three figures: one meditating seriously, one distracted, one laughing dismissively — the sage watching all three with equal patience"
+        },
+        {
+            "text": "The best runner leaves no tracks. The best speech has no flaws. The best accountant needs no calculator.",
+            "short_version": "The best leaves no trace.",
+            "source": "Tao Te Ching, Chapter 27",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "The sage's footprints dissolving in morning mist, leaving only the untouched mountain path behind"
+        },
+        {
+            "text": "He who is attached to things will suffer much. He who saves will suffer heavy loss. A contented man is rarely disappointed. He who knows when to stop does not find himself in trouble.",
+            "short_version": "He who knows when to stop does not find himself in trouble.",
+            "source": "Tao Te Ching, Chapter 44",
+            "theme": "discipline",
+            "emotional_function": "truth",
+            "pair_with_visual": "A man clutching possessions as floodwaters rise, the sage standing freely on high ground, unburdened and safe"
+        },
+        {
+            "text": "In the world there is nothing more submissive and weak than water. Yet for attacking that which is hard and strong nothing can surpass it. This is because there is nothing that can take its place.",
+            "short_version": "Nothing is more submissive than water; nothing surpasses it for strength.",
+            "source": "Tao Te Ching, Chapter 78",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "A massive boulder in a mountain stream, surrounded by water that moves around it effortlessly and endlessly, the boulder slowly wearing away"
+        }
+    ]
+}

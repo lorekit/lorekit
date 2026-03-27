@@ -1,0 +1,457 @@
+{
+    "philosopher": {
+        "id": "socrates",
+        "name": "Socrates",
+        "civilization": "greek",
+        "era": "470-399 BC, Classical Athens, Ancient Greece",
+        "source_texts": [
+            "Apology (Plato)",
+            "Republic (Plato)",
+            "Phaedo (Plato)",
+            "Crito (Plato)",
+            "Symposium (Plato)",
+            "Meno (Plato)",
+            "Theaetetus (Plato)",
+            "Charmides (Plato)",
+            "Gorgias (Plato)",
+            "Memorabilia (Xenophon)",
+            "Apology (Xenophon)"
+        ],
+        "character_description": "Elderly Greek man, late 60s, bald on top with wispy white hair around sides, snub nose (famously ugly), bulging eyes, thick lips, short stocky build, barefoot, wearing a simple rough himation (cloak) draped over one shoulder — deliberately plain. Animated expression when speaking, often gesturing.",
+        "environment_description": "Athenian agora (marketplace), stone colonnades, open-air gathering spaces, olive trees, the Acropolis visible in background, Athenian courtroom during his trial, prison cell with stone walls and small window, bright Mediterranean sunlight, classical Greek architecture."
+    },
+    "quotes": [
+        {
+            "text": "The unexamined life is not worth living.",
+            "short_version": "The unexamined life is not worth living.",
+            "source": "Apology (Plato), 38a",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "Socrates standing in the Athenian courtroom, addressing his jury with calm intensity, Acropolis visible through a high window"
+        },
+        {
+            "text": "I know that I know nothing.",
+            "short_version": "I know that I know nothing.",
+            "source": "Apology (Plato), 21d",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "Socrates alone in the agora at dusk, looking up at the darkening sky, expression of genuine wonder"
+        },
+        {
+            "text": "Wonder is the beginning of wisdom.",
+            "short_version": null,
+            "source": "Theaetetus (Plato), 155d",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "Close-up of Socrates' expressive eyes, wide with curiosity, the agora bustling behind him out of focus"
+        },
+        {
+            "text": "To fear death, gentlemen, is no other than to think oneself wise when one is not, for it is to think one knows what one does not know.",
+            "short_version": "To fear death is to think oneself wise when one is not.",
+            "source": "Apology (Plato), 29a",
+            "theme": "mortality",
+            "emotional_function": "hook",
+            "pair_with_visual": "Socrates in his prison cell, sitting upright on a stone bench, speaking calmly to friends gathered around him"
+        },
+        {
+            "text": "I am not an Athenian or a Greek, but a citizen of the world.",
+            "short_version": null,
+            "source": "Memorabilia (Xenophon), I.2.1",
+            "theme": "virtue",
+            "emotional_function": "hook",
+            "pair_with_visual": "Socrates walking at the edge of the agora, silhouetted against the sprawling city below the Acropolis"
+        },
+        {
+            "text": "The secret of change is to focus all of your energy not on fighting the old, but on building the new.",
+            "short_version": "Focus all your energy on building the new.",
+            "source": "Way of Socrates (Plato, Phaedo), 115-116",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "Socrates gesturing animatedly in conversation with young men in a sunlit colonnade"
+        },
+        {
+            "text": "He who is not contented with what he has, would not be contented with what he would like to have.",
+            "short_version": "He who is not contented with what he has will never be contented.",
+            "source": "Memorabilia (Xenophon), II.1.20",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "Socrates seated in simple robes in the agora, surrounded by wealthy merchants, unbothered"
+        },
+        {
+            "text": "Beware the barrenness of a busy life.",
+            "short_version": null,
+            "source": "Memorabilia (Xenophon), III.11",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "Socrates standing still in the middle of a crowded, chaotic agora, eyes closed in stillness"
+        },
+        {
+            "text": "Education is the kindling of a flame, not the filling of a vessel.",
+            "short_version": null,
+            "source": "Memorabilia (Xenophon), IV.1",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "Socrates holding a torch, illuminating the faces of attentive young students in the shadows of a colonnade"
+        },
+        {
+            "text": "Be slow to fall into friendship, but when you are in, continue firm and constant.",
+            "short_version": "Be slow to befriend, but constant once you do.",
+            "source": "Memorabilia (Xenophon), II.6.35",
+            "theme": "virtue",
+            "emotional_function": "hook",
+            "pair_with_visual": "Socrates clasping the hand of a trusted companion, steady eye contact, the agora behind them"
+        },
+        {
+            "text": "The only true wisdom is in knowing you know nothing.",
+            "short_version": null,
+            "source": "Apology (Plato), 21d",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "Socrates spreading his hands open in a gesture of humility before a crowd in the agora"
+        },
+        {
+            "text": "There is only one good, knowledge, and one evil, ignorance.",
+            "short_version": "One good: knowledge. One evil: ignorance.",
+            "source": "Memorabilia (Xenophon), III.9.5",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates tracing letters in the dust of the agora floor while young men watch intently"
+        },
+        {
+            "text": "To do is to be.",
+            "short_version": null,
+            "source": "Republic (Plato), 352d",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates in mid-step, walking forward with purpose through the agora"
+        },
+        {
+            "text": "False words are not only evil in themselves, but they infect the soul with evil.",
+            "short_version": "False words infect the soul with evil.",
+            "source": "Phaedo (Plato), 89c",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates turning away from a man who is clearly lying, his expression grave and resolute"
+        },
+        {
+            "text": "The greatest way to live with honor in this world is to be what we pretend to be.",
+            "short_version": "Be what you pretend to be.",
+            "source": "Memorabilia (Xenophon), I.7.1",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates looking directly into a polished bronze mirror, calm and self-possessed"
+        },
+        {
+            "text": "Know thyself.",
+            "short_version": null,
+            "source": "Phaedrus (Plato), 229e",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates pausing alone in the agora, one hand pressed to his chest, eyes cast inward"
+        },
+        {
+            "text": "Strong minds discuss ideas, average minds discuss events, weak minds discuss people.",
+            "short_version": "Strong minds discuss ideas. Weak minds discuss people.",
+            "source": "Memorabilia (Xenophon), I.6.9",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates in animated philosophical debate with a small circle of focused young men in a colonnade"
+        },
+        {
+            "text": "No man has the right to be an amateur in the matter of physical training. It is a shame for a man to grow old without seeing the beauty and strength of which his body is capable.",
+            "short_version": "It is a shame to grow old without seeing what your body is capable of.",
+            "source": "Memorabilia (Xenophon), III.12.5",
+            "theme": "discipline",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates standing upright, barefoot on the stone pavement, posture strong for his age"
+        },
+        {
+            "text": "Thou shouldst eat to live, not live to eat.",
+            "short_version": "Eat to live, not live to eat.",
+            "source": "Memorabilia (Xenophon), I.3.5",
+            "theme": "discipline",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates declining an elaborate feast laid out before him, gesturing modestly toward simpler food"
+        },
+        {
+            "text": "I pray thee, O God, that I may be beautiful within.",
+            "short_version": null,
+            "source": "Phaedrus (Plato), 279c",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates alone beneath an olive tree outside the city walls, hands folded, eyes closed in prayer"
+        },
+        {
+            "text": "Virtue is not given by money, but that from virtue come money and every other good of man.",
+            "short_version": "Virtue is not given by money. From virtue comes every good.",
+            "source": "Apology (Plato), 30b",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates gesturing dismissively toward a pile of coins while addressing a wealthy merchant in the agora"
+        },
+        {
+            "text": "The poets do not write out of wisdom, but out of some natural ability and inspiration.",
+            "short_version": null,
+            "source": "Apology (Plato), 22b",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates listening skeptically to a poet reciting verses in the agora, head tilted in quiet assessment"
+        },
+        {
+            "text": "Not life, but good life, is to be chiefly valued.",
+            "short_version": "Not life, but good life, is to be valued.",
+            "source": "Crito (Plato), 48b",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates in his prison cell the night before his death, speaking serenely to Crito by lamplight"
+        },
+        {
+            "text": "The hour of departure has arrived, and we go our ways — I to die, and you to live. Which is better God only knows.",
+            "short_version": "I go to die, you go to live. Which is better, God only knows.",
+            "source": "Apology (Plato), 42a",
+            "theme": "mortality",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates turning to face his condemned fate in the courtroom, silhouetted in afternoon light"
+        },
+        {
+            "text": "Our prayers should be for blessings in general, for God knows best what is good for us.",
+            "short_version": null,
+            "source": "Memorabilia (Xenophon), I.3.2",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates gazing at a temple at dawn, hands at his sides, expression quiet and trusting"
+        },
+        {
+            "text": "My friend, care for your soul.",
+            "short_version": null,
+            "source": "Apology (Plato), 30b",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates placing a gentle hand on the shoulder of a troubled young man in the agora"
+        },
+        {
+            "text": "Think not those faithful who praise all thy words and actions, but those who kindly reprove thy faults.",
+            "short_version": "Not those who praise you, but those who kindly correct you — those are your friends.",
+            "source": "Memorabilia (Xenophon), II.6.35",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates listening attentively to a friend who is correcting him, nodding with respect"
+        },
+        {
+            "text": "He is richest who is content with the least, for content is the wealth of nature.",
+            "short_version": "He is richest who is content with the least.",
+            "source": "Memorabilia (Xenophon), I.6.10",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates walking barefoot past a row of market stalls piled with goods, unhurried and untempted"
+        },
+        {
+            "text": "An honest man is always a child.",
+            "short_version": null,
+            "source": "Apology (Plato), 17c",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates crouching to speak eye-to-eye with a child in the agora, both equally curious"
+        },
+        {
+            "text": "From the deepest desires often come the deadliest hate.",
+            "short_version": null,
+            "source": "Republic (Plato), 375b",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates studying the face of an angry man in the agora, expression searching and analytical"
+        },
+        {
+            "text": "I decided that it was not wisdom that enabled poets to write their poetry, but a kind of instinct or inspiration, such as you find in seers and prophets who deliver all their sublime messages without knowing in the least what they mean.",
+            "short_version": "Poets write not from wisdom, but inspiration — they don't know what they mean.",
+            "source": "Apology (Plato), 22b-c",
+            "theme": "wisdom",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Socrates confronting a self-satisfied poet in the agora, the poet's confident expression beginning to falter"
+        },
+        {
+            "text": "I was afraid that by observing objects with my eyes and trying to comprehend them with each of my other senses I might blind my soul altogether.",
+            "short_version": "I feared that relying on my senses alone might blind my soul altogether.",
+            "source": "Phaedo (Plato), 99e",
+            "theme": "wisdom",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Socrates shielding his eyes from the sun, turning inward in contemplation"
+        },
+        {
+            "text": "I shall never stop practicing philosophy and exhorting you and pointing out the truth to any one of you whom I may meet.",
+            "short_version": "I shall never stop practicing philosophy, not even under threat of death.",
+            "source": "Apology (Plato), 29d",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Socrates standing defiantly before his accusers in the packed Athenian courtroom, voice steady"
+        },
+        {
+            "text": "Men of Athens, I honor and love you; but I shall obey God rather than you.",
+            "short_version": "I honor and love you, Athens — but I shall obey God rather than you.",
+            "source": "Apology (Plato), 29d",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Socrates standing before the Athenian jury, one hand raised, voice calm but immovable"
+        },
+        {
+            "text": "You can discover more about a person in an hour of play than in a year of conversation.",
+            "short_version": null,
+            "source": "Republic (Plato), 374d",
+            "theme": "wisdom",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Socrates watching young men wrestle in the gymnasium, observing their character with quiet attention"
+        },
+        {
+            "text": "Do not do to others what angers you if done to you by others.",
+            "short_version": null,
+            "source": "Memorabilia (Xenophon), II.6.35",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Socrates stepping between two arguing men in the agora, hands raised in calm mediation"
+        },
+        {
+            "text": "The only good is knowledge and the only evil is ignorance. And yet you would have me put to death for questioning, which is my way of seeking knowledge.",
+            "short_version": "Knowledge is the only good. And yet you condemn me for seeking it.",
+            "source": "Apology (Plato), 29a",
+            "theme": "wisdom",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Socrates at trial, gesturing to his accusers with composed indignation, jurors shifting uncomfortably"
+        },
+        {
+            "text": "I know nothing except the fact of my ignorance.",
+            "short_version": null,
+            "source": "Apology (Plato), 22e",
+            "theme": "wisdom",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Socrates questioning a renowned Athenian general, the general's certainty visibly crumbling"
+        },
+        {
+            "text": "I am not an Athenian or a Greek, but a citizen of the world — and for this they would have me silenced.",
+            "short_version": "A citizen of the world — and for this they would silence me.",
+            "source": "Memorabilia (Xenophon), I.2.1",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Socrates standing at the edge of the agora, facing the city that condemned him, resolute"
+        },
+        {
+            "text": "If you kill me you will injure yourselves more than me.",
+            "short_version": "If you kill me, you injure yourselves more than me.",
+            "source": "Apology (Plato), 30c",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Socrates addressing the jury after the guilty verdict, his tone sorrowful rather than bitter"
+        },
+        {
+            "text": "Well, I am certainly wiser than this man. It is only too likely that neither of us has any knowledge to boast of; but he thinks that he knows something which he does not know, whereas I am quite conscious of my ignorance.",
+            "short_version": "He thinks he knows what he does not know. I, at least, know that I do not know.",
+            "source": "Apology (Plato), 21d",
+            "theme": "wisdom",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Socrates walking away from a frustrated Athenian politician, expression wry and calm"
+        },
+        {
+            "text": "He who commits injustice is ever made more wretched than he who suffers it.",
+            "short_version": "He who commits injustice suffers more than the one he wrongs.",
+            "source": "Gorgias (Plato), 474b",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Socrates debating Callicles in a crowded hall, pointing calmly at his opponent's discomfort"
+        },
+        {
+            "text": "Worthless people live only to eat and drink; people of worth eat and drink only to live.",
+            "short_version": "Worthless people live to eat. People of worth eat to live.",
+            "source": "Memorabilia (Xenophon), I.3.5",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Socrates at a symposium, sipping water while others indulge, his expression entirely at peace"
+        },
+        {
+            "text": "As to marriage or celibacy, let a man take which course he will, he will be sure to repent it.",
+            "short_version": null,
+            "source": "Memorabilia (Xenophon), II.2",
+            "theme": "mindset",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Socrates smiling wryly in conversation with a young man agonizing over a life decision"
+        },
+        {
+            "text": "I am that gadfly which God has attached to the state, and all day long and in all places am always fastening upon you, arousing and persuading and reproaching you.",
+            "short_version": "I am the gadfly God attached to Athens — fastening, arousing, reproaching.",
+            "source": "Apology (Plato), 30e",
+            "theme": "virtue",
+            "emotional_function": "loop",
+            "pair_with_visual": "Socrates in constant motion through the agora, moving from one conversation to the next, never resting"
+        },
+        {
+            "text": "Once made equal to man, woman becomes his superior.",
+            "short_version": null,
+            "source": "Republic (Plato), 455d",
+            "theme": "wisdom",
+            "emotional_function": "loop",
+            "pair_with_visual": "Socrates gesturing toward a group of women in discussion, making his point to a skeptical listener"
+        },
+        {
+            "text": "The mind is everything. What you think you become.",
+            "short_version": "The mind is everything. What you think, you become.",
+            "source": "Republic (Plato), 588b",
+            "theme": "mindset",
+            "emotional_function": "loop",
+            "pair_with_visual": "Socrates pressing two fingers to his temple, eyes closed, speaking softly but with total conviction"
+        },
+        {
+            "text": "Remember that there is nothing stable in human affairs; therefore avoid undue elation in prosperity, or undue depression in adversity.",
+            "short_version": "Nothing in human affairs is stable — avoid elation in prosperity and despair in adversity.",
+            "source": "Apology (Xenophon), 27",
+            "theme": "mindset",
+            "emotional_function": "loop",
+            "pair_with_visual": "Socrates standing steady in the center of a turbulent agora crowd, unmoved by the commotion"
+        },
+        {
+            "text": "If a man is proud of his wealth, he should not be praised until it is known how he employs it.",
+            "short_version": "Do not praise a man for his wealth until you see how he uses it.",
+            "source": "Memorabilia (Xenophon), II.7.2",
+            "theme": "virtue",
+            "emotional_function": "loop",
+            "pair_with_visual": "Socrates watching a wealthy Athenian from a distance, expression quietly evaluating"
+        },
+        {
+            "text": "He who is unable to live in society, or who has no need because he is sufficient for himself, must be either a beast or a god.",
+            "short_version": "He who needs no one is either a beast or a god.",
+            "source": "Republic (Plato), 369b",
+            "theme": "nature",
+            "emotional_function": "loop",
+            "pair_with_visual": "Socrates in the midst of the agora, gesturing to the human web of exchange and conversation around him"
+        },
+        {
+            "text": "By all means, marry. If you get a good wife, you'll become happy; if you get a bad one, you'll become a philosopher.",
+            "short_version": "Marry. If your wife is good, you'll be happy. If bad, you'll become a philosopher.",
+            "source": "Memorabilia (Xenophon), II.2.4",
+            "theme": "mindset",
+            "emotional_function": "loop",
+            "pair_with_visual": "Socrates laughing openly with a group of young men in the agora, pointing to himself as living proof"
+        },
+        {
+            "text": "When the debate is lost, slander becomes the tool of the loser.",
+            "short_version": null,
+            "source": "Apology (Plato), 17d",
+            "theme": "wisdom",
+            "emotional_function": "loop",
+            "pair_with_visual": "Socrates watching his accusers with calm pity as they struggle to make their case against him"
+        },
+        {
+            "text": "The beginning of wisdom is the definition of terms.",
+            "short_version": null,
+            "source": "Memorabilia (Xenophon), IV.6.1",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Socrates drawing a diagram in the dust of the agora floor, students gathered around watching"
+        },
+        {
+            "text": "Let him that would move the world first move himself.",
+            "short_version": "Let him who would move the world first move himself.",
+            "source": "Memorabilia (Xenophon), III.3.9",
+            "theme": "discipline",
+            "emotional_function": "hook",
+            "pair_with_visual": "Socrates alone at dawn on a deserted street in Athens, walking purposefully before the city wakes"
+        }
+    ]
+}

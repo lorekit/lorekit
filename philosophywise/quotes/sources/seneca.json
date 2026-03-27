@@ -1,0 +1,461 @@
+{
+    "philosopher": {
+        "id": "seneca",
+        "name": "Seneca",
+        "civilization": "roman",
+        "era": "4 BC - 65 AD, Roman Empire",
+        "source_texts": ["Letters to Lucilius", "On the Shortness of Life", "On the Happy Life", "On Anger", "On Providence", "On the Tranquility of the Mind"],
+        "character_description": "Elderly Roman man, late 60s, bald crown with short white hair on sides, clean-shaven or short-cropped gray beard, sharp intelligent eyes, aquiline nose, wearing white toga with narrow purple stripe (senatorial). Lean build, dignified posture, often depicted writing or in philosophical discourse.",
+        "environment_description": "Roman villa interior with marble floors, oil lamps, scrolls and writing materials, garden courtyard with fountain, Mediterranean plants, warm amber lighting, luxurious but tasteful Roman furnishings."
+    },
+    "quotes": [
+        {
+            "text": "We suffer more often in imagination than in reality.",
+            "short_version": "We suffer more in imagination than in reality.",
+            "source": "Letters to Lucilius, Letter 13",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "Seneca seated at his writing desk by lamplight, stylus raised mid-thought, shadows of imagined fears dissolving on the wall behind him"
+        },
+        {
+            "text": "Nothing, Lucilius, is ours, except time.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 1",
+            "theme": "mortality",
+            "emotional_function": "hook",
+            "pair_with_visual": "An hourglass on a Roman marble table, sand streaming through, Seneca's weathered hand resting beside it"
+        },
+        {
+            "text": "For we are mistaken when we look forward to death; the major portion of death has already passed.",
+            "short_version": "The major portion of death has already passed.",
+            "source": "Letters to Lucilius, Letter 1",
+            "theme": "mortality",
+            "emotional_function": "hook",
+            "pair_with_visual": "A Roman sundial casting a long shadow across a courtyard, the shadow consuming most of the dial's face, only a sliver of light remaining"
+        },
+        {
+            "text": "Most men ebb and flow in wretchedness between the fear of death and the hardships of life; they are unwilling to live, and yet they do not know how to die.",
+            "short_version": "Unwilling to live, yet not knowing how to die.",
+            "source": "Letters to Lucilius, Letter 4",
+            "theme": "mortality",
+            "emotional_function": "hook",
+            "pair_with_visual": "A crowd moving through a Roman marketplace, all faces downcast, none looking at the sun or sky, trapped between stalls with no clear direction"
+        },
+        {
+            "text": "In the morning they throw men to the lions and the bears; at noon, they throw them to the spectators.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 7",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "Seneca watching from the upper tier of the Colosseum, face turned away from the arena below, eyes closed in quiet disgust"
+        },
+        {
+            "text": "It is not that we are given a short life, but that we make it short, and we are not ill-supplied but wasteful of it.",
+            "short_version": "Life is not short — we make it short.",
+            "source": "On the Shortness of Life, Chapter 1",
+            "theme": "mortality",
+            "emotional_function": "hook",
+            "pair_with_visual": "A Roman lamp burning at both ends simultaneously, wax pooling quickly on a marble surface as the flame flares brightly"
+        },
+        {
+            "text": "We do not suddenly fall on death, but advance towards it by slight degrees; we die every day.",
+            "short_version": "We die every day.",
+            "source": "Letters to Lucilius, Letter 24",
+            "theme": "mortality",
+            "emotional_function": "hook",
+            "pair_with_visual": "A Roman calendar tablet with each day's mark scratched away one by one, only a handful of unmarked days remaining"
+        },
+        {
+            "text": "For life, if courage to die be lacking, is slavery.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 77",
+            "theme": "virtue",
+            "emotional_function": "hook",
+            "pair_with_visual": "A Roman man in chains, standing at a crossroads, one path leading toward light and the other into further darkness"
+        },
+        {
+            "text": "It is with life as it is with a play — it matters not how long the action is spun out, but how good the acting is.",
+            "short_version": "It matters not how long, but how good.",
+            "source": "Letters to Lucilius, Letter 77",
+            "theme": "mortality",
+            "emotional_function": "hook",
+            "pair_with_visual": "A Roman theater at dusk, a lone actor on stage mid-scene, the audience rapt, the performance brief but brilliant"
+        },
+        {
+            "text": "Surely you are aware that dying is also one of life's duties?",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 77",
+            "theme": "mortality",
+            "emotional_function": "hook",
+            "pair_with_visual": "Seneca at his writing table, quill paused, looking directly outward with composed, searching eyes as if posing the question to the viewer"
+        },
+        {
+            "text": "I come home more greedy, more ambitious, more voluptuous, and even more cruel and inhuman, because I have been among human beings.",
+            "short_version": "I come home worse for having been among human beings.",
+            "source": "Letters to Lucilius, Letter 7",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "Seneca returning through the gate of his villa, pausing in the archway, the noise of the Roman street behind him, candlelit quietude ahead"
+        },
+        {
+            "text": "The language of truth is simple.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 49",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "A single line of Latin script carved cleanly into white marble, surrounded by the ornate clutter of a Roman forum"
+        },
+        {
+            "text": "While we are postponing, life speeds by.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 1",
+            "theme": "mortality",
+            "emotional_function": "hook",
+            "pair_with_visual": "A Roman road stretching to the horizon, a figure standing still while travelers blur past in both directions, the sun already low"
+        },
+        {
+            "text": "The largest portion of our life passes while we are doing ill, a goodly share while we are doing nothing, and the whole while we are doing other than what we ought.",
+            "short_version": "Most of our life passes while we are doing other than what we ought.",
+            "source": "Letters to Lucilius, Letter 1",
+            "theme": "mortality",
+            "emotional_function": "truth",
+            "pair_with_visual": "An overhead view of a Roman city at midday, most figures idle in shade or distracted in markets, only a handful moving with clear purpose"
+        },
+        {
+            "text": "It is not the man who has too little, but the man who craves more, that is poor.",
+            "short_version": "The man who craves more is poor.",
+            "source": "Letters to Lucilius, Letter 2",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "A wealthy Roman at a banquet table overflowing with food, his face hollow and unsatisfied, while a simple philosopher reads contentedly beside a single oil lamp"
+        },
+        {
+            "text": "Do you ask what is the proper limit to wealth? It is, first, to have what is necessary, and, second, to have what is enough.",
+            "short_version": "Wealth's limit: what is necessary, then what is enough.",
+            "source": "Letters to Lucilius, Letter 2",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "A Roman storage room with modest provisions — bread, oil, wine, a warm cloak — orderly and sufficient, nothing excess"
+        },
+        {
+            "text": "You must linger among a limited number of master thinkers, and digest their works, if you would derive ideas which shall win firm hold in your mind.",
+            "short_version": "Linger among a few master thinkers and digest their works.",
+            "source": "Letters to Lucilius, Letter 2",
+            "theme": "discipline",
+            "emotional_function": "truth",
+            "pair_with_visual": "Seneca in his library, one scroll open before him, a dozen others rolled and stacked aside, fully absorbed in the single text"
+        },
+        {
+            "text": "Cease to hope, and you will cease to fear.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 5",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "A Roman soldier removing his helmet after battle and sitting on a stone wall, face calm and unburdened, watching the sunset without longing"
+        },
+        {
+            "text": "Just as the same chain fastens the prisoner and the soldier who guards him, so hope and fear, dissimilar as they are, keep step together.",
+            "short_version": "Hope and fear walk in the same chain.",
+            "source": "Letters to Lucilius, Letter 5",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "A Roman guard and prisoner bound by the same chain, both walking toward an unseen destination, neither truly free"
+        },
+        {
+            "text": "If you live according to nature, you will never be poor; if you live according to opinion, you will never be rich.",
+            "short_version": "Live by nature: never poor. Live by opinion: never rich.",
+            "source": "Letters to Lucilius, Letter 16",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Two Roman men side by side — one in simple linen tunic walking a garden path at ease, one in purple-trimmed toga checking his accounts with a furrowed brow"
+        },
+        {
+            "text": "No man can live a happy life, or even a supportable life, without the study of wisdom.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 16",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "A young Roman man slumped in luxury — fine cushions, silver cups, servants — face vacant, surrounded by everything except meaning"
+        },
+        {
+            "text": "What Chance has made yours is not really yours.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 8",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "A wealthy Roman's storehouse of gold and grain, the doors open in a storm, the wind scattering it all — Seneca watching from the doorway unmoved"
+        },
+        {
+            "text": "If you would enjoy real freedom, you must be the slave of Philosophy. For the very service of Philosophy is freedom.",
+            "short_version": "The service of Philosophy is freedom.",
+            "source": "Letters to Lucilius, Letter 8",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Seneca writing by lamplight while the city sleeps, the window behind him open to a sky full of stars, completely free in his solitude"
+        },
+        {
+            "text": "Real joy, believe me, is a stern matter. It comes from a good conscience, from honorable purposes, from right actions, from contempt of the gifts of chance.",
+            "short_version": "Real joy is a stern matter — it comes from a good conscience.",
+            "source": "Letters to Lucilius, Letter 23",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Seneca rising from his writing chair, face serene, the morning light falling across scrolls that record a life of purposeful work"
+        },
+        {
+            "text": "Some men have left off living before they have begun.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 23",
+            "theme": "mortality",
+            "emotional_function": "truth",
+            "pair_with_visual": "A Roman forum at midday, a young man leaning against a column watching others pass — time flowing around him while he stands immovable"
+        },
+        {
+            "text": "Death either annihilates us or strips us bare. If the former, nothing remains for the worse; if the latter, we become lighter.",
+            "short_version": "Death either annihilates us or strips us bare — either way, we need not fear it.",
+            "source": "Letters to Lucilius, Letter 24",
+            "theme": "mortality",
+            "emotional_function": "truth",
+            "pair_with_visual": "A Roman philosopher standing at the edge of the sea at night, contemplating the vast dark water with complete composure"
+        },
+        {
+            "text": "Strip things of all that disturbs and confuses, and see what each is at bottom; you will comprehend that they contain nothing fearful except the actual fear.",
+            "short_version": "There is nothing fearful in things, except the fear itself.",
+            "source": "Letters to Lucilius, Letter 24",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "A Roman man staring at a large shadow on the wall in panic — the source revealed as a small lamp flickering beside a tiny figurine"
+        },
+        {
+            "text": "Yield not to adversity; trust not to prosperity; keep before your eyes the full scope of Fortune's power.",
+            "short_version": "Yield not to adversity; trust not to prosperity.",
+            "source": "Letters to Lucilius, Letter 78",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "Seneca standing between two scenes — on one side a storm, on the other a golden feast — feet planted firmly, unmoved by either"
+        },
+        {
+            "text": "Pain is slight if opinion has added nothing to it; but if, on the other hand, you begin to encourage yourself and say, 'It is nothing,' then in thinking it slight, you will make it slight.",
+            "short_version": "Think pain slight, and you will make it slight.",
+            "source": "Letters to Lucilius, Letter 78",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "A Roman soldier binding his own wound by firelight, jaw set, eyes calm, fingers steady — no one watching, no need for witnesses"
+        },
+        {
+            "text": "A man is as wretched as he has convinced himself that he is.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 78",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "Two Roman men sitting in the same cell — one slumped in despair, one studying a scroll with a slight smile, the same bars on the same window"
+        },
+        {
+            "text": "It is not that we have a short time to live, but that we waste a lot of it.",
+            "short_version": null,
+            "source": "On the Shortness of Life, Chapter 1",
+            "theme": "mortality",
+            "emotional_function": "truth",
+            "pair_with_visual": "A Roman water clock spilling water freely onto the floor, no basin to catch it, the water spreading across marble and evaporating"
+        },
+        {
+            "text": "Infinitely swift is the flight of time, as those see more clearly who are looking backwards.",
+            "short_version": "Those looking backwards see most clearly how swift time flies.",
+            "source": "Letters to Lucilius, Letter 49",
+            "theme": "mortality",
+            "emotional_function": "truth",
+            "pair_with_visual": "An elderly Roman looking back down a long road at sunset, the path behind him compressed to a single point of light, the vast distance collapsed"
+        },
+        {
+            "text": "Show me a man who is not a slave; one is a slave to lust, another to greed, another to ambition, and all men are slaves to fear.",
+            "short_version": "All men are slaves — to lust, greed, ambition, or fear.",
+            "source": "Letters to Lucilius, Letter 47",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "A panoramic view of the Roman forum — senators, merchants, soldiers, and slaves all shown bound by invisible chains to their various masters"
+        },
+        {
+            "text": "Treat your inferiors as you would be treated by your betters.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 47",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Seneca placing a hand on the shoulder of a household slave with the same respect he would show a senator, the slave's posture straightening"
+        },
+        {
+            "text": "It is a matter, not of words, but of facts.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 16",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "A Roman philosopher turning away from a debate where men gesture and argue, walking instead toward the garden to tend it with his own hands"
+        },
+        {
+            "text": "No good thing renders its possessor happy, unless his mind is reconciled to the possibility of loss.",
+            "short_version": "No good thing makes you happy unless you can bear to lose it.",
+            "source": "Letters to Lucilius, Letter 4",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "A Roman man holding a beautiful painted vessel, face tense with the effort of keeping it safe, no joy in the holding"
+        },
+        {
+            "text": "The time which we spend in living is but a point, nay, even less than a point.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 49",
+            "theme": "mortality",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A Roman mosaic of the cosmos — the entire empire occupying a single tile among thousands, the individual life a single grain of sand in that tile"
+        },
+        {
+            "text": "Love of bustle is not industry — it is only the restlessness of a hunted mind.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 3",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A Roman nobleman rushing through his domus from room to room, servants scattering, nothing completed, the day ending in exhaustion and emptiness"
+        },
+        {
+            "text": "To consort with the crowd is harmful; there is no person who does not make some vice attractive to us.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 7",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Seneca emerging from the crowded Roman bath house, expression strained, the noise and licentiousness of the place still clinging to the air around him"
+        },
+        {
+            "text": "The young character, which cannot hold fast to righteousness, must be rescued from the mob; it is too easy to side with the majority.",
+            "short_version": "It is too easy to side with the majority.",
+            "source": "Letters to Lucilius, Letter 7",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A young Roman man at a crossroads, a roaring crowd pulling him one way, a single lamp burning at the end of a quiet path in the other direction"
+        },
+        {
+            "text": "Whether Fate binds us down by an inexorable law, or whether God as arbiter of the universe has arranged everything, or whether Chance drives and tosses human affairs without method — philosophy ought to be our defense.",
+            "short_version": "Whatever rules this world, philosophy ought to be our defense.",
+            "source": "Letters to Lucilius, Letter 16",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A storm raging over Rome — temples, columns, and crowds lashed by wind and rain — one figure in a doorway, composed, reading a scroll"
+        },
+        {
+            "text": "It is indeed foolish to be unhappy now because you may be unhappy at some future time.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 24",
+            "theme": "mindset",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A Roman man sitting in a sun-filled garden, hands clenched, brow furrowed, a feast on the table before him, imagining disasters that have not yet come"
+        },
+        {
+            "text": "For sometimes, it is an act of bravery even to live.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 78",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A sick man at dawn pulling himself upright in bed, reaching for a scroll with trembling hands, choosing engagement over surrender"
+        },
+        {
+            "text": "Reflect how long you have been doing the same thing: food, sleep, lust — this is one's daily round. The desire to die may be felt, not only by the sensible man or the brave or unhappy man, but even by the man who is merely surfeited.",
+            "short_version": "Food, sleep, lust — this is one's daily round.",
+            "source": "Letters to Lucilius, Letter 77",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A sequence of identical days shown in a Roman mosaic: the same table, same couch, same shallow pleasures repeated in a loop with no variation"
+        },
+        {
+            "text": "The foulest death is preferable to the fairest slavery.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 70",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A Roman freedman standing at the city gate at dawn, tattered and scarred but upright, the colonnades of his former master's house behind him"
+        },
+        {
+            "text": "It is not a question of dying earlier or later, but of dying well or ill.",
+            "short_version": "Not earlier or later — but well or ill.",
+            "source": "Letters to Lucilius, Letter 70",
+            "theme": "mortality",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Two Roman deathbeds — one surrounded by unfinished business and regret, one accompanied by a completed life and calm acceptance"
+        },
+        {
+            "text": "We must make it our aim already to have lived long enough.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 23",
+            "theme": "mortality",
+            "emotional_function": "conflict",
+            "pair_with_visual": "An elderly Seneca at his desk at night, setting down his stylus, surveying the stack of completed scrolls beside him with quiet satisfaction"
+        },
+        {
+            "text": "He who has made a fair compact with poverty is rich.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 4",
+            "theme": "wisdom",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A Roman philosopher in a modest tunic walking barefoot through a marble hall that others rush through anxiously, his pace unhurried and free"
+        },
+        {
+            "text": "Each man acquires his character for himself, but accident assigns his duties.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 47",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "A Roman slave and a senator seated side by side at a philosophical lecture, both leaning forward with the same expression of concentration"
+        },
+        {
+            "text": "Two elements must be rooted out once for all — the fear of future suffering, and the recollection of past suffering; since the latter no longer concerns me, and the former concerns me not yet.",
+            "short_version": "Uproot fear of the future and regret of the past — neither belongs to you.",
+            "source": "Letters to Lucilius, Letter 78",
+            "theme": "mindset",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Seneca standing in the present moment — ruins of the past behind him, storm clouds of the future ahead — standing in a patch of sunlight"
+        },
+        {
+            "text": "Lay hold of today's task, and you will not need to depend so much upon tomorrow's.",
+            "short_version": "Lay hold of today's task.",
+            "source": "Letters to Lucilius, Letter 1",
+            "theme": "discipline",
+            "emotional_function": "loop",
+            "pair_with_visual": "A Roman scribe at first light, beginning work before the household stirs, the day's task already underway before others have risen"
+        },
+        {
+            "text": "Each day acquire something that will fortify you against poverty, against death, indeed against other misfortunes as well.",
+            "short_version": "Each day acquire something that fortifies you.",
+            "source": "Letters to Lucilius, Letter 2",
+            "theme": "discipline",
+            "emotional_function": "loop",
+            "pair_with_visual": "Seneca adding a single line to a scroll each morning, the stack of completed scrolls behind him growing, a quiet compound of daily effort"
+        },
+        {
+            "text": "At whatever point you leave off living, provided you leave off nobly, your life is a whole.",
+            "short_version": "Provided you leave off nobly, your life is a whole.",
+            "source": "Letters to Lucilius, Letter 77",
+            "theme": "mortality",
+            "emotional_function": "loop",
+            "pair_with_visual": "A Roman mosaic floor, every tile in place, complete and whole, a single figure standing at its center looking down at the finished work"
+        },
+        {
+            "text": "Above all, my dear Lucilius, make this your business: learn how to feel joy.",
+            "short_version": "Make this your business: learn how to feel joy.",
+            "source": "Letters to Lucilius, Letter 23",
+            "theme": "wisdom",
+            "emotional_function": "loop",
+            "pair_with_visual": "Seneca handing a scroll to a younger man with a warm, direct look — the gesture of passing something essential from hand to hand"
+        },
+        {
+            "text": "The wise man will live as long as he ought, not as long as he can.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 70",
+            "theme": "wisdom",
+            "emotional_function": "loop",
+            "pair_with_visual": "An old Roman setting down his stylus and walking into a garden at twilight, not fleeing but completing, the door behind him left open"
+        },
+        {
+            "text": "Life keeps no one against his will.",
+            "short_version": null,
+            "source": "Letters to Lucilius, Letter 70",
+            "theme": "virtue",
+            "emotional_function": "loop",
+            "pair_with_visual": "An open Roman city gate at dawn, the road beyond it stretching into open countryside — the choice to walk through it always available"
+        }
+    ]
+}

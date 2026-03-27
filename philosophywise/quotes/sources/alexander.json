@@ -1,0 +1,437 @@
+{
+    "philosopher": {
+        "id": "alexander",
+        "name": "Alexander the Great",
+        "civilization": "greek",
+        "era": "356-323 BC, Macedon and the Hellenistic World",
+        "source_texts": ["Plutarch's Life of Alexander", "Arrian's Anabasis", "Plutarch's Moralia: Sayings of Kings and Commanders"],
+        "character_description": "Young Macedonian king, late 20s-early 30s, clean-shaven (unusual for the era), wavy golden-brown hair swept back from forehead (anastole hairstyle), heterochromatic eyes (one brown, one blue according to some accounts), strong jawline, medium height but powerful athletic build, wearing ornate Macedonian bronze cuirass with gold inlay, purple cloak, or lion-skin headdress in battle. Intense, burning gaze.",
+        "environment_description": "Vast ancient landscapes — Macedonian mountains, Persian palace at Persepolis with tall columns and ornate reliefs, Egyptian desert with pyramids distant, banks of the Indus River, massive Macedonian army camp with sarissa pikes stacked, the siege of Tyre with naval warfare, Gaugamela battlefield stretching to horizon."
+    },
+    "quotes": [
+        {
+            "text": "Boys, my father will anticipate everything; and for me he will leave no great or brilliant achievement to be displayed to the world with your aid.",
+            "short_version": "My father will leave nothing great for me to accomplish.",
+            "source": "Plutarch, Life of Alexander, Ch. 5",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "Young Alexander watching news arrive of Philip's military triumphs, standing at the edge of the Macedonian court, his companions around him, fists clenched at his sides, mountains visible through an open portico"
+        },
+        {
+            "text": "What a horse they are losing, because, for lack of skill and courage, they cannot manage him!",
+            "short_version": "What a horse they are losing for lack of courage.",
+            "source": "Plutarch, Life of Alexander, Ch. 6",
+            "theme": "discipline",
+            "emotional_function": "hook",
+            "pair_with_visual": "Alexander watching the untameable Bucephalus rear and throw off every handler, standing apart from the crowd of courtiers, studying the horse intently while others step back"
+        },
+        {
+            "text": "But verily, if I were not Alexander, I would be Diogenes.",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 14",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "Alexander standing before Diogenes seated in his barrel in the sunlight of Corinth, surrounded by his entourage of generals and courtiers, the philosopher unmoved, Alexander's expression one of genuine admiration"
+        },
+        {
+            "text": "I will not steal my victory.",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 31",
+            "theme": "virtue",
+            "emotional_function": "hook",
+            "pair_with_visual": "Alexander at night in his tent before Gaugamela, refusing Parmenio's counsel to attack by night, candlelight illuminating his resolute face, the vast Persian campfires visible through the tent opening behind him"
+        },
+        {
+            "text": "If I could have kings as my contestants.",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 9",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "Alexander at the Olympic festival, standing among athletes, disdaining competition with common men, gaze fixed on a distant horizon as if already measuring himself against rulers and dynasties"
+        },
+        {
+            "text": "Thou hast not done well to publish thy acroamatic doctrines; for in what shall I surpass other men if those doctrines wherein I have been trained are to be all men's common property? But I had rather excel in my acquaintance with the best things than in my power.",
+            "short_version": "I had rather excel in knowledge of what is best than in power.",
+            "source": "Plutarch, Life of Alexander, Ch. 7 (letter to Aristotle)",
+            "theme": "wisdom",
+            "emotional_function": "hook",
+            "pair_with_visual": "Alexander writing by lamplight, scrolls of Aristotle spread before him on a campaign table, the glow of a military encampment visible outside, the letter taking shape in his hand"
+        },
+        {
+            "text": "This, as it would seem, is to be a king.",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 20",
+            "theme": "mindset",
+            "emotional_function": "hook",
+            "pair_with_visual": "Alexander standing inside the royal tent of Darius after the battle of Issus, surveying the Persian king's gold vessels, perfumed baths, and laden banquet tables, his dusty armor a sharp contrast to the opulence surrounding him"
+        },
+        {
+            "text": "Is it not a matter for tears that, when the number of worlds is infinite, I have not yet conquered even one?",
+            "short_version": "Infinite worlds — and I have not conquered even one.",
+            "source": "Plutarch, Life of Alexander (On the Fortune of Alexander)",
+            "theme": "mortality",
+            "emotional_function": "hook",
+            "pair_with_visual": "Alexander alone at night on a hilltop, weeping silently as he gazes up at the infinite stars, his army encamped far below, the vastness of the sky dwarfing every empire he has built"
+        },
+        {
+            "text": "O Athenians, can ye possibly believe what perils I am undergoing to win glory in your eyes?",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 60",
+            "theme": "strategy",
+            "emotional_function": "hook",
+            "pair_with_visual": "Alexander storming the walls of a fortified city in India, scaling ladders under a hail of arrows, calling out to his men, the vast siege unfolding beneath him in swirling dust"
+        },
+        {
+            "text": "The Hellespont would blush for shame, if, after having crossed that strait, he should be afraid of the Granicus.",
+            "short_version": "The Hellespont itself would blush if I now feared the Granicus.",
+            "source": "Plutarch, Life of Alexander, Ch. 16",
+            "theme": "strategy",
+            "emotional_function": "hook",
+            "pair_with_visual": "Alexander on horseback at the bank of the Granicus River, Persian cavalry arrayed on the far side, his generals urging caution, Alexander already pointing his spear forward across the water"
+        },
+        {
+            "text": "And so indeed would I, were I Parmenio.",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 29",
+            "theme": "strategy",
+            "emotional_function": "hook",
+            "pair_with_visual": "Alexander and his aged general Parmenio in council before a campaign map, torchlight flickering, the two men measuring each other's resolve across the table after Parmenio advises accepting Darius's peace offer"
+        },
+        {
+            "text": "This, my friends, that flows here, is blood, and not Ichor, such as flows from the veins of the blessed gods.",
+            "short_version": "This that flows here is blood — not the ichor of immortals.",
+            "source": "Plutarch, Life of Alexander, Ch. 28",
+            "theme": "mortality",
+            "emotional_function": "hook",
+            "pair_with_visual": "Alexander in battle, arrow wound bleeding through his armour, lifting his hand to show his companions the proof of his mortality, the battle raging around him, his face calm rather than afraid"
+        },
+        {
+            "text": "Sleep and sexual intercourse make him conscious that he was mortal.",
+            "short_version": "Only sleep and desire remind me I am mortal.",
+            "source": "Plutarch, Life of Alexander, Ch. 22",
+            "theme": "mortality",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander alone at dawn in his tent, rising from sleep, armour and sword waiting, the first light of day entering through the tent flap, his expression one of quiet reflection on what it means to be human"
+        },
+        {
+            "text": "Macedonians, my speech will not be aimed at stopping your urge to return home; as far as I am concerned you may go where you like. But I want you to realize on departing what I have done for you, and what you have done for me.",
+            "short_version": "Go if you wish. But know first what we have done for each other.",
+            "source": "Arrian, Anabasis, Book VII, Ch. 9",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander standing on a raised platform before his mutinous army at Opis, alone and unguarded, the massed Macedonian soldiers below him in their thousands, the Tigris River in the background at dusk"
+        },
+        {
+            "text": "He found you wandering about without resources, many of you clothed in sheepskins and pasturing small flocks in the mountains, defending them with difficulty against the Illyrians, Triballians and neighboring Thracians.",
+            "short_version": "Philip found you in sheepskins on the mountains. I found you masters of the world.",
+            "source": "Arrian, Anabasis, Book VII, Ch. 9 (Alexander's speech at Opis)",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander gesturing toward his veterans at Opis, their scarred faces and campaign-worn armour contrasting with the rich Persian lands around them, the implied journey from highland poverty to world empire"
+        },
+        {
+            "text": "I inherited from my father a few gold and silver cups, and less than sixty talents in the treasury; Philip had debts amounting to five hundred talents.",
+            "short_version": "I started with sixty talents and debt. I gave you an empire.",
+            "source": "Arrian, Anabasis, Book VII, Ch. 9 (Alexander's speech at Opis)",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander displaying the spread of conquered lands on a campaign map, the meagre treasury of Macedonia in contrast to the vast Persian satrapies now under Macedonian rule"
+        },
+        {
+            "text": "I have appropriated nothing myself, nor can any one point out my treasures, except these possessions of yours.",
+            "short_version": null,
+            "source": "Arrian, Anabasis, Book VII, Ch. 9 (Alexander's speech at Opis)",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander opening his hands to show they are empty, standing before his assembled army, indicating his soldiers and their spoils as his only wealth, nothing kept for himself"
+        },
+        {
+            "text": "As for me, what do I have left from all these labors? Merely this purple cloak and a diadem.",
+            "short_version": "From all my labors I kept only a purple cloak and a crown.",
+            "source": "Arrian, Anabasis, Book VII, Ch. 9 (Alexander's speech at Opis)",
+            "theme": "mortality",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander standing alone on the Opis platform at dusk, the vast empire stretching to every horizon, holding only the simple diadem on his brow, the setting sun casting long shadows"
+        },
+        {
+            "text": "I recognise the force of these arguments, O Parmenio; but I should feel it a disgrace, if, after crossing the Hellespont so easily, this brook should bar our passage for a moment. I consider that this would be in accordance neither with the fame of the Macedonians nor with my own eagerness for encountering danger.",
+            "short_version": "It would be a disgrace if this brook stopped what the Hellespont could not.",
+            "source": "Arrian, Anabasis, Book I, Ch. 13",
+            "theme": "strategy",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander at the Granicus, the Persian cavalry visible across the river, Parmenio's cautious veterans urging retreat, Alexander urging his horse forward into the current"
+        },
+        {
+            "text": "For that lyre, I care very little; but I would gladly see that of Achilles, to which he used to sing the glorious deeds of brave men.",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 15",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander at Troy, standing before the tomb of Achilles, refusing Paris's ordinary harp while gazing toward the hero's burial mound, the Aegean sea glittering in the distance"
+        },
+        {
+            "text": "Let us go and wash off the sweat of the battle in the bath of Dareius.",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 20",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander entering the lavish Persian royal tent after Issus, still wearing battle-dusty armour, the luxuries of Darius's court — gold, silk, perfumed waters — surrounding him as he surveys his new kingdom"
+        },
+        {
+            "text": "Shall I pass on and leave thee lying there, because of thine expedition against the Hellenes, or, because of thy magnanimity and virtue in other ways, shall I set thee up again?",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 37",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander pausing before the toppled statue of Xerxes in Persepolis, torchlight flickering across the carved face of Persia's greatest king, Alexander's hand raised as if in a question posed to history itself"
+        },
+        {
+            "text": "Craterus is the friend of the king; but Hephaestion is the friend of Alexander.",
+            "short_version": null,
+            "source": "Plutarch, Moralia: Sayings of Kings and Commanders",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander among his inner circle of generals and companions at a banquet in Babylon, the distinction between formal loyalty and personal love visible on his face as he speaks of Hephaestion"
+        },
+        {
+            "text": "Enough for you to receive, but not for me to give.",
+            "short_version": null,
+            "source": "Plutarch, Moralia: Sayings of Kings and Commanders",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander granting gifts to his companions at Susa, the treasury of the Persian kings open behind him, giving with a gesture that makes generosity seem as natural as breathing"
+        },
+        {
+            "text": "God is the common father of us all, but more particularly of the best of us.",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander in Egypt at the oracle of Ammon, the desert stretching endlessly behind him, the priests recognising him as son of Zeus-Ammon, Alexander speaking to his companions as they emerge from the temple into blazing sunlight"
+        },
+        {
+            "text": "Know ye not, that the end and object of conquest is to avoid doing the same thing as the conquered?",
+            "short_version": "The whole purpose of conquest is to not become what you conquered.",
+            "source": "Plutarch, Life of Alexander, Ch. 40",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander addressing Macedonian officers who question his adoption of Persian customs, the walls of Persepolis behind him, the tension between conqueror and conquered visible in the faces of his men"
+        },
+        {
+            "text": "Do not the Greeks appear to you to walk about among Macedonians like demi-gods among wild beasts?",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 50",
+            "theme": "wisdom",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander among Greek philosophers and Macedonian soldiers at a gathering, the cultural contrast vivid, Alexander watching both groups with an eye that sees all equally and judges all candidly"
+        },
+        {
+            "text": "It behooves thee, at least, to be a brave man, even for thy name's sake.",
+            "short_version": "Be brave, at least for your name's sake.",
+            "source": "Plutarch, Life of Alexander, Ch. 58",
+            "theme": "discipline",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander on campaign in India, finding a young soldier who shares his name, clapping him on the shoulder with a soldier's grip, a fortified city wall looming behind them both"
+        },
+        {
+            "text": "Canst thou think, pray, that after such words of kindness our interview is to end without a battle? Nay, thou shalt not get the better of me; for I will contend against thee and fight to the last with my favours.",
+            "short_version": "You will not outdo me — I will fight you with generosity.",
+            "source": "Plutarch, Life of Alexander, Ch. 59",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander facing the Indian king Taxiles, who had offered lavish gifts, Alexander smiling and summoning even greater gifts to be brought, the two rulers locked in a contest of royal generosity on the banks of the Indus"
+        },
+        {
+            "text": "Like a king.",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 60",
+            "theme": "virtue",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander standing over the defeated Porus after the battle of the Hydaspes, the tall Indian king in chains asking how Alexander intends to treat him, Alexander's answer delivered with the gravity of a man who has always known exactly what he is"
+        },
+        {
+            "text": "I do not think my actions and all my empire to be compared with one word of Heracles.",
+            "short_version": null,
+            "source": "Plutarch, Moralia: Sayings of Kings and Commanders",
+            "theme": "mortality",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander at Aornus rock, the seemingly impossible siege just completed, his companions praising him as greater than Heracles, Alexander looking toward the horizon with a humility that lives beneath his ambition"
+        },
+        {
+            "text": "Most miserable man that I am, why, pray, have I not learned to swim?",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 58",
+            "theme": "discipline",
+            "emotional_function": "truth",
+            "pair_with_visual": "Alexander at a flooded river crossing in India, forced to rely on others while his men swim across, his expression revealing the raw frustration of a king who has conquered the world but failed a basic skill"
+        },
+        {
+            "text": "What good will it do me, if I possess much and do nothing?",
+            "short_version": null,
+            "source": "Plutarch, Moralia: Sayings of Kings and Commanders",
+            "theme": "mindset",
+            "emotional_function": "truth",
+            "pair_with_visual": "Young Alexander in the Macedonian court, rejecting the comfort of wealth and ease, his gaze fixed outward toward the wider world, restlessness burning in every line of his face"
+        },
+        {
+            "text": "Nay, I do not wish to cause fear in my friends, as thou wouldst have me do, thou who despisest my suppers because, as thou sayest, thou seest the tables furnished with fish, and not with satraps' heads.",
+            "short_version": "I have no wish to terrify my friends — I leave that to men who serve satraps' heads at supper.",
+            "source": "Plutarch, Life of Alexander, Ch. 28",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Alexander at a Persian banquet confronting the flattering philosopher Anaxarchus, the court watching in silence, Alexander's wit cutting through sophistry like a blade, his tone combining amusement and contempt"
+        },
+        {
+            "text": "What, pray? Dost thou not think that we are already victorious, now that we are relieved from wandering about in a vast and desolate country in pursuit of a Dareius who avoids a battle?",
+            "short_version": "Are we not already victorious — he who flees is already conquered.",
+            "source": "Plutarch, Life of Alexander, Ch. 32",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Alexander and Parmenio arguing strategy before Gaugamela, the enormous Persian host visible in the distance, Alexander's hand sweeping across the landscape as he reframes defeat into advantage"
+        },
+        {
+            "text": "Come to me, and thou shalt receive every courtesy; but otherwise I shall march at once against thee.",
+            "short_version": "Submit and I offer every honor. Refuse and I march at once.",
+            "source": "Plutarch, Life of Alexander, Ch. 29",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Alexander dictating a letter to Darius, the Persian king's messengers waiting under guard outside the tent, Alexander's face resolute and unyielding, the campaign map spread before him"
+        },
+        {
+            "text": "But what of me, base wretch? Dost thou take me for a bastard?",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 11",
+            "theme": "mindset",
+            "emotional_function": "conflict",
+            "pair_with_visual": "The chaotic wedding feast of Philip and Cleopatra, Alexander hurling a cup at Attalus, the court erupting in shock, the young prince's rage born not of wine but of the wound to his legitimacy and identity"
+        },
+        {
+            "text": "Look now, men! here is one who was preparing to cross from Europe into Asia; and he is upset in trying to cross from couch to couch.",
+            "short_version": "The man who would conquer Asia cannot cross from one couch to another.",
+            "source": "Plutarch, Life of Alexander, Ch. 11",
+            "theme": "mindset",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Philip stumbling drunk at his own wedding feast, sword drawn, collapsing before he can strike his own son, Alexander standing cold and composed above him before the entire Macedonian court"
+        },
+        {
+            "text": "Indeed, on this point, O king, thou mayest be without fear; for he will march against thee, nay, at this very moment, probably, he is on the march.",
+            "short_version": "Fear nothing, King — he marches against you this very moment.",
+            "source": "Plutarch, Life of Alexander, Ch. 20",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Alexander reading aloud Darius's letter before his assembled officers, the Persian king's pleas for caution answered with a soldier's cold certainty, the army stirring behind him like a wave about to break"
+        },
+        {
+            "text": "Thy countrymen must make thee their ruler, and send me a hundred of their best men.",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 58",
+            "theme": "strategy",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Alexander receiving the submission of an Indian city, negotiating with calm authority, replacing defeated rulers with his own chosen governors, reshaping the political world of Asia without a pause"
+        },
+        {
+            "text": "Base fellow, dost thou think to speak thus of me at all times, and to raise faction among Macedonians, with impunity?",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 51",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Alexander at a banquet, wine flowing, Cleitus speaking against him, Alexander's face shifting from warrior's calm to sudden volcanic anger, the moment before catastrophe"
+        },
+        {
+            "text": "I hate a wise man even to himself unwise.",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 53",
+            "theme": "wisdom",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Alexander dismissing the philosopher Callisthenes from a gathering after the historian's refusal to flatter, the court watching in silence, Alexander's words hanging in the air like a judgment"
+        },
+        {
+            "text": "My funeral tournament will be great.",
+            "short_version": null,
+            "source": "Plutarch, Moralia: Sayings of Kings and Commanders",
+            "theme": "mortality",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Alexander on his deathbed in Babylon, surrounded by his generals who will tear the empire apart, his final words delivered with a soldier's grim humor, the world he built already beginning to fracture"
+        },
+        {
+            "text": "Dost thou find fault with thine elders in the belief that thou knowest more than they do or art better able to manage a horse?",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 9",
+            "theme": "discipline",
+            "emotional_function": "conflict",
+            "pair_with_visual": "The young Alexander at court being scolded by Philip's attendants after some act of daring, turning to face them with a calmness beyond his years, already the king in all but title"
+        },
+        {
+            "text": "If there were any kings there to run with me.",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 9",
+            "theme": "mindset",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Alexander at the Olympic festival declining the foot-race, watching ordinary men compete for ordinary glory, his eyes already fixed on something larger than any laurel crown the games could offer"
+        },
+        {
+            "text": "I make you all my kinsmen, and henceforward that shall be your title.",
+            "short_version": null,
+            "source": "Arrian, Anabasis, Book VII (after the Opis speech)",
+            "theme": "virtue",
+            "emotional_function": "conflict",
+            "pair_with_visual": "Alexander descending from the platform at Opis after his speech, moving through the press of weeping Macedonian veterans, embracing his men, the moment of reconciliation as the army collapses back into loyalty"
+        },
+        {
+            "text": "We have sent you abundance of myrrh and frankincense, that for the future you may not be stingy to the gods.",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander (letter to Leonidas)",
+            "theme": "mindset",
+            "emotional_function": "loop",
+            "pair_with_visual": "The vast spice-producing plains of conquered Persia, Alexander's letter arriving to his old tutor Leonidas in Macedonia, the king who was once scolded for wasting incense now sending a ship's hold full of it with dry Macedonian humor"
+        },
+        {
+            "text": "He does well, knowing he has a friend that both can and will bestow so much on him.",
+            "short_version": null,
+            "source": "Plutarch, Moralia: Sayings of Kings and Commanders",
+            "theme": "virtue",
+            "emotional_function": "loop",
+            "pair_with_visual": "Alexander responding to news that his friend Anaxarchus had asked for a hundred talents, smiling at the philosopher's boldness rather than his presumption, the friendship visible in the generosity of his interpretation"
+        },
+        {
+            "text": "My hopes.",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 15 (when asked what he is saving for himself)",
+            "theme": "mindset",
+            "emotional_function": "loop",
+            "pair_with_visual": "Alexander distributing the wealth of Macedonia before the campaign begins, giving away lands, revenues, and estates to his generals, keeping nothing for himself but the campaign ahead, the open road to the East"
+        },
+        {
+            "text": "An hundred talents of frankincense and cassia, so that for the future thou wilt not be niggardly towards the gods.",
+            "short_version": null,
+            "source": "Plutarch, Moralia: Sayings of Kings and Commanders (letter to Leonidas)",
+            "theme": "mindset",
+            "emotional_function": "loop",
+            "pair_with_visual": "Caravans of spices arriving in Macedonia from the conquered East, an old tutor reading the king's note with astonishment, the small childhood lesson repaid at a world-historical scale"
+        },
+        {
+            "text": "I cannot have given you that free and illustrious city; for ye received it from him who was then your master and was called my father.",
+            "short_version": null,
+            "source": "Plutarch, Life of Alexander, Ch. 28",
+            "theme": "virtue",
+            "emotional_function": "loop",
+            "pair_with_visual": "Alexander addressing Samian envoys in Asia, clarifying what freedom truly means and where it genuinely comes from, drawing the line between a conqueror's gift and a father's legacy"
+        },
+        {
+            "text": "To force her to do so when she is a free woman is not according to my custom.",
+            "short_version": null,
+            "source": "Plutarch, Moralia: Sayings of Kings and Commanders",
+            "theme": "virtue",
+            "emotional_function": "loop",
+            "pair_with_visual": "Alexander learning that a soldier had enlisted among the sick to stay near a woman he loved, the king dismissing the matter with characteristic restraint, the contrast between his power and his self-imposed limits evident in the scene"
+        },
+        {
+            "text": "Royally — all things are in that word, royally.",
+            "short_version": null,
+            "source": "Plutarch, Moralia: Sayings of Kings and Commanders (to Porus)",
+            "theme": "virtue",
+            "emotional_function": "loop",
+            "pair_with_visual": "Alexander and Porus after the battle of the Hydaspes, the Indian king still bleeding, still standing as tall as a tower, Alexander's answer delivered with a warrior's recognition of a worthy opponent, both men knowing what it means to be a king"
+        }
+    ]
+}
