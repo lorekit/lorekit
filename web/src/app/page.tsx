@@ -3,129 +3,58 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Sparkles,
+  Plus,
+  Globe,
   Users,
   Film,
-  Quote,
-  DollarSign,
-  TrendingUp,
+  Sparkles,
 } from "lucide-react";
-import { getProjects, getStats } from "@/lib/api";
-import type { Project, Stats } from "@/lib/api";
+import { getUniverses, getStats } from "@/lib/api";
+import type { Universe, Stats } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
+import { useUniverseStore } from "@/stores/universe-store";
 
-const STATUS_STYLES: Record<string, string> = {
-  draft: "bg-slate-500/20 text-slate-400 border-slate-500/30",
-  story_ready: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  generating: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  clips_ready: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-  assembling: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
-  rendered: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-  published: "bg-green-500/20 text-green-400 border-green-500/30",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  draft: "Draft",
-  story_ready: "Story Ready",
-  generating: "Generating",
-  clips_ready: "Clips Ready",
-  assembling: "Assembling",
-  rendered: "Rendered",
-  published: "Published",
-};
-
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-export default function DashboardPage() {
+export default function HomePage() {
+  const [universes, setUniverses] = useState<Universe[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loadingStats, setLoadingStats] = useState(true);
-  const [loadingProjects, setLoadingProjects] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const { setActiveUniverse } = useUniverseStore();
 
   useEffect(() => {
-    getStats()
-      .then(setStats)
+    Promise.all([getUniverses(), getStats().catch(() => null)])
+      .then(([uniData, statsData]) => {
+        setUniverses(uniData);
+        setStats(statsData);
+      })
       .catch(() => {})
-      .finally(() => setLoadingStats(false));
-
-    getProjects()
-      .then((data) => setProjects((data || []).slice(0, 6)))
-      .catch(() => {})
-      .finally(() => setLoadingProjects(false));
+      .finally(() => setLoading(false));
   }, []);
 
-  const statCards = [
-    {
-      label: "Total Videos",
-      value: stats ? (stats.videos?.total ?? 0).toString() : "\u2014",
-      icon: Film,
-    },
-    {
-      label: "Total Quotes",
-      value: stats ? (stats.quotes?.total_quotes ?? 0).toLocaleString() : "\u2014",
-      icon: Quote,
-    },
-    {
-      label: "Total Cost",
-      value: stats ? `$${(stats.videos?.total_cost ?? 0).toFixed(2)}` : "\u2014",
-      icon: DollarSign,
-    },
-    {
-      label: "Avg Cost / Video",
-      value: stats ? `$${(stats.videos?.avg_cost ?? 0).toFixed(2)}` : "\u2014",
-      icon: TrendingUp,
-    },
-  ];
+  const totalCharacters = universes.reduce((s, u) => s + (u.character_count ?? 0), 0);
+  const totalProjects = universes.reduce((s, u) => s + (u.project_count ?? 0), 0);
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-8 space-y-8">
       {/* Header */}
-      <div className="space-y-4">
-        <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">
-            LoreKit
-          </h1>
-          <p className="text-slate-400 mt-1">
-            Universe-based AI video creation studio
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href="/generate"
-            className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-medium text-slate-950 hover:bg-amber-400 transition-colors"
-          >
-            <Sparkles className="h-4 w-4" />
-            Generate New Video
-          </Link>
-          <Link
-            href="/characters"
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-100 hover:bg-slate-700 border border-slate-700 transition-colors"
-          >
-            <Users className="h-4 w-4" />
-            Browse Characters
-          </Link>
-          <Link
-            href="/projects"
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-100 hover:bg-slate-700 border border-slate-700 transition-colors"
-          >
-            <Film className="h-4 w-4" />
-            View Projects
-          </Link>
-        </div>
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold text-white tracking-tight">LoreKit</h1>
+        <p className="text-slate-400">
+          Universe-based AI video creation studio
+        </p>
       </div>
 
-      {/* Stats Row */}
+      {/* Global Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((card) => {
+        {[
+          { label: "Universes", value: universes.length, icon: Globe },
+          { label: "Characters", value: totalCharacters, icon: Users },
+          { label: "Projects", value: totalProjects, icon: Film },
+          {
+            label: "Total Cost",
+            value: stats ? `$${(stats.videos?.total_cost ?? 0).toFixed(2)}` : "$0.00",
+            icon: Sparkles,
+          },
+        ].map((card) => {
           const Icon = card.icon;
           return (
             <div
@@ -138,10 +67,10 @@ export default function DashboardPage() {
                   <p
                     className={cn(
                       "text-2xl font-bold mt-1",
-                      loadingStats ? "text-slate-500 animate-pulse" : "text-white"
+                      loading ? "text-slate-500 animate-pulse" : "text-white"
                     )}
                   >
-                    {card.value}
+                    {loading ? "\u2014" : card.value}
                   </p>
                 </div>
                 <div className="h-10 w-10 rounded-lg bg-slate-800 flex items-center justify-center">
@@ -153,88 +82,74 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* Recent Projects */}
+      {/* Universe Grid */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-white">Recent Projects</h2>
-          <Link
-            href="/projects"
-            className="text-sm text-amber-500 hover:text-amber-400 transition-colors"
-          >
-            View all &rarr;
-          </Link>
-        </div>
+        <h2 className="text-xl font-semibold text-white">Your Universes</h2>
 
-        {loadingProjects ? (
+        {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
+            {Array.from({ length: 3 }).map((_, i) => (
               <div
                 key={i}
-                className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden animate-pulse"
+                className="bg-slate-900 rounded-xl border border-slate-800 p-6 animate-pulse"
               >
-                <div className="h-36 bg-slate-800" />
-                <div className="p-4 space-y-3">
-                  <div className="h-4 bg-slate-800 rounded w-3/4" />
-                  <div className="h-3 bg-slate-800 rounded w-1/2" />
-                  <div className="flex items-center justify-between">
-                    <div className="h-5 bg-slate-800 rounded w-16" />
-                    <div className="h-3 bg-slate-800 rounded w-20" />
-                  </div>
-                </div>
+                <div className="h-12 w-12 bg-slate-800 rounded-lg mb-4" />
+                <div className="h-5 bg-slate-800 rounded w-2/3 mb-2" />
+                <div className="h-3 bg-slate-800 rounded w-1/2" />
               </div>
             ))}
           </div>
-        ) : projects.length === 0 ? (
-          <div className="bg-slate-900 rounded-xl border border-slate-800 p-12 text-center">
-            <Film className="h-10 w-10 text-slate-600 mx-auto mb-3" />
-            <p className="text-slate-400">No projects yet</p>
-            <p className="text-sm text-slate-500 mt-1">
-              Generate your first video to get started.
-            </p>
-          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {projects.map((project) => (
+            {universes.map((uni) => (
               <Link
-                key={project.id}
-                href={`/projects/${project.id}`}
-                className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden hover:border-slate-700 transition-colors group"
+                key={uni.id}
+                href={`/studio/${uni.id}`}
+                onClick={() => setActiveUniverse(uni.id)}
+                className="bg-slate-900 rounded-xl border border-slate-800 p-6 hover:border-slate-700 transition-all group"
               >
-                {/* Thumbnail placeholder */}
-                <div className="h-36 bg-slate-800 flex items-center justify-center">
-                  {project.thumbnail_url ? (
-                    <img
-                      src={project.thumbnail_url}
-                      alt={project.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Film className="h-8 w-8 text-slate-600 group-hover:text-slate-500 transition-colors" />
-                  )}
+                <div className="text-4xl mb-3">{uni.icon || "🌐"}</div>
+                <h3 className="text-lg font-semibold text-white group-hover:text-amber-400 transition-colors">
+                  {uni.name}
+                </h3>
+                <p className="text-sm text-slate-400 mt-1 line-clamp-2">
+                  {uni.description || "No description"}
+                </p>
+                <div className="flex items-center gap-4 mt-4 text-xs text-slate-500">
+                  <span className="flex items-center gap-1">
+                    <Users className="h-3.5 w-3.5" />
+                    {uni.character_count ?? 0} characters
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Film className="h-3.5 w-3.5" />
+                    {uni.project_count ?? 0} projects
+                  </span>
                 </div>
-
-                <div className="p-4 space-y-2">
-                  <h3 className="text-sm font-semibold text-white truncate group-hover:text-amber-400 transition-colors">
-                    {project.name}
-                  </h3>
-                  <p className="text-xs text-slate-400 truncate">
-                    {project.character_name}
-                  </p>
-                  <div className="flex items-center justify-between pt-1">
-                    <Badge
-                      className={cn(
-                        STATUS_STYLES[project.status] ?? STATUS_STYLES.draft
-                      )}
-                    >
-                      {STATUS_LABELS[project.status] ?? project.status}
-                    </Badge>
-                    <span className="text-xs text-slate-500">
-                      {formatDate(project.created_at)}
+                {uni.theme && (
+                  <div className="mt-3">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      {uni.theme}
                     </span>
                   </div>
-                </div>
+                )}
               </Link>
             ))}
+
+            {/* Create Universe Card */}
+            <Link
+              href="/universes/new"
+              className="bg-slate-900 rounded-xl border border-dashed border-slate-700 p-6 hover:border-slate-600 transition-all flex flex-col items-center justify-center text-center min-h-[200px]"
+            >
+              <div className="h-12 w-12 rounded-lg bg-slate-800 flex items-center justify-center mb-3">
+                <Plus className="h-6 w-6 text-slate-400" />
+              </div>
+              <h3 className="text-sm font-medium text-slate-300">
+                Create Universe
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Start a new creative world
+              </p>
+            </Link>
           </div>
         )}
       </div>

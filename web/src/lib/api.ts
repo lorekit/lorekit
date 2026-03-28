@@ -84,22 +84,35 @@ export interface Universe {
   id: string;
   name: string;
   description: string;
+  theme: string;
+  icon: string;
+  character_count: number;
+  project_count: number;
   created_at: string;
 }
 
-export interface EnvironmentPreset {
+export interface Environment {
   id: string;
+  universe_id: string;
   name: string;
-  description: string;
-  prompt: string;
+  color_grade_json: string | null;
+  font: string;
+  text_color: string;
+  text_shadow: string;
+  environment_description: string;
+  themed_descriptions_json: string | null;
 }
 
 export interface SceneTemplate {
   id: string;
+  universe_id: string;
   name: string;
   description: string;
-  beats: string[];
-  default_duration: number;
+  beats_json: string | null;
+  min_duration: number;
+  max_duration: number;
+  min_scenes: number;
+  max_scenes: number;
 }
 
 export interface StoryBreakdown {
@@ -219,12 +232,70 @@ export const getStats = () => fetchAPI<Stats>("/api/stats");
 // Universes
 export const getUniverses = () => fetchAPI<Universe[]>("/api/universes");
 export const getUniverse = (id: string) => fetchAPI<Universe>(`/api/universes/${id}`);
-export const createUniverse = (data: { name: string; description?: string }) =>
+export const createUniverse = (data: { name: string; description?: string; theme?: string; icon?: string }) =>
   fetchAPI<Universe>("/api/universes", { method: "POST", body: JSON.stringify(data) });
-export const updateUniverse = (id: string, data: Partial<Pick<Universe, "name" | "description">>) =>
+export const updateUniverse = (id: string, data: Partial<Pick<Universe, "name" | "description" | "theme" | "icon">>) =>
   fetchAPI<Universe>(`/api/universes/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 export const deleteUniverse = (id: string) =>
-  fetchAPI<void>(`/api/universes/${id}`, { method: "DELETE" });
+  fetchAPI<{ deleted: boolean }>(`/api/universes/${id}`, { method: "DELETE" });
+
+// Universe-scoped resources
+export const getUniverseCharacters = (universeId: string) =>
+  fetchAPI<Character[]>(`/api/universes/${universeId}/characters`);
+export const getUniverseProjects = (universeId: string) =>
+  fetchAPI<Project[]>(`/api/universes/${universeId}/projects`);
+
+// Universe Environments
+export const getUniverseEnvironments = (universeId: string) =>
+  fetchAPI<Environment[]>(`/api/universes/${universeId}/environments`);
+export const createEnvironment = (universeId: string, data: {
+  name: string;
+  color_grade?: Record<string, number>;
+  font?: string;
+  text_color?: string;
+  text_shadow?: string;
+  environment_description?: string;
+  themed_descriptions?: Record<string, string>;
+}) =>
+  fetchAPI<Environment>(`/api/universes/${universeId}/environments`, { method: "POST", body: JSON.stringify(data) });
+export const updateEnvironment = (universeId: string, envId: string, data: Partial<{
+  name: string;
+  color_grade: Record<string, number>;
+  font: string;
+  text_color: string;
+  text_shadow: string;
+  environment_description: string;
+  themed_descriptions: Record<string, string>;
+}>) =>
+  fetchAPI<Environment>(`/api/universes/${universeId}/environments/${envId}`, { method: "PATCH", body: JSON.stringify(data) });
+export const deleteEnvironment = (universeId: string, envId: string) =>
+  fetchAPI<{ deleted: boolean }>(`/api/universes/${universeId}/environments/${envId}`, { method: "DELETE" });
+
+// Universe Scene Templates
+export const getUniverseTemplates = (universeId: string) =>
+  fetchAPI<SceneTemplate[]>(`/api/universes/${universeId}/templates`);
+export const createTemplate = (universeId: string, data: {
+  name: string;
+  description?: string;
+  beats?: unknown[];
+  min_duration?: number;
+  max_duration?: number;
+  min_scenes?: number;
+  max_scenes?: number;
+}) =>
+  fetchAPI<SceneTemplate>(`/api/universes/${universeId}/templates`, { method: "POST", body: JSON.stringify(data) });
+export const updateTemplate = (universeId: string, tmplId: string, data: Partial<{
+  name: string;
+  description: string;
+  beats: unknown[];
+  min_duration: number;
+  max_duration: number;
+  min_scenes: number;
+  max_scenes: number;
+}>) =>
+  fetchAPI<SceneTemplate>(`/api/universes/${universeId}/templates/${tmplId}`, { method: "PATCH", body: JSON.stringify(data) });
+export const deleteTemplate = (universeId: string, tmplId: string) =>
+  fetchAPI<{ deleted: boolean }>(`/api/universes/${universeId}/templates/${tmplId}`, { method: "DELETE" });
 
 // Projects
 export const getProjects = () => fetchAPI<Project[]>("/api/projects");

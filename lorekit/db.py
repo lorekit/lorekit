@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS universes (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
+    theme TEXT NOT NULL DEFAULT '',
+    icon TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
 );
 
@@ -259,6 +261,12 @@ async def init_db(db_path: Path | None = None) -> None:
     db = await connect(db_path)
     try:
         await db.executescript(_SCHEMA)
+        # Migrate: add theme/icon columns to universes if missing
+        for col in ("theme TEXT NOT NULL DEFAULT ''", "icon TEXT NOT NULL DEFAULT ''"):
+            try:
+                await db.execute(f"ALTER TABLE universes ADD COLUMN {col}")
+            except Exception:
+                pass
         # Migrate: add character image columns if missing (existing DBs)
         for col in ("character_image_url TEXT", "character_image_path TEXT"):
             try:
@@ -738,6 +746,8 @@ async def create_universe(
     universe_id: str,
     name: str,
     description: str = "",
+    theme: str = "",
+    icon: str = "",
     db_path: Path | None = None,
 ) -> dict[str, Any]:
     """Create a new universe and return it."""
@@ -745,8 +755,8 @@ async def create_universe(
     try:
         now = datetime.now(timezone.utc).isoformat()
         await db.execute(
-            "INSERT INTO universes (id, name, description, created_at) VALUES (?, ?, ?, ?)",
-            (universe_id, name, description, now),
+            "INSERT INTO universes (id, name, description, theme, icon, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (universe_id, name, description, theme, icon, now),
         )
         await db.commit()
         cursor = await db.execute("SELECT * FROM universes WHERE id = ?", (universe_id,))
@@ -757,10 +767,15 @@ async def create_universe(
 
 
 async def get_universe(universe_id: str, db_path: Path | None = None) -> dict[str, Any] | None:
-    """Get a universe by ID."""
+    """Get a universe by ID with character and project counts."""
     db = await connect(db_path)
     try:
-        cursor = await db.execute("SELECT * FROM universes WHERE id = ?", (universe_id,))
+        cursor = await db.execute("""
+            SELECT u.*,
+                   (SELECT COUNT(*) FROM characters c WHERE c.universe_id = u.id) as character_count,
+                   (SELECT COUNT(*) FROM projects p WHERE p.universe_id = u.id) as project_count
+            FROM universes u WHERE u.id = ?
+        """, (universe_id,))
         row = await cursor.fetchone()
         return dict(row) if row else None
     finally:
@@ -768,10 +783,15 @@ async def get_universe(universe_id: str, db_path: Path | None = None) -> dict[st
 
 
 async def list_universes(db_path: Path | None = None) -> list[dict[str, Any]]:
-    """List all universes."""
+    """List all universes with character and project counts."""
     db = await connect(db_path)
     try:
-        cursor = await db.execute("SELECT * FROM universes ORDER BY created_at DESC")
+        cursor = await db.execute("""
+            SELECT u.*,
+                   (SELECT COUNT(*) FROM characters c WHERE c.universe_id = u.id) as character_count,
+                   (SELECT COUNT(*) FROM projects p WHERE p.universe_id = u.id) as project_count
+            FROM universes u ORDER BY u.created_at DESC
+        """)
         return [dict(r) for r in await cursor.fetchall()]
     finally:
         await db.close()
@@ -785,7 +805,7 @@ async def update_universe(
     """Update universe fields. Returns updated universe."""
     db = await connect(db_path)
     try:
-        allowed = {"name", "description"}
+        allowed = {"name", "description", "theme", "icon"}
         sets: list[str] = []
         params: list[Any] = []
         for key, val in kwargs.items():
@@ -793,9 +813,7 @@ async def update_universe(
                 sets.append(f"{key} = ?")
                 params.append(val)
         if not sets:
-            cursor = await db.execute("SELECT * FROM universes WHERE id = ?", (universe_id,))
-            row = await cursor.fetchone()
-            return dict(row) if row else None
+            return await get_universe(universe_id, db_path)
         params.append(universe_id)
         await db.execute(f"UPDATE universes SET {', '.join(sets)} WHERE id = ?", params)
         await db.commit()
@@ -807,12 +825,63 @@ async def update_universe(
 
 
 async def delete_universe(universe_id: str, db_path: Path | None = None) -> bool:
-    """Delete a universe. Returns True if deleted."""
+    """Delete a universe and all related data. Returns True if deleted."""
     db = await connect(db_path)
     try:
-        cursor = await db.execute("DELETE FROM universes WHERE id = ?", (universe_id,))
+        # Check it exists
+        cursor = await db.execute("SELECT id FROM universes WHERE id = ?", (universe_id,))
+        if not await cursor.fetchone():
+            return False
+        # Cascade delete related data
+        await db.execute("DELETE FROM scene_templates WHERE universe_id = ?", (universe_id,))
+        await db.execute("DELETE FROM environments WHERE universe_id = ?", (universe_id,))
+        await db.execute("DELETE FROM source_items WHERE universe_id = ?", (universe_id,))
+        await db.execute("DELETE FROM projects WHERE universe_id = ?", (universe_id,))
+        await db.execute("DELETE FROM characters WHERE universe_id = ?", (universe_id,))
+        await db.execute("DELETE FROM universes WHERE id = ?", (universe_id,))
         await db.commit()
-        return cursor.rowcount > 0
+        return True
+    finally:
+        await db.close()
+
+
+async def list_characters_by_universe(
+    universe_id: str,
+    db_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """List characters in a universe with source item counts."""
+    db = await connect(db_path)
+    try:
+        cursor = await db.execute("""
+            SELECT c.*,
+                   (SELECT COUNT(*) FROM source_items q WHERE q.character_id = c.id) as quote_count,
+                   (SELECT COUNT(*) FROM source_items q WHERE q.character_id = c.id AND q.emotional_function = 'hook') as hook_count,
+                   (SELECT COUNT(*) FROM source_items q WHERE q.character_id = c.id AND q.emotional_function = 'truth') as truth_count
+            FROM characters c WHERE c.universe_id = ? ORDER BY c.name
+        """, (universe_id,))
+        return [dict(r) for r in await cursor.fetchall()]
+    finally:
+        await db.close()
+
+
+async def list_projects_by_universe(
+    universe_id: str,
+    status: str | None = None,
+    limit: int = 50,
+    db_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """List projects in a universe."""
+    db = await connect(db_path)
+    try:
+        sql = "SELECT * FROM projects WHERE universe_id = ?"
+        params: list[Any] = [universe_id]
+        if status:
+            sql += " AND status = ?"
+            params.append(status)
+        sql += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        cursor = await db.execute(sql, params)
+        return [dict(r) for r in await cursor.fetchall()]
     finally:
         await db.close()
 

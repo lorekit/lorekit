@@ -25,6 +25,70 @@ from lorekit.api.environments import router as environments_router
 from lorekit.api.templates import router as templates_router
 
 
+async def _seed_default_universe():
+    """Ensure the default 'philosophywise' universe exists with environments and templates."""
+    import json as _json
+    import logging
+    logger = logging.getLogger(__name__)
+
+    from lorekit.config import CIVILIZATIONS
+    from lorekit.story.templates import ARC_TEMPLATES
+
+    # Create universe if missing
+    existing = await db.get_universe("philosophywise")
+    if not existing:
+        try:
+            await db.create_universe(
+                universe_id="philosophywise",
+                name="PhilosophyWise",
+                description="Ancient philosophy wisdom shorts",
+                theme="cinematic",
+                icon="🏛️",
+            )
+        except Exception:
+            pass
+
+    # Seed environments from CIVILIZATIONS
+    envs = await db.list_environments(universe_id="philosophywise")
+    if not envs:
+        for key, civ in CIVILIZATIONS.items():
+            try:
+                await db.create_environment(
+                    environment_id=f"pw_{key}",
+                    universe_id="philosophywise",
+                    name=civ.name,
+                    color_grade=civ.color_grade.model_dump(),
+                    font=civ.font,
+                    text_color=civ.text_color,
+                    text_shadow=civ.text_shadow,
+                    environment_description=f"{civ.name} civilization environment",
+                )
+            except Exception:
+                pass
+        logger.info("Seeded %d environments for philosophywise", len(CIVILIZATIONS))
+
+    # Seed scene templates from arc templates
+    tmpls = await db.list_scene_templates(universe_id="philosophywise")
+    if not tmpls:
+        for key, arc in ARC_TEMPLATES.items():
+            beats_data = [{"beat": b["beat"], "duration_range": b["duration_range"], "purpose": b["purpose"]} for b in arc.beats]
+            try:
+                await db.create_scene_template(
+                    template_id=f"pw_{key}",
+                    universe_id="philosophywise",
+                    name=arc.name,
+                    description=arc.description,
+                    beats=beats_data,
+                    min_duration=arc.min_duration,
+                    max_duration=arc.max_duration,
+                    min_scenes=arc.min_scenes,
+                    max_scenes=arc.max_scenes,
+                )
+            except Exception:
+                pass
+        logger.info("Seeded %d scene templates for philosophywise", len(ARC_TEMPLATES))
+
+
 async def _auto_import_sources():
     """Import all character JSON files into the DB if empty."""
     conn = await db.connect()
@@ -38,19 +102,8 @@ async def _auto_import_sources():
         import logging
         logger = logging.getLogger(__name__)
 
-        # Create default 'philosophywise' universe
-        try:
-            await db.create_universe(
-                universe_id="philosophywise",
-                name="PhilosophyWise",
-                description="Default universe — ancient philosophy wisdom shorts",
-            )
-        except Exception:
-            pass  # Already exists
-
         sources_dir = Path(__file__).parent / "sources" / "data"
         if not sources_dir.exists():
-            # Fallback to old path for backward compatibility
             sources_dir = Path(__file__).parent / "quotes" / "sources"
             if not sources_dir.exists():
                 return
@@ -92,6 +145,7 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     settings.ensure_dirs()
     await db.init_db()
+    await _seed_default_universe()
     await _auto_import_sources()
     yield
 
