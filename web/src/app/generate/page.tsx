@@ -3,14 +3,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
-  getPhilosophers,
-  getQuotes,
+  getCharacters,
+  getSourceItems,
   getVibePresets,
   getArcTemplates,
   getCharacterImages,
   generateStory,
 } from "@/lib/api";
-import type { Philosopher, Quote, VibePreset, ArcTemplate, CharacterImage } from "@/lib/api";
+import type { Character, SourceItem, VibePreset, ArcTemplate, CharacterImage } from "@/lib/api";
 import {
   cn,
   CIV_COLORS,
@@ -34,8 +34,8 @@ import {
 // ---------------------------------------------------------------------------
 
 const STEPS = [
-  "Choose Philosopher",
-  "Pick a Quote",
+  "Choose Character",
+  "Pick a Source",
   "Format & Style",
   "Create Project",
 ] as const;
@@ -115,39 +115,39 @@ function StepIndicator({
 }
 
 // ---------------------------------------------------------------------------
-// Step 1 – Choose Philosopher
+// Step 1 – Choose Character
 // ---------------------------------------------------------------------------
 
-function StepChoosePhilosopher({
-  philosophers,
+function StepChooseCharacter({
+  characters,
   loading,
   selected,
   onSelect,
 }: {
-  philosophers: Philosopher[];
+  characters: Character[];
   loading: boolean;
-  selected: Philosopher | null;
-  onSelect: (p: Philosopher | null) => void;
+  selected: Character | null;
+  onSelect: (c: Character | null) => void;
 }) {
   const [randomMode, setRandomMode] = useState(false);
 
   function handleRandom() {
-    if (philosophers.length === 0) return;
-    const pick = philosophers[Math.floor(Math.random() * philosophers.length)];
+    if (characters.length === 0) return;
+    const pick = characters[Math.floor(Math.random() * characters.length)];
     onSelect(pick);
     setRandomMode(true);
   }
 
-  function handleSelect(p: Philosopher) {
+  function handleSelect(c: Character) {
     setRandomMode(false);
-    onSelect(selected?.id === p.id ? null : p);
+    onSelect(selected?.id === c.id ? null : c);
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
         <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
-        <span className="ml-3 text-slate-400">Loading philosophers...</span>
+        <span className="ml-3 text-slate-400">Loading characters...</span>
       </div>
     );
   }
@@ -156,10 +156,10 @@ function StepChoosePhilosopher({
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold text-white">
-          Choose a Philosopher
+          Choose a Character
         </h2>
         <p className="mt-1 text-sm text-slate-400">
-          Select the philosopher whose wisdom will drive your video.
+          Select the character who will drive your video.
         </p>
       </div>
 
@@ -187,17 +187,17 @@ function StepChoosePhilosopher({
           </div>
         </button>
 
-        {/* Philosopher cards */}
-        {philosophers.map((p) => {
-          const isSelected = selected?.id === p.id && !randomMode;
-          const civClass =
-            CIV_COLORS[p.civilization] ?? "bg-slate-500/20 text-slate-400 border-slate-500/30";
+        {/* Character cards */}
+        {characters.map((c) => {
+          const isSelected = selected?.id === c.id && !randomMode;
+          const groupClass =
+            CIV_COLORS[c.group] ?? "bg-slate-500/20 text-slate-400 border-slate-500/30";
 
           return (
             <button
-              key={p.id}
+              key={c.id}
               type="button"
-              onClick={() => handleSelect(p)}
+              onClick={() => handleSelect(c)}
               className={cn(
                 "rounded-xl border p-4 text-left transition-all",
                 "bg-slate-900 border-slate-800 hover:border-slate-600",
@@ -205,19 +205,19 @@ function StepChoosePhilosopher({
               )}
             >
               <div className="flex items-center gap-3">
-                {p.character_image_url && (
+                {c.character_image_url && (
                   <img
-                    src={p.character_image_url}
-                    alt={p.name}
+                    src={c.character_image_url}
+                    alt={c.name}
                     className="w-10 h-10 rounded-lg object-cover border border-slate-700 shrink-0"
                   />
                 )}
                 <div>
-                  <p className="font-medium text-white">{p.name}</p>
+                  <p className="font-medium text-white">{c.name}</p>
                   <div className="mt-1 flex items-center gap-2 flex-wrap">
-                    <Badge className={civClass}>{p.civilization}</Badge>
+                    <Badge className={groupClass}>{c.group}</Badge>
                     <span className="text-xs text-slate-500">
-                      {p.quote_count} quotes
+                      {c.quote_count} sources
                     </span>
                   </div>
                 </div>
@@ -231,7 +231,7 @@ function StepChoosePhilosopher({
 }
 
 // ---------------------------------------------------------------------------
-// Step 2 – Choose Quotes
+// Step 2 – Choose Source Items
 // ---------------------------------------------------------------------------
 
 const THEME_COLORS: Record<string, string> = {
@@ -244,38 +244,38 @@ const THEME_COLORS: Record<string, string> = {
   strategy: "bg-orange-500/20 text-orange-400 border-orange-500/30",
 };
 
-function StepChooseQuotes({
-  philosopher,
-  quotes,
-  loadingQuotes,
-  selectedQuote,
+function StepChooseSources({
+  character,
+  sourceItems,
+  loadingItems,
+  selectedItem,
   onSelect,
 }: {
-  philosopher: Philosopher;
-  quotes: Quote[];
-  loadingQuotes: boolean;
-  selectedQuote: Quote | null;
-  onSelect: (q: Quote) => void;
+  character: Character;
+  sourceItems: SourceItem[];
+  loadingItems: boolean;
+  selectedItem: SourceItem | null;
+  onSelect: (item: SourceItem) => void;
 }) {
   const [filter, setFilter] = useState<string>("all");
 
-  const themes = Array.from(new Set(quotes.map((q) => q.theme))).sort();
+  const themes = Array.from(new Set(sourceItems.map((q) => q.theme))).sort();
 
-  const filteredQuotes =
+  const filteredItems =
     filter === "all"
-      ? quotes
-      : quotes.filter((q) => q.theme === filter);
+      ? sourceItems
+      : sourceItems.filter((q) => q.theme === filter);
 
   return (
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-semibold text-white">
-          Pick a Quote
+          Pick a Source
         </h2>
         <p className="mt-1 text-sm text-slate-400">
-          Pick a quote that inspires the video for{" "}
+          Pick a source that inspires the video for{" "}
           <span className="text-amber-400 font-medium">
-            {philosopher.name}
+            {character.name}
           </span>
           , or skip and let the AI choose.
         </p>
@@ -293,10 +293,10 @@ function StepChooseQuotes({
               : "bg-slate-800/80 text-slate-500 border-slate-700/60 hover:text-slate-300 hover:border-slate-600"
           )}
         >
-          All ({quotes.length})
+          All ({sourceItems.length})
         </button>
         {themes.map((theme) => {
-          const count = quotes.filter((q) => q.theme === theme).length;
+          const count = sourceItems.filter((q) => q.theme === theme).length;
           const colors =
             THEME_COLORS[theme] ??
             "bg-slate-500/20 text-slate-400 border-slate-500/30";
@@ -318,20 +318,20 @@ function StepChooseQuotes({
         })}
       </div>
 
-      {/* Quote grid */}
-      {loadingQuotes ? (
+      {/* Source item grid */}
+      {loadingItems ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="w-6 h-6 animate-spin text-amber-500" />
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-[28rem] overflow-y-auto pr-1 custom-scrollbar">
-          {filteredQuotes.length === 0 && (
+          {filteredItems.length === 0 && (
             <p className="text-sm text-slate-500 py-8 text-center col-span-full">
-              No quotes match this filter.
+              No sources match this filter.
             </p>
           )}
-          {filteredQuotes.map((q) => {
-            const isSelected = selectedQuote?.id === q.id;
+          {filteredItems.map((q) => {
+            const isSelected = selectedItem?.id === q.id;
             return (
               <button
                 key={q.id}
@@ -559,8 +559,8 @@ function StepFormatStyle({
 // ---------------------------------------------------------------------------
 
 function StepCreateProject({
-  philosopher,
-  selectedQuote,
+  character,
+  selectedItem,
   selectedArc,
   selectedVibe,
   arcTemplates,
@@ -569,8 +569,8 @@ function StepCreateProject({
   error,
   onGenerate,
 }: {
-  philosopher: Philosopher;
-  selectedQuote: Quote | null;
+  character: Character;
+  selectedItem: SourceItem | null;
   selectedArc: string;
   selectedVibe: string;
   arcTemplates: Record<string, ArcTemplate>;
@@ -594,28 +594,28 @@ function StepCreateProject({
       {/* Summary card */}
       <div className="w-full bg-slate-900 rounded-xl border border-slate-800 p-5 space-y-4">
         <div>
-          <p className="text-xs text-slate-500">Philosopher</p>
-          <p className="text-sm text-white font-medium">{philosopher.name}</p>
+          <p className="text-xs text-slate-500">Character</p>
+          <p className="text-sm text-white font-medium">{character.name}</p>
           <Badge
             className={cn(
               "mt-1 text-[10px]",
-              CIV_COLORS[philosopher.civilization] ??
+              CIV_COLORS[character.group] ??
                 "bg-slate-500/20 text-slate-400 border-slate-500/30"
             )}
           >
-            {philosopher.civilization}
+            {character.group}
           </Badge>
         </div>
 
         <div>
-          <p className="text-xs text-slate-500">Quote</p>
-          {selectedQuote ? (
+          <p className="text-xs text-slate-500">Source</p>
+          {selectedItem ? (
             <p className="text-sm text-slate-200 italic mt-1">
-              &ldquo;{selectedQuote.text}&rdquo;
+              &ldquo;{selectedItem.text}&rdquo;
             </p>
           ) : (
             <p className="text-sm text-slate-400 mt-1">
-              AI will choose the best quotes automatically
+              AI will choose the best sources automatically
             </p>
           )}
         </div>
@@ -672,15 +672,15 @@ export default function GenerateWizardPage() {
   );
 
   // Step 1 state
-  const [philosophers, setPhilosophers] = useState<Philosopher[]>([]);
-  const [loadingPhilosophers, setLoadingPhilosophers] = useState(true);
-  const [selectedPhilosopher, setSelectedPhilosopher] =
-    useState<Philosopher | null>(null);
+  const [characters, setCharacters] = useState<Character[]>([]);
+  const [loadingCharacters, setLoadingCharacters] = useState(true);
+  const [selectedCharacter, setSelectedCharacter] =
+    useState<Character | null>(null);
 
   // Step 2 state
-  const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [loadingQuotes, setLoadingQuotes] = useState(false);
-  const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
+  const [sourceItems, setSourceItems] = useState<SourceItem[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<SourceItem | null>(null);
 
   // Step 3 state (format & style)
   const [arcTemplates, setArcTemplates] = useState<Record<string, ArcTemplate>>({});
@@ -689,24 +689,24 @@ export default function GenerateWizardPage() {
   const [selectedArc, setSelectedArc] = useState("story");
   const [selectedVibe, setSelectedVibe] = useState("mobile_game");
 
-  // Character images for selected philosopher
+  // Character images for selected character
   const [charImages, setCharImages] = useState<CharacterImage[]>([]);
 
   // Step 4 state
   const [generatingStory, setGeneratingStory] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
 
-  // ---- Fetch philosophers + options on mount ----
+  // ---- Fetch characters + options on mount ----
   useEffect(() => {
     let cancelled = false;
-    setLoadingPhilosophers(true);
-    getPhilosophers()
+    setLoadingCharacters(true);
+    getCharacters()
       .then((data) => {
-        if (!cancelled) setPhilosophers(data);
+        if (!cancelled) setCharacters(data);
       })
       .catch(() => {})
       .finally(() => {
-        if (!cancelled) setLoadingPhilosophers(false);
+        if (!cancelled) setLoadingCharacters(false);
       });
     return () => {
       cancelled = true;
@@ -737,40 +737,40 @@ export default function GenerateWizardPage() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ---- Fetch quotes + character images when philosopher changes ----
+  // ---- Fetch source items + character images when character changes ----
   useEffect(() => {
-    if (!selectedPhilosopher) {
-      setQuotes([]);
-      setSelectedQuote(null);
+    if (!selectedCharacter) {
+      setSourceItems([]);
+      setSelectedItem(null);
       setCharImages([]);
       return;
     }
     let cancelled = false;
-    setLoadingQuotes(true);
-    setSelectedQuote(null);
+    setLoadingItems(true);
+    setSelectedItem(null);
     Promise.all([
-      getQuotes({ philosopher_id: selectedPhilosopher.id }),
-      getCharacterImages(selectedPhilosopher.id).catch(() => ({ images: [] as CharacterImage[] })),
+      getSourceItems({ character_id: selectedCharacter.id }),
+      getCharacterImages(selectedCharacter.id).catch(() => ({ images: [] as CharacterImage[] })),
     ])
-      .then(([quoteData, charData]) => {
+      .then(([itemData, charData]) => {
         if (!cancelled) {
-          setQuotes(quoteData);
+          setSourceItems(itemData);
           setCharImages(charData.images);
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setQuotes([]);
+          setSourceItems([]);
           setCharImages([]);
         }
       })
       .finally(() => {
-        if (!cancelled) setLoadingQuotes(false);
+        if (!cancelled) setLoadingItems(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [selectedPhilosopher]);
+  }, [selectedCharacter]);
 
   // ---- Navigation helpers ----
   function goNext() {
@@ -788,13 +788,13 @@ export default function GenerateWizardPage() {
 
   // ---- Step 4: Create project & redirect ----
   const handleGenerateStory = useCallback(async () => {
-    if (!selectedPhilosopher) return;
+    if (!selectedCharacter) return;
     setGeneratingStory(true);
     setGenerateError(null);
     try {
       const result = await generateStory({
-        philosopher_id: selectedPhilosopher.id,
-        quote_ids: selectedQuote ? [selectedQuote.id] : undefined,
+        character_id: selectedCharacter.id,
+        quote_ids: selectedItem ? [selectedItem.id] : undefined,
         arc_template: selectedArc,
         theme: selectedVibe,
       });
@@ -805,15 +805,15 @@ export default function GenerateWizardPage() {
       );
       setGeneratingStory(false);
     }
-  }, [selectedPhilosopher, selectedQuote, selectedArc, selectedVibe, router]);
+  }, [selectedCharacter, selectedItem, selectedArc, selectedVibe, router]);
 
   // ---- Can proceed logic ----
   const canGoNext = (() => {
     switch (currentStep) {
       case 0:
-        return selectedPhilosopher !== null;
+        return selectedCharacter !== null;
       case 1:
-        return true; // quotes are optional
+        return true; // sources are optional
       case 2:
         return true; // format/style always has a default selection
       case 3:
@@ -834,21 +834,21 @@ export default function GenerateWizardPage() {
       {/* Step content */}
       <div className="max-w-5xl mx-auto px-4 pb-32">
         {currentStep === 0 && (
-          <StepChoosePhilosopher
-            philosophers={philosophers}
-            loading={loadingPhilosophers}
-            selected={selectedPhilosopher}
-            onSelect={setSelectedPhilosopher}
+          <StepChooseCharacter
+            characters={characters}
+            loading={loadingCharacters}
+            selected={selectedCharacter}
+            onSelect={setSelectedCharacter}
           />
         )}
 
-        {currentStep === 1 && selectedPhilosopher && (
-          <StepChooseQuotes
-            philosopher={selectedPhilosopher}
-            quotes={quotes}
-            loadingQuotes={loadingQuotes}
-            selectedQuote={selectedQuote}
-            onSelect={(q) => setSelectedQuote(q)}
+        {currentStep === 1 && selectedCharacter && (
+          <StepChooseSources
+            character={selectedCharacter}
+            sourceItems={sourceItems}
+            loadingItems={loadingItems}
+            selectedItem={selectedItem}
+            onSelect={(item) => setSelectedItem(item)}
           />
         )}
 
@@ -865,10 +865,10 @@ export default function GenerateWizardPage() {
           />
         )}
 
-        {currentStep === 3 && selectedPhilosopher && (
+        {currentStep === 3 && selectedCharacter && (
           <StepCreateProject
-            philosopher={selectedPhilosopher}
-            selectedQuote={selectedQuote}
+            character={selectedCharacter}
+            selectedItem={selectedItem}
             selectedArc={selectedArc}
             selectedVibe={selectedVibe}
             arcTemplates={arcTemplates}

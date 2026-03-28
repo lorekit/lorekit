@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { Search } from "lucide-react";
-import type { Quote } from "@/lib/api";
-import { getQuotes } from "@/lib/api";
+import type { SourceItem } from "@/lib/api";
+import { getSourceItems } from "@/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -17,8 +17,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 interface QuotePickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  philosopherId: string;
-  onSelectQuote: (quote: Quote) => void;
+  characterId: string;
+  onSelectQuote: (item: SourceItem) => void;
 }
 
 const FUNCTION_TABS = [
@@ -39,26 +39,26 @@ const FUNCTION_BADGE_COLORS: Record<string, string> = {
 export function QuotePicker({
   open,
   onOpenChange,
-  philosopherId,
+  characterId,
   onSelectQuote,
 }: QuotePickerProps) {
-  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [items, setItems] = useState<SourceItem[]>([]);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (!open || !philosopherId) return;
+    if (!open || !characterId) return;
 
     setIsLoading(true);
-    getQuotes({ philosopher_id: philosopherId })
-      .then((data) => setQuotes(data))
-      .catch(() => setQuotes([]))
+    getSourceItems({ character_id: characterId })
+      .then((data) => setItems(data))
+      .catch(() => setItems([]))
       .finally(() => setIsLoading(false));
-  }, [open, philosopherId]);
+  }, [open, characterId]);
 
-  const filteredQuotes = useMemo(() => {
-    let result = quotes;
+  const filteredItems = useMemo(() => {
+    let result = items;
 
     if (activeTab !== "all") {
       result = result.filter((q) => q.emotional_function === activeTab);
@@ -74,10 +74,10 @@ export function QuotePicker({
     }
 
     return result;
-  }, [quotes, activeTab, search]);
+  }, [items, activeTab, search]);
 
-  function handleSelect(quote: Quote) {
-    onSelectQuote(quote);
+  function handleSelect(item: SourceItem) {
+    onSelectQuote(item);
     onOpenChange(false);
   }
 
@@ -85,7 +85,7 @@ export function QuotePicker({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Choose Quote</DialogTitle>
+          <DialogTitle>Choose Source</DialogTitle>
         </DialogHeader>
 
         {/* Search */}
@@ -94,7 +94,7 @@ export function QuotePicker({
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search quotes..."
+            placeholder="Search sources..."
             className="pl-10 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
           />
         </div>
@@ -113,11 +113,11 @@ export function QuotePicker({
             ))}
           </TabsList>
 
-          {/* Quote list (shared across all tabs via filtering) */}
+          {/* Source list (shared across all tabs via filtering) */}
           {FUNCTION_TABS.map((tab) => (
             <TabsContent key={tab} value={tab} className="mt-3">
-              <QuoteList
-                quotes={filteredQuotes}
+              <SourceItemList
+                items={filteredItems}
                 isLoading={isLoading}
                 onSelect={handleSelect}
               />
@@ -129,54 +129,54 @@ export function QuotePicker({
   );
 }
 
-function QuoteList({
-  quotes,
+function SourceItemList({
+  items,
   isLoading,
   onSelect,
 }: {
-  quotes: Quote[];
+  items: SourceItem[];
   isLoading: boolean;
-  onSelect: (quote: Quote) => void;
+  onSelect: (item: SourceItem) => void;
 }) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12 text-sm text-slate-500">
-        Loading quotes...
+        Loading sources...
       </div>
     );
   }
 
-  if (quotes.length === 0) {
+  if (items.length === 0) {
     return (
       <div className="flex items-center justify-center py-12 text-sm text-slate-500">
-        No quotes found
+        No sources found
       </div>
     );
   }
 
   return (
     <div className="space-y-2 overflow-y-auto max-h-[45vh] pr-1">
-      {quotes.map((quote) => (
+      {items.map((item) => (
         <button
-          key={quote.id}
+          key={item.id}
           type="button"
-          onClick={() => onSelect(quote)}
+          onClick={() => onSelect(item)}
           className="w-full text-left p-3 rounded-lg bg-slate-800/50 border border-slate-700/50 hover:border-amber-500/50 hover:bg-slate-800 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 group"
         >
           <p className="text-sm text-slate-200 leading-relaxed group-hover:text-white transition-colors">
-            &ldquo;{quote.text}&rdquo;
+            &ldquo;{item.text}&rdquo;
           </p>
           <div className="flex items-center gap-2 mt-2">
             <Badge
               className={
-                FUNCTION_BADGE_COLORS[quote.emotional_function] ??
+                FUNCTION_BADGE_COLORS[item.emotional_function] ??
                 "bg-slate-500/20 text-slate-400 border-slate-500/30"
               }
             >
-              {quote.emotional_function}
+              {item.emotional_function}
             </Badge>
             <span className="text-xs text-slate-500 truncate">
-              {quote.theme}
+              {item.theme}
             </span>
           </div>
         </button>

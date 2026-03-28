@@ -106,7 +106,7 @@ export default function ProjectsPage() {
   const handleDuplicate = useCallback(
     (project: Project) => {
       // Navigate to generate wizard pre-filled
-      window.location.href = `/generate?philosopher=${project.philosopher_id}`;
+      window.location.href = `/generate?character=${project.character_id}`;
     },
     []
   );
@@ -154,7 +154,7 @@ export default function ProjectsPage() {
           </div>
           <h2 className="text-xl font-semibold text-white mb-2">No projects yet</h2>
           <p className="text-slate-400 mb-6 max-w-sm">
-            Create your first philosophical video project to get started.
+            Create your first video project to get started.
           </p>
           <Link href="/generate">
             <Button>
@@ -302,7 +302,7 @@ export default function ProjectsPage() {
                                   className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white"
                                 >
                                   <Copy className="w-3.5 h-3.5" />
-                                  New with Same Philosopher
+                                  New with Same Character
                                 </button>
                                 <div className="border-t border-slate-700 my-1" />
                                 <button
@@ -326,7 +326,7 @@ export default function ProjectsPage() {
                   {/* Philosopher + civ */}
                   <div className="flex items-center gap-2 mt-1.5">
                     <span className="text-sm text-slate-400">
-                      {project.philosopher_name}
+                      {project.character_name}
                     </span>
                     {project.civilization && (
                       <Badge

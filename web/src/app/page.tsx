@@ -91,10 +91,10 @@ export default function DashboardPage() {
       <div className="space-y-4">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight">
-            PhilosophyWise
+            LoreKit
           </h1>
           <p className="text-slate-400 mt-1">
-            AI-powered philosophical video generation studio
+            Universe-based AI video creation studio
           </p>
         </div>
 
@@ -107,11 +107,11 @@ export default function DashboardPage() {
             Generate New Video
           </Link>
           <Link
-            href="/philosophers"
+            href="/characters"
             className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-100 hover:bg-slate-700 border border-slate-700 transition-colors"
           >
             <Users className="h-4 w-4" />
-            Browse Philosophers
+            Browse Characters
           </Link>
           <Link
             href="/projects"
@@ -189,7 +189,7 @@ export default function DashboardPage() {
             <Film className="h-10 w-10 text-slate-600 mx-auto mb-3" />
             <p className="text-slate-400">No projects yet</p>
             <p className="text-sm text-slate-500 mt-1">
-              Generate your first philosophical video to get started.
+              Generate your first video to get started.
             </p>
           </div>
         ) : (
@@ -218,7 +218,7 @@ export default function DashboardPage() {
                     {project.name}
                   </h3>
                   <p className="text-xs text-slate-400 truncate">
-                    {project.philosopher_name}
+                    {project.character_name}
                   </p>
                   <div className="flex items-center justify-between pt-1">
                     <Badge

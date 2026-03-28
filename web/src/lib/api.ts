@@ -9,10 +9,10 @@ export const clipUrl = (path: string) =>
 
 // --- Types ---
 
-export interface Philosopher {
+export interface Character {
   id: string;
   name: string;
-  civilization: string;
+  group: string;
   era: string;
   character_description: string;
   character_image_url: string | null;
@@ -22,9 +22,12 @@ export interface Philosopher {
   truth_count: number;
 }
 
-export interface Quote {
+/** @deprecated Use Character instead */
+export type Philosopher = Character;
+
+export interface SourceItem {
   id: string;
-  philosopher_id: string;
+  character_id: string;
   text: string;
   short_version: string | null;
   emotional_function: "hook" | "truth" | "conflict" | "loop";
@@ -34,6 +37,9 @@ export interface Quote {
   read_time_seconds: number;
   used_count: number;
 }
+
+/** @deprecated Use SourceItem instead */
+export type Quote = SourceItem;
 
 export interface Scene {
   id: string;
@@ -53,9 +59,10 @@ export interface Scene {
 export interface Project {
   id: string;
   name: string;
-  philosopher_id: string;
-  philosopher_name: string;
+  character_id: string;
+  character_name: string;
   civilization: string;
+  universe_id?: string;
   hook_quote: string;
   truth_quote: string;
   hook_quote_id: string;
@@ -71,6 +78,28 @@ export interface Project {
   thumbnail_url: string | null;
   character_image_url: string | null;
   character_image_path: string | null;
+}
+
+export interface Universe {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+}
+
+export interface EnvironmentPreset {
+  id: string;
+  name: string;
+  description: string;
+  prompt: string;
+}
+
+export interface SceneTemplate {
+  id: string;
+  name: string;
+  description: string;
+  beats: string[];
+  default_duration: number;
 }
 
 export interface StoryBreakdown {
@@ -137,37 +166,70 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
-// Philosophers
-export const getPhilosophers = () => fetchAPI<Philosopher[]>("/api/philosophers");
-export const getPhilosopher = (id: string) => fetchAPI<Philosopher>(`/api/philosophers/${id}`);
+// Characters (formerly Philosophers)
+export const getCharacters = () => fetchAPI<Character[]>("/api/characters");
+export const getCharacter = (id: string) => fetchAPI<Character>(`/api/characters/${id}`);
+export const updateCharacter = (id: string, data: Partial<Pick<Character, "name" | "era" | "group" | "character_description">>) =>
+  fetchAPI<Character>(`/api/characters/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 
-// Philosopher mutations
-export const updatePhilosopher = (id: string, data: Partial<Pick<Philosopher, "name" | "era" | "civilization" | "character_description">>) =>
-  fetchAPI<Philosopher>(`/api/philosophers/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+/** @deprecated Use getCharacters */
+export const getPhilosophers = getCharacters;
+/** @deprecated Use getCharacter */
+export const getPhilosopher = getCharacter;
+/** @deprecated Use updateCharacter */
+export const updatePhilosopher = (id: string, data: Partial<Pick<Character, "name" | "era" | "group" | "character_description">>) =>
+  updateCharacter(id, data);
 
-// Quotes
-export const createQuote = (data: { philosopher_id: string; text: string; theme: string; emotional_function: string }) =>
-  fetchAPI<Quote>("/api/quotes", { method: "POST", body: JSON.stringify(data) });
-export const updateQuote = (id: string, data: Partial<Pick<Quote, "text" | "theme" | "emotional_function" | "pair_with_visual">>) =>
-  fetchAPI<Quote>(`/api/quotes/${id}`, { method: "PATCH", body: JSON.stringify(data) });
-export const deleteQuote = (id: string) =>
-  fetchAPI<{ deleted: boolean }>(`/api/quotes/${id}`, { method: "DELETE" });
+// Source Items (formerly Quotes)
+export const createSourceItem = (data: { character_id: string; text: string; theme: string; emotional_function: string }) =>
+  fetchAPI<SourceItem>("/api/sources", { method: "POST", body: JSON.stringify(data) });
+export const updateSourceItem = (id: string, data: Partial<Pick<SourceItem, "text" | "theme" | "emotional_function" | "pair_with_visual">>) =>
+  fetchAPI<SourceItem>(`/api/sources/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+export const deleteSourceItem = (id: string) =>
+  fetchAPI<{ deleted: boolean }>(`/api/sources/${id}`, { method: "DELETE" });
 
-export const getQuotes = (params?: { philosopher_id?: string; function?: string; limit?: number }) => {
+export const getSourceItems = (params?: { character_id?: string; function?: string; limit?: number }) => {
   const searchParams = new URLSearchParams();
-  if (params?.philosopher_id) searchParams.set("philosopher", params.philosopher_id);
+  if (params?.character_id) searchParams.set("character", params.character_id);
   if (params?.function) searchParams.set("function", params.function);
   if (params?.limit) searchParams.set("limit", params.limit.toString());
   const qs = searchParams.toString();
-  return fetchAPI<Quote[]>(`/api/quotes${qs ? `?${qs}` : ""}`);
+  return fetchAPI<SourceItem[]>(`/api/sources${qs ? `?${qs}` : ""}`);
 };
-export const getQuoteStats = () => fetchAPI<{ philosophers: unknown[] }>("/api/quotes/stats");
+export const getSourceStats = () => fetchAPI<{ characters: unknown[] }>("/api/sources/stats");
+
+/** @deprecated Use createSourceItem */
+export const createQuote = (data: { character_id: string; text: string; theme: string; emotional_function: string }) =>
+  createSourceItem(data);
+/** @deprecated Use updateSourceItem */
+export const updateQuote = (id: string, data: Partial<Pick<SourceItem, "text" | "theme" | "emotional_function" | "pair_with_visual">>) =>
+  updateSourceItem(id, data);
+/** @deprecated Use deleteSourceItem */
+export const deleteQuote = (id: string) => deleteSourceItem(id);
+/** @deprecated Use getSourceItems */
+export const getQuotes = (params?: { philosopher_id?: string; character_id?: string; function?: string; limit?: number }) => {
+  const character_id = params?.character_id ?? params?.philosopher_id;
+  return getSourceItems({ character_id, function: params?.function, limit: params?.limit });
+};
+/** @deprecated Use getSourceStats */
+export const getQuoteStats = getSourceStats;
+
 export const getStats = () => fetchAPI<Stats>("/api/stats");
+
+// Universes
+export const getUniverses = () => fetchAPI<Universe[]>("/api/universes");
+export const getUniverse = (id: string) => fetchAPI<Universe>(`/api/universes/${id}`);
+export const createUniverse = (data: { name: string; description?: string }) =>
+  fetchAPI<Universe>("/api/universes", { method: "POST", body: JSON.stringify(data) });
+export const updateUniverse = (id: string, data: Partial<Pick<Universe, "name" | "description">>) =>
+  fetchAPI<Universe>(`/api/universes/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+export const deleteUniverse = (id: string) =>
+  fetchAPI<void>(`/api/universes/${id}`, { method: "DELETE" });
 
 // Projects
 export const getProjects = () => fetchAPI<Project[]>("/api/projects");
 export const getProject = (id: string) => fetchAPI<Project>(`/api/projects/${id}`);
-export const createProject = (data: { philosopher_id: string; hook_quote_id?: string; truth_quote_id?: string }) =>
+export const createProject = (data: { character_id: string; hook_quote_id?: string; truth_quote_id?: string }) =>
   fetchAPI<Project>("/api/projects", { method: "POST", body: JSON.stringify(data) });
 export const updateProject = (id: string, data: Partial<Project>) =>
   fetchAPI<Project>(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify(data) });
@@ -176,7 +238,7 @@ export const deleteProject = (id: string) =>
 
 // Generate
 export const generateStory = (data: {
-  philosopher_id: string;
+  character_id: string;
   hook_quote_id?: string;
   truth_quote_id?: string;
   quote_ids?: string[];
@@ -236,7 +298,7 @@ export const getVibePresets = () =>
 export const getArcTemplates = () =>
   fetchAPI<{ templates: Record<string, ArcTemplate> }>("/api/settings/arc-templates");
 
-// Character
+// Character Image
 export const generateCharacterImage = (projectId: string, customDescription?: string, theme?: string) =>
   fetchAPI<{ image_url: string; local_path: string; theme: string; reused: boolean }>("/api/character/generate", {
     method: "POST",
@@ -250,17 +312,23 @@ export interface CharacterImage {
   local_path: string | null;
 }
 
-export const getCharacterImages = (philosopherId: string) =>
-  fetchAPI<{ philosopher_id: string; images: CharacterImage[] }>(`/api/character/images/${philosopherId}`);
+export const getCharacterImages = (characterId: string) =>
+  fetchAPI<{ character_id: string; images: CharacterImage[] }>(`/api/character/images/${characterId}`);
 
-export const generateCharacterForPhilosopher = (
-  philosopherId: string,
+export const generateCharacterForCharacter = (
+  characterId: string,
   opts?: { theme?: string; force?: boolean; custom_description?: string },
 ) =>
   fetchAPI<{ image_url: string; local_path: string; theme: string; reused: boolean }>(
-    "/api/character/generate-for-philosopher",
-    { method: "POST", body: JSON.stringify({ philosopher_id: philosopherId, ...opts }) },
+    "/api/character/generate-for-character",
+    { method: "POST", body: JSON.stringify({ character_id: characterId, ...opts }) },
   );
+
+/** @deprecated Use generateCharacterForCharacter */
+export const generateCharacterForPhilosopher = (
+  characterId: string,
+  opts?: { theme?: string; force?: boolean; custom_description?: string },
+) => generateCharacterForCharacter(characterId, opts);
 
 // Publish
 export const publishToYouTube = (projectId: string) =>

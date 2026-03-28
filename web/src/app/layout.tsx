@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PhilosophyWise",
-  description: "AI-powered philosophical video generation studio",
+  title: "LoreKit",
+  description: "LoreKit — Universe-based AI video creation studio",
 };
 
 export default function RootLayout({

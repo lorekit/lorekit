@@ -38,7 +38,7 @@ import {
   clipUrl,
   API_BASE,
 } from "@/lib/api";
-import type { Scene, Quote, RenderOptions } from "@/lib/api";
+import type { Scene, SourceItem, RenderOptions } from "@/lib/api";
 import { cn, formatDuration } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -479,7 +479,7 @@ export default function ProjectEditorPage({
   }, [project, refreshProject]);
 
   const handleSelectQuote = useCallback(
-    async (quote: Quote) => {
+    async (quote: SourceItem) => {
       if (!selectedScene) return;
 
       await handleUpdateScene(selectedScene.id, {
@@ -532,7 +532,7 @@ export default function ProjectEditorPage({
             </h1>
             {project.civilization && (
               <span className="text-xs text-slate-500">
-                {project.philosopher_name} &middot;{" "}
+                {project.character_name} &middot;{" "}
                 {formatDuration(totalDuration)} total &middot;{" "}
                 {clipsGenerated}/{scenes.length} clips
               </span>
@@ -833,7 +833,7 @@ export default function ProjectEditorPage({
           <SceneDetail
             scene={selectedScene}
             characters={project ? [{
-              name: project.philosopher_name || project.name?.split("—")[0]?.trim() || project.philosopher_id || "Philosopher",
+              name: project.character_name || project.name?.split("—")[0]?.trim() || project.character_id || "Character",
               imageUrl: project.character_image_url || null,
             }] : undefined}
             onUpdate={handleUpdateScene}
@@ -858,7 +858,7 @@ export default function ProjectEditorPage({
       <QuotePicker
         open={quotePickerOpen}
         onOpenChange={setQuotePickerOpen}
-        philosopherId={project.philosopher_id}
+        characterId={project.character_id}
         onSelectQuote={handleSelectQuote}
       />
     </div>

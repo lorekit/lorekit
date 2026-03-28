@@ -202,7 +202,7 @@ export function SceneDetail({
         </Button>
         <Button variant="ghost" className="flex-1">
           <Quote className="w-4 h-4 mr-2" />
-          Change Quote
+          Change Source
         </Button>
       </div>
     </div>

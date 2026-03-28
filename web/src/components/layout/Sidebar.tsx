@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/philosophers", label: "Philosophers", icon: Users },
+  { href: "/characters", label: "Characters", icon: Users },
   { href: "/generate", label: "Generate New", icon: Sparkles },
   { href: "/projects", label: "Projects", icon: Film },
 ];
@@ -28,7 +28,7 @@ export function Sidebar() {
       <div className="flex items-center gap-2.5 px-5 py-6">
         <ScrollText className="h-6 w-6 text-amber-500" />
         <span className="text-lg font-semibold text-white tracking-tight">
-          PhilosophyWise
+          LoreKit
         </span>
       </div>
 
