@@ -159,7 +159,7 @@ def sources_stats():
 
 
 @main.command()
-@click.option("--port", default=8000, help="Backend port")
+@click.option("--port", default=8001, help="Backend port")
 @click.option("--reload", "use_reload", is_flag=True, default=True, help="Auto-reload on file changes")
 def backend(port: int, use_reload: bool):
     """Start the FastAPI backend server."""
@@ -174,7 +174,7 @@ def backend(port: int, use_reload: bool):
 
 
 @main.command()
-@click.option("--port", default=3000, help="Frontend port")
+@click.option("--port", default=3001, help="Frontend port")
 def frontend(port: int):
     """Start the Next.js frontend dev server."""
     import subprocess
@@ -191,8 +191,8 @@ def frontend(port: int):
 
 
 @main.command()
-@click.option("--backend-port", default=8000, help="Backend port")
-@click.option("--frontend-port", default=3000, help="Frontend port")
+@click.option("--backend-port", default=8001, help="Backend port")
+@click.option("--frontend-port", default=3001, help="Frontend port")
 def dev(backend_port: int, frontend_port: int):
     """Start both backend and frontend (full dev environment)."""
     import subprocess
