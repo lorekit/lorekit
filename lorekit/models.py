@@ -45,7 +45,7 @@ Quote = SourceItem
 class Character(BaseModel):
     id: str
     name: str
-    universe_id: str = "philosophywise"
+    universe_id: str = ""
     group: str
     era: str
     character_description: str
@@ -96,7 +96,7 @@ class StoryBreakdown(BaseModel):
 class VideoProject(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
     character_id: str
-    universe_id: str = "philosophywise"
+    universe_id: str = ""
     civilization: str
     theme: str = ""  # vibe preset key
     arc_template: str = "story"  # arc template ID

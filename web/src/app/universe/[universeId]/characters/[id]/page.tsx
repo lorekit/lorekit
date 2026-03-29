@@ -21,14 +21,23 @@ import {
   generateCharacterImage,
   generateCharacterForCharacter,
   getCharacterImages,
+  getUniverse,
   getVibePresets,
   clipUrl,
   updateCharacter,
   createSourceItem,
   updateSourceItem,
   deleteSourceItem,
+  getCharacterDocuments,
+  createCharacterDocument,
+  deleteCharacterDocument,
+  processCharacterDocument,
+  getCharacterVoice,
+  upsertCharacterVoice,
+  deleteCharacterVoice,
+  getTTSModels,
 } from "@/lib/api";
-import type { Character, SourceItem, CharacterImage, VibePreset } from "@/lib/api";
+import type { Character, SourceItem, CharacterImage, CharacterDocument, CharacterVoice, TTSModel, VibePreset, Universe } from "@/lib/api";
 import { cn, CIV_COLORS } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -382,13 +391,26 @@ export default function StudioCharacterProfilePage({
   const [character, setCharacter] = useState<Character | null>(null);
   const [sourceItems, setSourceItems] = useState<SourceItem[]>([]);
   const [charImages, setCharImages] = useState<CharacterImage[]>([]);
+  const [universe, setUniverse] = useState<Universe | null>(null);
   const [vibePresets, setVibePresets] = useState<Record<string, VibePreset>>({});
-  const [selectedTheme, setSelectedTheme] = useState<string>("dark_masculine");
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [generatingImage, setGeneratingImage] = useState(false);
   const [generatingTheme, setGeneratingTheme] = useState<string | null>(null);
   const [addingItem, setAddingItem] = useState(false);
+  const [activeTab, setActiveTab] = useState<"quotes" | "knowledge" | "voice">("quotes");
+  const [documents, setDocuments] = useState<CharacterDocument[]>([]);
+  const [voice, setVoice] = useState<CharacterVoice | null>(null);
+  const [ttsModels, setTtsModels] = useState<Record<string, TTSModel>>({});
+  const [voiceModel, setVoiceModel] = useState("fal-ai/minimax/speech-2.6-turbo");
+  const [voiceName, setVoiceName] = useState("Default");
+  const [voiceIdInput, setVoiceIdInput] = useState("");
+  const [savingVoice, setSavingVoice] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadName, setUploadName] = useState("");
+  const [uploadContent, setUploadContent] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
 
   const refreshCharImages = useCallback(async () => {
     try {
@@ -404,14 +426,27 @@ export default function StudioCharacterProfilePage({
       getCharacter(id),
       getSourceItems({ character_id: id, limit: 500 }),
       getCharacterImages(id).catch(() => ({ images: [] as CharacterImage[] })),
+      getUniverse(universeId),
       getVibePresets().catch(() => ({ presets: {} as Record<string, VibePreset> })),
+      getCharacterDocuments(universeId, id).catch(() => [] as CharacterDocument[]),
+      getCharacterVoice(universeId, id).catch(() => null as CharacterVoice | null),
+      getTTSModels().catch(() => ({} as Record<string, TTSModel>)),
     ])
-      .then(([char, items, charData, vibeData]) => {
+      .then(([char, items, charData, uni, vibeData, docs, voiceData, models]) => {
         if (cancelled) return;
         setCharacter(char);
         setSourceItems(items);
         setCharImages(charData.images);
+        setUniverse(uni);
         setVibePresets(vibeData.presets);
+        setDocuments(docs);
+        setVoice(voiceData);
+        setTtsModels(models);
+        if (voiceData) {
+          setVoiceModel(voiceData.tts_model);
+          setVoiceName(voiceData.voice_name);
+          setVoiceIdInput(voiceData.voice_id || "");
+        }
       })
       .catch(() => {})
       .finally(() => {
@@ -479,6 +514,39 @@ export default function StudioCharacterProfilePage({
     [id]
   );
 
+  const handleUploadDocument = useCallback(async () => {
+    if (!uploadName.trim() || !uploadContent.trim()) return;
+    setUploading(true);
+    try {
+      const doc = await createCharacterDocument(universeId, id, {
+        name: uploadName.trim(),
+        content: uploadContent.trim(),
+      });
+      // Process immediately
+      const result = await processCharacterDocument(universeId, id, doc.id);
+      // Refresh documents
+      const docs = await getCharacterDocuments(universeId, id);
+      setDocuments(docs);
+      setShowUploadModal(false);
+      setUploadName("");
+      setUploadContent("");
+    } catch (err) {
+      console.error("Failed to upload document:", err);
+    } finally {
+      setUploading(false);
+    }
+  }, [universeId, id, uploadName, uploadContent]);
+
+  const handleDeleteDocument = useCallback(async (docId: string) => {
+    try {
+      await deleteCharacterDocument(universeId, id, docId);
+      setDocuments((prev) => prev.filter((d) => d.id !== docId));
+      setDeletingDocId(null);
+    } catch (err) {
+      console.error("Failed to delete document:", err);
+    }
+  }, [universeId, id]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full py-24">
@@ -492,7 +560,7 @@ export default function StudioCharacterProfilePage({
       <div className="p-8">
         <p className="text-slate-400">Character not found.</p>
         <Link
-          href={`/studio/${universeId}/characters`}
+          href={`/universe/${universeId}/characters`}
           className="text-amber-400 hover:underline mt-2 inline-block"
         >
           &larr; Back to Characters
@@ -509,7 +577,7 @@ export default function StudioCharacterProfilePage({
     <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-8">
       {/* Back link */}
       <Link
-        href={`/studio/${universeId}/characters`}
+        href={`/universe/${universeId}/characters`}
         className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
@@ -518,39 +586,13 @@ export default function StudioCharacterProfilePage({
 
       {/* Hero section */}
       <div className="flex flex-col md:flex-row gap-6">
-        {/* Character images — per-theme gallery */}
+        {/* Character image — uses universe vibe */}
         <div className="shrink-0 space-y-4">
-          {/* Theme selector tabs */}
-          <div className="flex flex-wrap gap-1.5">
-            {Object.entries(vibePresets)
-              .filter(([k]) => k !== "custom")
-              .map(([key, preset]) => {
-                const hasImage = charImages.some((ci) => ci.theme === key && ci.url);
-                return (
-                  <button
-                    key={key}
-                    onClick={() => setSelectedTheme(key)}
-                    className={cn(
-                      "px-2.5 py-1 rounded-full text-[11px] font-medium transition-all border",
-                      selectedTheme === key
-                        ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
-                        : hasImage
-                        ? "bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-500"
-                        : "bg-slate-900 text-slate-500 border-slate-800 hover:border-slate-600"
-                    )}
-                  >
-                    {preset.name}
-                    {hasImage && <span className="ml-1 text-emerald-400">●</span>}
-                  </button>
-                );
-              })}
-          </div>
-
-          {/* Active theme image */}
           {(() => {
-            const activeImage = charImages.find((ci) => ci.theme === selectedTheme && ci.url);
-            const themeName = vibePresets[selectedTheme]?.name || selectedTheme.replace(/_/g, " ");
-            const isGeneratingThis = generatingImage && generatingTheme === selectedTheme;
+            const universeVibe = universe?.video_vibe_preset ?? "mobile_game";
+            const activeImage = charImages.find((ci) => ci.theme === universeVibe && ci.url);
+            const themeName = vibePresets[universeVibe]?.name || universeVibe.replace(/_/g, " ");
+            const isGeneratingThis = generatingImage && generatingTheme === universeVibe;
 
             if (activeImage?.url) {
               return (
@@ -561,9 +603,9 @@ export default function StudioCharacterProfilePage({
                     className="w-48 h-64 object-cover rounded-xl border border-slate-700 shadow-lg"
                   />
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-slate-500">{themeName}</span>
+                    <span className="text-[11px] text-slate-500">{themeName} style</span>
                     <button
-                      onClick={() => handleGenerateImage(selectedTheme, true)}
+                      onClick={() => handleGenerateImage(universeVibe, true)}
                       disabled={generatingImage}
                       className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-white transition-colors disabled:opacity-40"
                     >
@@ -588,7 +630,7 @@ export default function StudioCharacterProfilePage({
                 <Button
                   size="sm"
                   variant="secondary"
-                  onClick={() => handleGenerateImage(selectedTheme, false)}
+                  onClick={() => handleGenerateImage(universeVibe, false)}
                   disabled={generatingImage}
                 >
                   {isGeneratingThis ? (
@@ -601,35 +643,6 @@ export default function StudioCharacterProfilePage({
               </div>
             );
           })()}
-
-          {/* Thumbnail strip of all themed images */}
-          {charImages.filter((ci) => ci.url).length > 1 && (
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {charImages
-                .filter((ci) => ci.url)
-                .map((ci) => (
-                  <button
-                    key={ci.theme}
-                    onClick={() => setSelectedTheme(ci.theme)}
-                    className={cn(
-                      "shrink-0 rounded-lg border overflow-hidden transition-all",
-                      selectedTheme === ci.theme
-                        ? "border-amber-500 ring-1 ring-amber-500/30"
-                        : "border-slate-700 hover:border-slate-500 opacity-60 hover:opacity-100"
-                    )}
-                  >
-                    <img
-                      src={ci.url!}
-                      alt={ci.theme_name}
-                      className="w-12 h-16 object-cover"
-                    />
-                    <p className="text-[9px] text-slate-400 text-center py-0.5 bg-slate-900 truncate px-1">
-                      {ci.theme_name}
-                    </p>
-                  </button>
-                ))}
-            </div>
-          )}
         </div>
 
         {/* Info */}
@@ -685,7 +698,7 @@ export default function StudioCharacterProfilePage({
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">
-            <Link href={`/studio/${universeId}/generate?character=${character.id}`}>
+            <Link href={`/universe/${universeId}/projects/generate?character=${character.id}`}>
               <Button>
                 <Sparkles className="w-4 h-4 mr-2" />
                 Create Video
@@ -695,77 +708,352 @@ export default function StudioCharacterProfilePage({
         </div>
       </div>
 
-      {/* Source items section */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <BookOpen className="w-5 h-5 text-amber-400" />
-          <h2 className="text-xl font-semibold text-white">Sources</h2>
-          <span className="text-sm text-slate-500">({sourceItems.length})</span>
+      {/* Tab bar */}
+      <div className="border-b border-slate-800">
+        <div className="flex gap-0">
           <button
-            onClick={() => setAddingItem(true)}
-            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm bg-amber-600 hover:bg-amber-500 text-white rounded transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Add Source
-          </button>
-        </div>
-
-        {/* Theme filters */}
-        <div className="flex gap-1.5 flex-wrap">
-          <button
-            onClick={() => setFilter("all")}
+            onClick={() => setActiveTab("quotes")}
             className={cn(
-              "px-3 py-1 rounded-full text-xs font-medium transition-colors border",
-              filter === "all"
-                ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
-                : "bg-slate-800/80 text-slate-500 border-slate-700/60 hover:text-slate-300"
+              "px-5 py-3 text-sm font-medium border-b-2 transition-colors",
+              activeTab === "quotes"
+                ? "border-amber-500 text-amber-400"
+                : "border-transparent text-slate-400 hover:text-white hover:border-slate-600"
             )}
           >
-            All ({sourceItems.length})
+            <BookOpen className="w-4 h-4 inline mr-2 -mt-0.5" />
+            Quotes ({sourceItems.length})
           </button>
-          {themes.map((theme) => {
-            const count = sourceItems.filter((q) => q.theme === theme).length;
-            const colors =
-              THEME_COLORS[theme] ??
-              "bg-slate-500/20 text-slate-400 border-slate-500/30";
-            return (
-              <button
-                key={theme}
-                onClick={() => setFilter(theme)}
-                className={cn(
-                  "px-3 py-1 rounded-full text-xs font-medium transition-colors border",
-                  filter === theme
-                    ? colors
-                    : "bg-slate-800/80 text-slate-500 border-slate-700/60 hover:text-slate-300"
-                )}
-              >
-                {theme.charAt(0).toUpperCase() + theme.slice(1)} ({count})
-              </button>
-            );
-          })}
-        </div>
-
-        {/* New item form */}
-        {addingItem && (
-          <SourceItemEditForm
-            sourceItem={{ text: "", theme: "", emotional_function: "hook" }}
-            onSave={handleCreateItem}
-            onCancel={() => setAddingItem(false)}
-          />
-        )}
-
-        {/* Source item grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filteredItems.map((item) => (
-            <SourceItemCard
-              key={item.id}
-              item={item}
-              onUpdate={handleUpdateItem}
-              onDelete={handleDeleteItem}
-            />
-          ))}
+          <button
+            onClick={() => setActiveTab("knowledge")}
+            className={cn(
+              "px-5 py-3 text-sm font-medium border-b-2 transition-colors",
+              activeTab === "knowledge"
+                ? "border-amber-500 text-amber-400"
+                : "border-transparent text-slate-400 hover:text-white hover:border-slate-600"
+            )}
+          >
+            📚 Knowledge ({documents.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("voice")}
+            className={cn(
+              "px-5 py-3 text-sm font-medium border-b-2 transition-colors",
+              activeTab === "voice"
+                ? "border-amber-500 text-amber-400"
+                : "border-transparent text-slate-400 hover:text-white hover:border-slate-600"
+            )}
+          >
+            🎙️ Voice {voice ? "✓" : ""}
+          </button>
         </div>
       </div>
+
+      {/* Quotes tab */}
+      {activeTab === "quotes" && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <BookOpen className="w-5 h-5 text-amber-400" />
+            <h2 className="text-xl font-semibold text-white">Sources</h2>
+            <span className="text-sm text-slate-500">({sourceItems.length})</span>
+            <button
+              onClick={() => setAddingItem(true)}
+              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm bg-amber-600 hover:bg-amber-500 text-white rounded transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Source
+            </button>
+          </div>
+
+          {/* Theme filters */}
+          <div className="flex gap-1.5 flex-wrap">
+            <button
+              onClick={() => setFilter("all")}
+              className={cn(
+                "px-3 py-1 rounded-full text-xs font-medium transition-colors border",
+                filter === "all"
+                  ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                  : "bg-slate-800/80 text-slate-500 border-slate-700/60 hover:text-slate-300"
+              )}
+            >
+              All ({sourceItems.length})
+            </button>
+            {themes.map((theme) => {
+              const count = sourceItems.filter((q) => q.theme === theme).length;
+              const colors =
+                THEME_COLORS[theme] ??
+                "bg-slate-500/20 text-slate-400 border-slate-500/30";
+              return (
+                <button
+                  key={theme}
+                  onClick={() => setFilter(theme)}
+                  className={cn(
+                    "px-3 py-1 rounded-full text-xs font-medium transition-colors border",
+                    filter === theme
+                      ? colors
+                      : "bg-slate-800/80 text-slate-500 border-slate-700/60 hover:text-slate-300"
+                  )}
+                >
+                  {theme.charAt(0).toUpperCase() + theme.slice(1)} ({count})
+                </button>
+              );
+            })}
+          </div>
+
+          {/* New item form */}
+          {addingItem && (
+            <SourceItemEditForm
+              sourceItem={{ text: "", theme: "", emotional_function: "hook" }}
+              onSave={handleCreateItem}
+              onCancel={() => setAddingItem(false)}
+            />
+          )}
+
+          {/* Source item grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {filteredItems.map((item) => (
+              <SourceItemCard
+                key={item.id}
+                item={item}
+                onUpdate={handleUpdateItem}
+                onDelete={handleDeleteItem}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Knowledge tab */}
+      {activeTab === "knowledge" && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-semibold text-white">Knowledge Base</h2>
+            <span className="text-sm text-slate-500">({documents.length})</span>
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm bg-amber-600 hover:bg-amber-500 text-white rounded transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Upload Knowledge
+            </button>
+          </div>
+
+          {documents.length === 0 ? (
+            <div className="text-center py-16">
+              <p className="text-slate-500">No knowledge documents yet.</p>
+              <p className="text-sm text-slate-600 mt-1">Upload text to give this character more context.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {documents.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="bg-slate-900 rounded-lg border border-slate-800 p-4 hover:border-slate-700 transition-colors group/card relative"
+                >
+                  <div className="absolute top-2 right-2 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                    {deletingDocId === doc.id ? (
+                      <span className="flex items-center gap-1 text-xs">
+                        <button
+                          onClick={() => handleDeleteDocument(doc.id)}
+                          className="px-2 py-1 rounded bg-red-600 hover:bg-red-500 text-white transition-colors"
+                        >
+                          Delete
+                        </button>
+                        <button
+                          onClick={() => setDeletingDocId(null)}
+                          className="p-1 text-slate-400 hover:text-white transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => setDeletingDocId(doc.id)}
+                        className="p-1.5 rounded hover:bg-slate-800 text-slate-500 hover:text-red-400 transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <h3 className="font-medium text-white pr-8">{doc.name}</h3>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Badge className="text-[10px] bg-slate-700/50 text-slate-300 border-slate-600">
+                      {doc.doc_type}
+                    </Badge>
+                    <Badge
+                      className={cn(
+                        "text-[10px]",
+                        doc.status === "ready"
+                          ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                          : doc.status === "processing"
+                            ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                            : doc.status === "error"
+                              ? "bg-red-500/20 text-red-400 border-red-500/30"
+                              : "bg-slate-500/20 text-slate-400 border-slate-500/30"
+                      )}
+                    >
+                      {doc.status}
+                    </Badge>
+                    {doc.chunk_count > 0 && (
+                      <span className="text-[10px] text-slate-500">
+                        {doc.chunk_count} chunks
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Upload Modal */}
+          {showUploadModal && (
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowUploadModal(false)}>
+              <div
+                className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-lg space-y-4 mx-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-lg font-semibold text-white">Upload Knowledge</h3>
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Name</label>
+                  <input
+                    value={uploadName}
+                    onChange={(e) => setUploadName(e.target.value)}
+                    placeholder="e.g. Character backstory, Book excerpts..."
+                    className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Content</label>
+                  <textarea
+                    value={uploadContent}
+                    onChange={(e) => setUploadContent(e.target.value)}
+                    placeholder="Paste text content here..."
+                    rows={8}
+                    className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white outline-none focus:border-amber-500 resize-none"
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => { setShowUploadModal(false); setUploadName(""); setUploadContent(""); }}
+                    className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUploadDocument}
+                    disabled={uploading || !uploadName.trim() || !uploadContent.trim()}
+                    className="px-4 py-2 text-sm bg-amber-600 hover:bg-amber-500 text-white rounded disabled:opacity-50 flex items-center gap-2 transition-colors"
+                  >
+                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                    Upload & Process
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Voice tab */}
+      {activeTab === "voice" && (
+        <div className="space-y-6">
+          <div className="flex items-center gap-3">
+            <span className="text-xl">🎙️</span>
+            <h2 className="text-xl font-semibold text-white">Voice Profile</h2>
+          </div>
+
+          {voice ? (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-400">Current Voice</p>
+                  <p className="text-white font-medium">{voice.voice_name}</p>
+                  <p className="text-xs text-slate-500">{ttsModels[voice.tts_model]?.name ?? voice.tts_model}</p>
+                </div>
+                <button
+                  onClick={async () => {
+                    await deleteCharacterVoice(universeId, id);
+                    setVoice(null);
+                    setVoiceModel("fal-ai/minimax/speech-2.6-turbo");
+                    setVoiceName("Default");
+                    setVoiceIdInput("");
+                  }}
+                  className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                >
+                  Remove Voice
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 text-center text-slate-400">
+              <p>No voice configured — using default</p>
+            </div>
+          )}
+
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+            <h3 className="text-lg font-semibold text-white">{voice ? "Update" : "Configure"} Voice</h3>
+
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">TTS Model</label>
+              <select
+                value={voiceModel}
+                onChange={(e) => setVoiceModel(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white outline-none focus:border-amber-500"
+              >
+                {Object.entries(ttsModels).map(([key, model]) => (
+                  <option key={key} value={key}>{model.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">Voice Name</label>
+              <input
+                value={voiceName}
+                onChange={(e) => setVoiceName(e.target.value)}
+                placeholder="e.g. Deep Narrator"
+                className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white outline-none focus:border-amber-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">Voice ID (optional)</label>
+              <input
+                value={voiceIdInput}
+                onChange={(e) => setVoiceIdInput(e.target.value)}
+                placeholder="Provider-specific voice ID"
+                className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white outline-none focus:border-amber-500"
+              />
+              <p className="mt-1 text-xs text-slate-500">Leave empty to use the model&apos;s default voice.</p>
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={async () => {
+                  setSavingVoice(true);
+                  try {
+                    const result = await upsertCharacterVoice(universeId, id, {
+                      tts_model: voiceModel,
+                      voice_id: voiceIdInput || undefined,
+                      voice_name: voiceName || "Default",
+                    });
+                    setVoice(result);
+                  } catch {
+                    /* ignore */
+                  } finally {
+                    setSavingVoice(false);
+                  }
+                }}
+                disabled={savingVoice}
+                className="px-4 py-2 text-sm bg-amber-600 hover:bg-amber-500 text-white rounded disabled:opacity-50 flex items-center gap-2 transition-colors"
+              >
+                {savingVoice ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                Save Voice Profile
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

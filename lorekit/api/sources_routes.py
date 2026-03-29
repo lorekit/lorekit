@@ -83,11 +83,12 @@ async def create_source_item(body: SourceItemCreate) -> dict:
     """Create a new source item."""
     conn = await db.connect()
     try:
-        # Verify character exists
+        # Verify character exists and get universe_id
         cursor = await conn.execute(
-            "SELECT id FROM characters WHERE id = ?", (body.character_id,)
+            "SELECT id, universe_id FROM characters WHERE id = ?", (body.character_id,)
         )
-        if not await cursor.fetchone():
+        char_row = await cursor.fetchone()
+        if not char_row:
             raise HTTPException(status_code=404, detail="Character not found")
 
         item_id = uuid.uuid4().hex[:12]
@@ -96,10 +97,10 @@ async def create_source_item(body: SourceItemCreate) -> dict:
 
         await conn.execute(
             """INSERT INTO source_items
-               (id, character_id, text, theme, emotional_function,
+               (id, character_id, universe_id, text, theme, emotional_function,
                 word_count, read_time_seconds, pair_with_visual, used_count)
-               VALUES (?, ?, ?, ?, ?, ?, ?, '', 0)""",
-            (item_id, body.character_id, body.text, body.theme,
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', 0)""",
+            (item_id, body.character_id, char_row["universe_id"], body.text, body.theme,
              body.emotional_function, word_count, read_time_seconds),
         )
         await conn.commit()

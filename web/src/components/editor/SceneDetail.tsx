@@ -50,16 +50,6 @@ export function SceneDetail({
 
   return (
     <div className="space-y-5">
-      {/* Beat badge */}
-      <Badge
-        className={cn(
-          "text-sm px-3 py-1",
-          BEAT_BADGE_COLORS[scene.beat]
-        )}
-      >
-        {scene.beat}
-      </Badge>
-
       {/* Characters in this scene */}
       {characters && characters.length > 0 && (
         <div className="space-y-2">
@@ -186,25 +176,7 @@ export function SceneDetail({
         />
       </div>
 
-      {/* Action buttons */}
-      <div className="flex gap-3 pt-2">
-        <Button
-          onClick={() => onRegenerate(scene.id)}
-          disabled={isGenerating}
-          className="flex-1"
-        >
-          {isGenerating ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          ) : (
-            <RotateCcw className="w-4 h-4 mr-2" />
-          )}
-          Generate Clip
-        </Button>
-        <Button variant="ghost" className="flex-1">
-          <Quote className="w-4 h-4 mr-2" />
-          Change Source
-        </Button>
-      </div>
+
     </div>
   );
 }

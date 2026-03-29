@@ -15,8 +15,7 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 class ProjectCreate(BaseModel):
     character_id: str
-    universe_id: str = "philosophywise"
-    civilization: str = ""
+    universe_id: str
     name: str = ""
     hook_quote_id: str | None = None
     truth_quote_id: str | None = None
@@ -80,7 +79,6 @@ async def create_project(body: ProjectCreate) -> dict:
     row = await db.create_project(
         project_id=project_id,
         character_id=body.character_id,
-        civilization=body.civilization,
         name=body.name,
         hook_quote_id=body.hook_quote_id,
         truth_quote_id=body.truth_quote_id,

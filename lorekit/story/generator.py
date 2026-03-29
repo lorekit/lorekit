@@ -347,6 +347,9 @@ async def generate_story(
                         "Please fix them."
                     )
                     continue
+                else:
+                    # Last attempt — return imperfect story rather than crashing
+                    logger.warning("Returning story with validation issues after %d attempts", max_retries + 1)
 
             return story
 

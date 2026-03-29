@@ -14,7 +14,7 @@ export default function ProjectDetailRedirect({
   const { activeUniverseId } = useUniverseStore();
 
   useEffect(() => {
-    router.replace(`/studio/${activeUniverseId}/projects/${id}`);
+    router.replace(`/universe/${activeUniverseId}/projects/${id}`);
   }, [router, activeUniverseId, id]);
 
   return null;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -10,23 +10,16 @@ import {
   Loader2,
   Globe,
   Palette,
-  LayoutTemplate,
 } from "lucide-react";
-import { createUniverse, createEnvironment, createTemplate } from "@/lib/api";
+import { createUniverse, createEnvironment, getVibePresets } from "@/lib/api";
+import type { VibePreset } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useUniverseStore } from "@/stores/universe-store";
 
-const STEPS = ["Basics", "Theme", "Environments", "Templates"] as const;
-type StepIdx = 0 | 1 | 2 | 3;
-
-const THEME_OPTIONS = [
-  { id: "cinematic", label: "Cinematic Realism", desc: "Dramatic, moody, photorealistic" },
-  { id: "mobile_game", label: "Mobile Game", desc: "Colorful, chunky, fun" },
-  { id: "stylized_cinematic", label: "Stylized Cinematic", desc: "Painterly, Arcane-style" },
-  { id: "dark_masculine", label: "Dark Masculine", desc: "Desaturated, high-contrast, raw" },
-];
+const STEPS = ["Basics", "Video Style", "Environments"] as const;
+type StepIdx = 0 | 1 | 2;
 
 const ICON_OPTIONS = ["🌐", "🏛️", "⚔️", "🎭", "🧠", "🔮", "🏔️", "🌊", "🔥", "💀", "👑", "📚", "🎬", "🚀", "🌙"];
 
@@ -35,15 +28,6 @@ interface EnvDraft {
   font: string;
   text_color: string;
   environment_description: string;
-}
-
-interface TmplDraft {
-  name: string;
-  description: string;
-  min_duration: number;
-  max_duration: number;
-  min_scenes: number;
-  max_scenes: number;
 }
 
 export default function NewUniversePage() {
@@ -59,17 +43,21 @@ export default function NewUniversePage() {
   const [description, setDescription] = useState("");
   const [icon, setIcon] = useState("🌐");
 
-  // Step 2
-  const [theme, setTheme] = useState("cinematic");
+  // Step 2 - Video Style
+  const [videoVibePreset, setVideoVibePreset] = useState("mobile_game");
+  const [vibePresets, setVibePresets] = useState<Record<string, VibePreset>>({});
+  const [loadingPresets, setLoadingPresets] = useState(true);
 
   // Step 3
   const [environments, setEnvironments] = useState<EnvDraft[]>([]);
 
-  // Step 4
-  const [templates, setTemplates] = useState<TmplDraft[]>([
-    { name: "Full Story", description: "Narrative arc with hook, conflict, truth, and loop", min_duration: 30, max_duration: 50, min_scenes: 5, max_scenes: 8 },
-    { name: "Rapid Montage", description: "Fast cuts with intense imagery", min_duration: 8, max_duration: 18, min_scenes: 6, max_scenes: 14 },
-  ]);
+  // Fetch vibe presets on mount
+  useEffect(() => {
+    getVibePresets()
+      .then((data) => setVibePresets(data.presets))
+      .catch(() => {})
+      .finally(() => setLoadingPresets(false));
+  }, []);
 
   function addEnvironment() {
     setEnvironments([...environments, { name: "", font: "Cinzel", text_color: "#FFFFFF", environment_description: "" }]);
@@ -83,24 +71,12 @@ export default function NewUniversePage() {
     setEnvironments(environments.filter((_, i) => i !== idx));
   }
 
-  function addTemplate() {
-    setTemplates([...templates, { name: "", description: "", min_duration: 15, max_duration: 60, min_scenes: 3, max_scenes: 10 }]);
-  }
-
-  function updateTmpl(idx: number, updates: Partial<TmplDraft>) {
-    setTemplates(templates.map((t, i) => (i === idx ? { ...t, ...updates } : t)));
-  }
-
-  function removeTmpl(idx: number) {
-    setTemplates(templates.filter((_, i) => i !== idx));
-  }
-
   async function handleSubmit() {
     if (!name.trim()) return;
     setCreating(true);
     setError(null);
     try {
-      const uni = await createUniverse({ name: name.trim(), description: description.trim(), theme, icon });
+      const uni = await createUniverse({ name: name.trim(), description: description.trim(), icon, video_vibe_preset: videoVibePreset });
 
       // Create environments
       for (const env of environments) {
@@ -114,23 +90,9 @@ export default function NewUniversePage() {
         }
       }
 
-      // Create templates
-      for (const tmpl of templates) {
-        if (tmpl.name.trim()) {
-          await createTemplate(uni.id, {
-            name: tmpl.name.trim(),
-            description: tmpl.description,
-            min_duration: tmpl.min_duration,
-            max_duration: tmpl.max_duration,
-            min_scenes: tmpl.min_scenes,
-            max_scenes: tmpl.max_scenes,
-          });
-        }
-      }
-
       setActiveUniverse(uni.id);
       await fetchUniverses();
-      router.push(`/studio/${uni.id}`);
+      router.push(`/universe/${uni.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create universe");
       setCreating(false);
@@ -225,33 +187,41 @@ export default function NewUniversePage() {
         </div>
       )}
 
-      {/* Step 2: Theme */}
+      {/* Step 2: Video Style */}
       {step === 1 && (
         <div className="space-y-4">
           <p className="text-sm text-slate-400">
-            Select a default visual theme for this universe.
+            Choose the default video style for this universe. This determines the visual vibe for generated clips.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {THEME_OPTIONS.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTheme(t.id)}
-                className={cn(
-                  "rounded-xl border p-4 text-left transition-all",
-                  theme === t.id
-                    ? "border-amber-500 bg-amber-500/5"
-                    : "border-slate-800 bg-slate-900 hover:border-slate-600"
-                )}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <Palette className="w-4 h-4 text-slate-400" />
-                  <p className="font-medium text-white text-sm">{t.label}</p>
-                  {theme === t.id && <Check className="w-4 h-4 text-amber-400 ml-auto" />}
-                </div>
-                <p className="text-xs text-slate-400">{t.desc}</p>
-              </button>
-            ))}
-          </div>
+          {loadingPresets ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-amber-500" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {Object.entries(vibePresets)
+                .filter(([k]) => k !== "custom")
+                .map(([key, preset]) => (
+                  <button
+                    key={key}
+                    onClick={() => setVideoVibePreset(key)}
+                    className={cn(
+                      "rounded-xl border p-4 text-left transition-all",
+                      videoVibePreset === key
+                        ? "border-amber-500 bg-amber-500/5"
+                        : "border-slate-800 bg-slate-900 hover:border-slate-600"
+                    )}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Palette className="w-4 h-4 text-slate-400" />
+                      <p className="font-medium text-white text-sm">{preset.name}</p>
+                      {videoVibePreset === key && <Check className="w-4 h-4 text-amber-400 ml-auto" />}
+                    </div>
+                    <p className="text-xs text-slate-400">{preset.description}</p>
+                  </button>
+                ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -316,82 +286,6 @@ export default function NewUniversePage() {
         </div>
       )}
 
-      {/* Step 4: Templates */}
-      {step === 3 && (
-        <div className="space-y-4">
-          <p className="text-sm text-slate-400">
-            Configure scene templates (story structures) for this universe.
-          </p>
-
-          {templates.map((tmpl, idx) => (
-            <div key={idx} className="bg-slate-900 rounded-xl border border-slate-800 p-4 space-y-3">
-              <div className="flex items-center gap-3">
-                <Input
-                  value={tmpl.name}
-                  onChange={(e) => updateTmpl(idx, { name: e.target.value })}
-                  placeholder="Template name"
-                  className="flex-1"
-                />
-                <button
-                  onClick={() => removeTmpl(idx)}
-                  className="text-slate-500 hover:text-red-400 text-xs"
-                >
-                  Remove
-                </button>
-              </div>
-              <textarea
-                value={tmpl.description}
-                onChange={(e) => updateTmpl(idx, { description: e.target.value })}
-                placeholder="Description..."
-                rows={2}
-                className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-200 outline-none focus:border-amber-500 resize-none"
-              />
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="text-[10px] text-slate-500">Min Duration</label>
-                  <Input
-                    type="number"
-                    value={tmpl.min_duration}
-                    onChange={(e) => updateTmpl(idx, { min_duration: +e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-500">Max Duration</label>
-                  <Input
-                    type="number"
-                    value={tmpl.max_duration}
-                    onChange={(e) => updateTmpl(idx, { max_duration: +e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-500">Min Scenes</label>
-                  <Input
-                    type="number"
-                    value={tmpl.min_scenes}
-                    onChange={(e) => updateTmpl(idx, { min_scenes: +e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-500">Max Scenes</label>
-                  <Input
-                    type="number"
-                    value={tmpl.max_scenes}
-                    onChange={(e) => updateTmpl(idx, { max_scenes: +e.target.value })}
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-
-          <button
-            onClick={addTemplate}
-            className="w-full rounded-lg border border-dashed border-slate-700 p-3 text-sm text-slate-400 hover:text-white hover:border-slate-600 transition-colors"
-          >
-            + Add Template
-          </button>
-        </div>
-      )}
-
       {/* Error */}
       {error && (
         <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
@@ -410,8 +304,8 @@ export default function NewUniversePage() {
           Back
         </Button>
 
-        {step < 3 ? (
-          <Button onClick={() => setStep((s) => Math.min(3, s + 1) as StepIdx)} disabled={!canNext}>
+        {step < 2 ? (
+          <Button onClick={() => setStep((s) => Math.min(2, s + 1) as StepIdx)} disabled={!canNext}>
             Next
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>

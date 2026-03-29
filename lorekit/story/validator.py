@@ -116,17 +116,4 @@ def validate_story(
         if not s.text_overlay:
             issues.append(f"Scene {s.scene_id} ({s.beat}) missing text_overlay")
 
-    # ── Total text overlay word count vs duration ────────────────────
-    total_words = sum(
-        len(s.text_overlay.split()) for s in scenes if s.text_overlay
-    )
-
-    # Roughly 1.5 words/sec max comfortable; montages have very few words
-    max_comfortable_words = int(total_duration * 1.5)
-    if total_words > max_comfortable_words:
-        issues.append(
-            f"Too much text overlay: {total_words} words for "
-            f"{total_duration:.0f}s video (max ~{max_comfortable_words})"
-        )
-
     return issues

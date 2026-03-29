@@ -43,7 +43,7 @@ export default function UniverseCharactersPage({
     <div className="p-8 space-y-6">
       {/* Back link */}
       <Link
-        href={`/studio/${universeId}`}
+        href={`/universe/${universeId}`}
         className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
@@ -97,7 +97,7 @@ export default function UniverseCharactersPage({
             return (
               <Link
                 key={character.id}
-                href={`/studio/${universeId}/characters/${character.id}`}
+                href={`/universe/${universeId}/characters/${character.id}`}
                 className="bg-slate-900 rounded-xl border border-slate-800 transition-all hover:border-slate-700 flex overflow-hidden"
               >
                 {/* Character image */}

@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Key, Bot, Video, Save, Shield, Palette } from "lucide-react";
-import { getSettings, updateSettings, getVibePresets, type Settings, type VibePreset } from "@/lib/api";
+import { Key, Bot, Video, Save, Shield, Palette, LayoutTemplate } from "lucide-react";
+import { getSettings, updateSettings, getVibePresets, getArcTemplates, type Settings, type VibePreset, type ArcTemplate } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -29,20 +29,20 @@ export default function SettingsPage() {
     llm_provider: "openai",
     llm_model: "gpt-4o",
     youtube_connected: false,
-    video_vibe: "",
-    video_vibe_preset: "mobile_game",
   });
-  const [presets, setPresets] = useState<Record<string, VibePreset>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [vibePresets, setVibePresets] = useState<Record<string, VibePreset>>({});
+  const [arcTemplates, setArcTemplates] = useState<Record<string, ArcTemplate>>({});
 
   useEffect(() => {
-    Promise.all([getSettings(), getVibePresets()])
-      .then(([settingsData, presetsData]) => {
+    Promise.all([getSettings(), getVibePresets(), getArcTemplates()])
+      .then(([settingsData, vibeData, arcData]) => {
         setSettings(settingsData);
-        setPresets(presetsData.presets);
+        setVibePresets(vibeData.presets);
+        setArcTemplates(arcData.templates);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -84,26 +84,6 @@ export default function SettingsPage() {
       await updateSettings({ llm_model: model });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to update model");
-    }
-  };
-
-  const handlePresetChange = async (presetKey: string) => {
-    const preset = presets[presetKey];
-    if (!preset) return;
-
-    const newVibe = presetKey === "custom" ? settings.video_vibe : preset.prompt;
-    setSettings((prev) => ({
-      ...prev,
-      video_vibe_preset: presetKey,
-      video_vibe: newVibe,
-    }));
-    try {
-      await updateSettings({
-        video_vibe_preset: presetKey,
-        ...(presetKey === "custom" ? {} : { video_vibe: newVibe }),
-      });
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to update vibe preset");
     }
   };
 
@@ -251,77 +231,71 @@ export default function SettingsPage() {
           />
         </section>
 
-        {/* Video Vibe Presets */}
+        {/* Video Styles */}
         <section className="bg-slate-900 rounded-xl border border-slate-800 p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="rounded-lg bg-slate-800 p-2">
               <Palette className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">Video Vibe</h2>
-              <p className="text-sm text-slate-400">Choose the visual style for all generated videos</p>
+              <h2 className="text-lg font-semibold text-white">Video Styles</h2>
+              <p className="text-sm text-slate-400">Available visual styles for video generation</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-            {Object.entries(presets).map(([key, preset]) => (
-              <button
-                key={key}
-                onClick={() => handlePresetChange(key)}
-                className={cn(
-                  "rounded-xl border-2 p-4 text-left transition-all",
-                  settings.video_vibe_preset === key
-                    ? "border-amber-500 bg-amber-500/5"
-                    : "border-slate-700 bg-slate-800/50 hover:border-slate-600"
-                )}
-              >
-                <p className="font-semibold text-white">{preset.name}</p>
-                <p className="text-xs text-slate-400 mt-1">{preset.description}</p>
-              </button>
-            ))}
+            {Object.entries(vibePresets)
+              .filter(([key]) => key !== "custom")
+              .map(([key, preset]) => (
+                <div
+                  key={key}
+                  className="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-2"
+                >
+                  <p className="font-medium text-white text-sm">{preset.name}</p>
+                  <p className="text-xs text-slate-400">{preset.description}</p>
+                  {preset.prompt && (
+                    <p className="text-[11px] text-slate-500 italic line-clamp-2">
+                      {preset.prompt}
+                    </p>
+                  )}
+                </div>
+              ))}
+          </div>
+          <p className="text-xs text-slate-500">
+            Video styles are selected per-universe from the universe dashboard.
+          </p>
+        </section>
+
+        {/* Story Templates */}
+        <section className="bg-slate-900 rounded-xl border border-slate-800 p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="rounded-lg bg-slate-800 p-2">
+              <LayoutTemplate className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-white">Story Templates</h2>
+              <p className="text-sm text-slate-400">Narrative structures for generated videos</p>
+            </div>
           </div>
 
-          {/* Show prompt preview or custom editor */}
-          {settings.video_vibe_preset === "custom" ? (
-            <div className="space-y-2">
-              <Label htmlFor="video-vibe">Custom style prompt</Label>
-              <Textarea
-                id="video-vibe"
-                rows={4}
-                value={settings.video_vibe}
-                onChange={(e) =>
-                  setSettings((prev) => ({ ...prev, video_vibe: e.target.value }))
-                }
-                onBlur={async () => {
-                  try {
-                    await updateSettings({ video_vibe: settings.video_vibe });
-                  } catch (err: unknown) {
-                    setError(err instanceof Error ? err.message : "Failed to save vibe");
-                  }
-                }}
-                placeholder="Describe the visual style you want for your videos..."
-              />
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {settings.video_vibe && (
-                <div className="space-y-1.5">
-                  <Label className="text-slate-400 text-xs">Environment & Style prompt <span className="text-slate-600">(all scenes)</span></Label>
-                  <div className="rounded-lg bg-slate-800/50 border border-slate-700 p-3 text-sm text-slate-300 leading-relaxed">
-                    {settings.video_vibe}
-                  </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            {Object.entries(arcTemplates).map(([key, tmpl]) => (
+              <div
+                key={key}
+                className="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-2"
+              >
+                <p className="font-medium text-white text-sm">{tmpl.name}</p>
+                <p className="text-xs text-slate-400">{tmpl.description}</p>
+                <div className="flex gap-3 text-[11px] text-slate-500">
+                  <span>{tmpl.min_duration}–{tmpl.max_duration}s</span>
+                  <span>{tmpl.min_scenes}–{tmpl.max_scenes} scenes</span>
                 </div>
-              )}
-              {presets[settings.video_vibe_preset]?.character_prompt && (
-                <div className="space-y-1.5">
-                  <Label className="text-slate-400 text-xs">Character style prompt <span className="text-slate-600">(only when &ldquo;Character in Scene&rdquo; is ON)</span></Label>
-                  <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3 text-sm text-amber-200/80 leading-relaxed">
-                    {presets[settings.video_vibe_preset].character_prompt}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-slate-500">
+            Story templates are selected when generating new projects.
+          </p>
         </section>
 
         {/* YouTube */}

@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS universes (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
-    theme TEXT NOT NULL DEFAULT '',
     icon TEXT NOT NULL DEFAULT '',
+    video_vibe_preset TEXT NOT NULL DEFAULT 'mobile_game',
     created_at TEXT NOT NULL
 );
 
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS scene_templates (
 
 CREATE TABLE IF NOT EXISTS characters (
     id TEXT PRIMARY KEY,
-    universe_id TEXT NOT NULL DEFAULT 'philosophywise',
+    universe_id TEXT NOT NULL REFERENCES universes(id),
     name TEXT NOT NULL,
     group_name TEXT NOT NULL,
     era TEXT NOT NULL DEFAULT '',
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS characters (
 
 CREATE TABLE IF NOT EXISTS source_items (
     id TEXT PRIMARY KEY,
-    universe_id TEXT NOT NULL DEFAULT 'philosophywise',
+    universe_id TEXT NOT NULL REFERENCES universes(id),
     character_id TEXT NOT NULL REFERENCES characters(id),
     text TEXT NOT NULL,
     short_version TEXT,
@@ -70,36 +70,11 @@ CREATE TABLE IF NOT EXISTS source_items (
     last_used_at TEXT
 );
 
-CREATE TABLE IF NOT EXISTS videos (
+CREATE TABLE IF NOT EXISTS universe_projects (
     id TEXT PRIMARY KEY,
-    universe_id TEXT NOT NULL DEFAULT 'philosophywise',
-    character_id TEXT NOT NULL REFERENCES characters(id),
-    hook_quote_id TEXT REFERENCES source_items(id),
-    truth_quote_id TEXT REFERENCES source_items(id),
-    status TEXT NOT NULL DEFAULT 'queued',
-    output_path TEXT,
-    youtube_id TEXT,
-    youtube_title TEXT,
-    cost_usd REAL NOT NULL DEFAULT 0.0,
-    views INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL,
-    published_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS costs (
-    id TEXT PRIMARY KEY,
-    video_id TEXT NOT NULL REFERENCES videos(id),
-    component TEXT NOT NULL,
-    amount_usd REAL NOT NULL,
-    created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS projects (
-    id TEXT PRIMARY KEY,
-    universe_id TEXT NOT NULL DEFAULT 'philosophywise',
+    universe_id TEXT NOT NULL REFERENCES universes(id),
     name TEXT NOT NULL DEFAULT '',
-    character_id TEXT NOT NULL,
-    civilization TEXT NOT NULL DEFAULT '',
+    character_id TEXT NOT NULL REFERENCES characters(id),
     hook_quote_id TEXT,
     truth_quote_id TEXT,
     story_json TEXT,
@@ -125,6 +100,79 @@ CREATE TABLE IF NOT EXISTS jobs (
     result_json TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS costs (
+    id TEXT PRIMARY KEY,
+    video_id TEXT NOT NULL,
+    component TEXT NOT NULL,
+    amount_usd REAL NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS character_documents (
+    id TEXT PRIMARY KEY,
+    character_id TEXT NOT NULL REFERENCES characters(id),
+    universe_id TEXT NOT NULL REFERENCES universes(id),
+    name TEXT NOT NULL,
+    doc_type TEXT NOT NULL DEFAULT 'text',
+    content TEXT,
+    file_path TEXT,
+    file_size_bytes INTEGER DEFAULT 0,
+    chunk_count INTEGER DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    metadata_json TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS document_chunks (
+    id TEXT PRIMARY KEY,
+    document_id TEXT NOT NULL REFERENCES character_documents(id),
+    character_id TEXT NOT NULL REFERENCES characters(id),
+    chunk_index INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    token_count INTEGER DEFAULT 0,
+    embedding_json TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS scripts (
+    id TEXT PRIMARY KEY,
+    universe_id TEXT NOT NULL REFERENCES universes(id),
+    title TEXT NOT NULL,
+    script_type TEXT NOT NULL DEFAULT 'idea',
+    content TEXT NOT NULL DEFAULT '',
+    character_ids_json TEXT,
+    target_duration_seconds INTEGER,
+    scene_count INTEGER,
+    status TEXT NOT NULL DEFAULT 'draft',
+    metadata_json TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS character_voices (
+    id TEXT PRIMARY KEY,
+    character_id TEXT NOT NULL REFERENCES characters(id),
+    tts_model TEXT NOT NULL DEFAULT 'fal-ai/minimax/speech-2.6-turbo',
+    voice_id TEXT,
+    voice_name TEXT NOT NULL DEFAULT 'Default',
+    reference_audio_path TEXT,
+    settings_json TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS project_audio_assets (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    asset_type TEXT NOT NULL DEFAULT 'music',
+    name TEXT NOT NULL DEFAULT '',
+    file_path TEXT NOT NULL,
+    duration_seconds REAL,
+    metadata_json TEXT,
+    created_at TEXT NOT NULL
 );
 """
 
@@ -247,6 +295,14 @@ async def migrate_schema(db_path: Path | None = None) -> None:
             except Exception:
                 pass
 
+            # Rename projects -> universe_projects
+            cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'")
+            if await cursor.fetchone():
+                await db.execute("ALTER TABLE projects RENAME TO universe_projects")
+
+            # Drop legacy videos table if it exists
+            await db.execute("DROP TABLE IF EXISTS videos")
+
             await db.commit()
         else:
             # Fresh install — use new schema directly
@@ -260,9 +316,32 @@ async def init_db(db_path: Path | None = None) -> None:
     """Create all tables if they don't exist."""
     db = await connect(db_path)
     try:
+        # Rename projects -> universe_projects if needed (before creating schema)
+        cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'")
+        if await cursor.fetchone():
+            # If universe_projects already exists (from a partial migration), drop the empty one first
+            cursor2 = await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='universe_projects'")
+            if await cursor2.fetchone():
+                await db.execute("DROP TABLE universe_projects")
+            await db.execute("ALTER TABLE projects RENAME TO universe_projects")
+
+        # Rename video_projects -> universe_projects if needed (from previous migration)
+        cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='video_projects'")
+        if await cursor.fetchone():
+            cursor2 = await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='universe_projects'")
+            if await cursor2.fetchone():
+                # Both exist — merge data or drop empty one
+                await db.execute("INSERT OR IGNORE INTO universe_projects SELECT * FROM video_projects")
+                await db.execute("DROP TABLE video_projects")
+            else:
+                await db.execute("ALTER TABLE video_projects RENAME TO universe_projects")
+
+        # Drop legacy videos table if it exists
+        await db.execute("DROP TABLE IF EXISTS videos")
+
         await db.executescript(_SCHEMA)
-        # Migrate: add theme/icon columns to universes if missing
-        for col in ("theme TEXT NOT NULL DEFAULT ''", "icon TEXT NOT NULL DEFAULT ''"):
+        # Migrate: add icon/video_vibe_preset columns to universes if missing
+        for col in ("icon TEXT NOT NULL DEFAULT ''", "video_vibe_preset TEXT NOT NULL DEFAULT 'mobile_game'"):
             try:
                 await db.execute(f"ALTER TABLE universes ADD COLUMN {col}")
             except Exception:
@@ -270,7 +349,7 @@ async def init_db(db_path: Path | None = None) -> None:
         # Migrate: add character image columns if missing (existing DBs)
         for col in ("character_image_url TEXT", "character_image_path TEXT"):
             try:
-                await db.execute(f"ALTER TABLE projects ADD COLUMN {col}")
+                await db.execute(f"ALTER TABLE universe_projects ADD COLUMN {col}")
             except Exception:
                 pass  # column already exists
         # Migrate: add character columns to characters table
@@ -279,6 +358,23 @@ async def init_db(db_path: Path | None = None) -> None:
                 await db.execute(f"ALTER TABLE characters ADD COLUMN {col}")
             except Exception:
                 pass  # column already exists
+        # Migrate: add source_type, script_id, character_ids_json to universe_projects
+        for col in ("source_type TEXT NOT NULL DEFAULT 'quote'", "script_id TEXT", "character_ids_json TEXT"):
+            try:
+                await db.execute(f"ALTER TABLE universe_projects ADD COLUMN {col}")
+            except Exception:
+                pass
+        # Migrate: add audio columns to universe_projects
+        for col in ("audio_mode TEXT NOT NULL DEFAULT 'auto'", "uploaded_audio_path TEXT", "narration_json TEXT"):
+            try:
+                await db.execute(f"ALTER TABLE universe_projects ADD COLUMN {col}")
+            except Exception:
+                pass
+        # Migrate: add transitions_json to universe_projects
+        try:
+            await db.execute("ALTER TABLE universe_projects ADD COLUMN transitions_json TEXT")
+        except Exception:
+            pass
         await db.commit()
     finally:
         await db.close()
@@ -416,7 +512,7 @@ async def get_stats(db_path: Path | None = None) -> dict[str, Any]:
     try:
         cursor = await db.execute(
             "SELECT COUNT(*) as total, COALESCE(SUM(cost_usd), 0) as total_cost, "
-            "COALESCE(AVG(cost_usd), 0) as avg_cost FROM videos"
+            "COALESCE(AVG(cost_usd), 0) as avg_cost FROM universe_projects"
         )
         row = await cursor.fetchone()
         video_stats = dict(row) if row else {"total": 0, "total_cost": 0.0, "avg_cost": 0.0}
@@ -453,6 +549,7 @@ async def upsert_character(
     group_name: str,
     era: str = "",
     character_description: str = "",
+    universe_id: str | None = None,
     db_path: Path | None = None,
     *,
     philosopher_id: str | None = None,
@@ -461,17 +558,20 @@ async def upsert_character(
     """Insert or update a character record."""
     cid = character_id or philosopher_id
     gname = group_name or civilization or ""
+    uid = universe_id
+    if not uid:
+        raise ValueError("universe_id is required when creating a character")
     db = await connect(db_path)
     try:
         await db.execute(
-            """INSERT INTO characters (id, name, group_name, era, character_description)
-               VALUES (?, ?, ?, ?, ?)
+            """INSERT INTO characters (id, universe_id, name, group_name, era, character_description)
+               VALUES (?, ?, ?, ?, ?, ?)
                ON CONFLICT(id) DO UPDATE SET
                    name=excluded.name,
                    group_name=excluded.group_name,
                    era=excluded.era,
                    character_description=excluded.character_description""",
-            (cid, name, gname, era, character_description),
+            (cid, uid, name, gname, era, character_description),
         )
         await db.commit()
     finally:
@@ -487,6 +587,7 @@ async def insert_source_item(
     text: str,
     theme: str,
     emotional_function: str,
+    universe_id: str | None = None,
     short_version: str | None = None,
     word_count: int = 0,
     read_time_seconds: float = 0.0,
@@ -502,10 +603,10 @@ async def insert_source_item(
         item_id = uuid.uuid4().hex[:12]
         await db.execute(
             """INSERT INTO source_items
-               (id, character_id, text, short_version, theme, emotional_function,
+               (id, character_id, universe_id, text, short_version, theme, emotional_function,
                 word_count, read_time_seconds, pair_with_visual)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (item_id, cid, text, short_version, theme, emotional_function,
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (item_id, cid, universe_id, text, short_version, theme, emotional_function,
              word_count, read_time_seconds, pair_with_visual),
         )
         await db.commit()
@@ -578,29 +679,36 @@ async def list_videos(
 async def create_project(
     project_id: str,
     character_id: str,
-    civilization: str = "",
     name: str = "",
+    universe_id: str | None = None,
     hook_quote_id: str | None = None,
     truth_quote_id: str | None = None,
+    source_type: str = "quote",
+    script_id: str | None = None,
+    character_ids_json: str | None = None,
     db_path: Path | None = None,
     *,
     philosopher_id: str | None = None,
 ) -> dict[str, Any]:
     """Create a new project and return it."""
     cid = character_id or philosopher_id
+    uid = universe_id
     db = await connect(db_path)
     try:
         now = datetime.now(timezone.utc).isoformat()
         await db.execute(
-            """INSERT INTO projects
-               (id, name, character_id, civilization, hook_quote_id, truth_quote_id,
+            """INSERT INTO universe_projects
+               (id, universe_id, name, character_id, hook_quote_id, truth_quote_id,
+                source_type, script_id, character_ids_json,
                 status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?)""",
-            (project_id, name, cid, civilization,
-             hook_quote_id, truth_quote_id, now, now),
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)""",
+            (project_id, uid, name, cid,
+             hook_quote_id, truth_quote_id,
+             source_type, script_id, character_ids_json,
+             now, now),
         )
         await db.commit()
-        cursor = await db.execute("SELECT * FROM projects WHERE id = ?", (project_id,))
+        cursor = await db.execute("SELECT * FROM universe_projects WHERE id = ?", (project_id,))
         row = await cursor.fetchone()
         return dict(row) if row else {}
     finally:
@@ -611,7 +719,7 @@ async def get_project(project_id: str, db_path: Path | None = None) -> dict[str,
     """Get a single project by ID."""
     db = await connect(db_path)
     try:
-        cursor = await db.execute("SELECT * FROM projects WHERE id = ?", (project_id,))
+        cursor = await db.execute("SELECT * FROM universe_projects WHERE id = ?", (project_id,))
         row = await cursor.fetchone()
         return dict(row) if row else None
     finally:
@@ -626,7 +734,7 @@ async def list_projects(
     """List projects, optionally filtered by status."""
     db = await connect(db_path)
     try:
-        sql = "SELECT * FROM projects WHERE 1=1"
+        sql = "SELECT * FROM universe_projects WHERE 1=1"
         params: list[Any] = []
         if status:
             sql += " AND status = ?"
@@ -652,6 +760,9 @@ async def update_project(
             "youtube_id", "youtube_title", "cost_usd",
             "hook_quote_id", "truth_quote_id",
             "character_image_url", "character_image_path",
+            "source_type", "script_id", "character_ids_json",
+            "audio_mode", "uploaded_audio_path", "narration_json",
+            "transitions_json",
         }
         sets = ["updated_at = ?"]
         params: list[Any] = [datetime.now(timezone.utc).isoformat()]
@@ -660,9 +771,9 @@ async def update_project(
                 sets.append(f"{key} = ?")
                 params.append(val)
         params.append(project_id)
-        await db.execute(f"UPDATE projects SET {', '.join(sets)} WHERE id = ?", params)
+        await db.execute(f"UPDATE universe_projects SET {', '.join(sets)} WHERE id = ?", params)
         await db.commit()
-        cursor = await db.execute("SELECT * FROM projects WHERE id = ?", (project_id,))
+        cursor = await db.execute("SELECT * FROM universe_projects WHERE id = ?", (project_id,))
         row = await cursor.fetchone()
         return dict(row) if row else None
     finally:
@@ -673,7 +784,7 @@ async def delete_project(project_id: str, db_path: Path | None = None) -> bool:
     """Delete a project. Returns True if deleted."""
     db = await connect(db_path)
     try:
-        cursor = await db.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+        cursor = await db.execute("DELETE FROM universe_projects WHERE id = ?", (project_id,))
         await db.commit()
         return cursor.rowcount > 0
     finally:
@@ -746,8 +857,8 @@ async def create_universe(
     universe_id: str,
     name: str,
     description: str = "",
-    theme: str = "",
     icon: str = "",
+    video_vibe_preset: str = "mobile_game",
     db_path: Path | None = None,
 ) -> dict[str, Any]:
     """Create a new universe and return it."""
@@ -755,8 +866,8 @@ async def create_universe(
     try:
         now = datetime.now(timezone.utc).isoformat()
         await db.execute(
-            "INSERT INTO universes (id, name, description, theme, icon, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (universe_id, name, description, theme, icon, now),
+            "INSERT INTO universes (id, name, description, icon, video_vibe_preset, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (universe_id, name, description, icon, video_vibe_preset, now),
         )
         await db.commit()
         cursor = await db.execute("SELECT * FROM universes WHERE id = ?", (universe_id,))
@@ -773,7 +884,7 @@ async def get_universe(universe_id: str, db_path: Path | None = None) -> dict[st
         cursor = await db.execute("""
             SELECT u.*,
                    (SELECT COUNT(*) FROM characters c WHERE c.universe_id = u.id) as character_count,
-                   (SELECT COUNT(*) FROM projects p WHERE p.universe_id = u.id) as project_count
+                   (SELECT COUNT(*) FROM universe_projects p WHERE p.universe_id = u.id) as project_count
             FROM universes u WHERE u.id = ?
         """, (universe_id,))
         row = await cursor.fetchone()
@@ -789,7 +900,7 @@ async def list_universes(db_path: Path | None = None) -> list[dict[str, Any]]:
         cursor = await db.execute("""
             SELECT u.*,
                    (SELECT COUNT(*) FROM characters c WHERE c.universe_id = u.id) as character_count,
-                   (SELECT COUNT(*) FROM projects p WHERE p.universe_id = u.id) as project_count
+                   (SELECT COUNT(*) FROM universe_projects p WHERE p.universe_id = u.id) as project_count
             FROM universes u ORDER BY u.created_at DESC
         """)
         return [dict(r) for r in await cursor.fetchall()]
@@ -805,7 +916,7 @@ async def update_universe(
     """Update universe fields. Returns updated universe."""
     db = await connect(db_path)
     try:
-        allowed = {"name", "description", "theme", "icon"}
+        allowed = {"name", "description", "icon", "video_vibe_preset"}
         sets: list[str] = []
         params: list[Any] = []
         for key, val in kwargs.items():
@@ -833,10 +944,15 @@ async def delete_universe(universe_id: str, db_path: Path | None = None) -> bool
         if not await cursor.fetchone():
             return False
         # Cascade delete related data
+        await db.execute("DELETE FROM scripts WHERE universe_id = ?", (universe_id,))
+        await db.execute("DELETE FROM character_voices WHERE character_id IN (SELECT id FROM characters WHERE universe_id = ?)", (universe_id,))
+        await db.execute("DELETE FROM project_audio_assets WHERE project_id IN (SELECT id FROM universe_projects WHERE universe_id = ?)", (universe_id,))
+        await db.execute("DELETE FROM document_chunks WHERE character_id IN (SELECT id FROM characters WHERE universe_id = ?)", (universe_id,))
+        await db.execute("DELETE FROM character_documents WHERE universe_id = ?", (universe_id,))
         await db.execute("DELETE FROM scene_templates WHERE universe_id = ?", (universe_id,))
         await db.execute("DELETE FROM environments WHERE universe_id = ?", (universe_id,))
         await db.execute("DELETE FROM source_items WHERE universe_id = ?", (universe_id,))
-        await db.execute("DELETE FROM projects WHERE universe_id = ?", (universe_id,))
+        await db.execute("DELETE FROM universe_projects WHERE universe_id = ?", (universe_id,))
         await db.execute("DELETE FROM characters WHERE universe_id = ?", (universe_id,))
         await db.execute("DELETE FROM universes WHERE id = ?", (universe_id,))
         await db.commit()
@@ -873,7 +989,7 @@ async def list_projects_by_universe(
     """List projects in a universe."""
     db = await connect(db_path)
     try:
-        sql = "SELECT * FROM projects WHERE universe_id = ?"
+        sql = "SELECT * FROM universe_projects WHERE universe_id = ?"
         params: list[Any] = [universe_id]
         if status:
             sql += " AND status = ?"
@@ -1103,6 +1219,433 @@ async def delete_scene_template(template_id: str, db_path: Path | None = None) -
     db = await connect(db_path)
     try:
         cursor = await db.execute("DELETE FROM scene_templates WHERE id = ?", (template_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+    finally:
+        await db.close()
+
+
+# --- Character Document CRUD ---
+
+
+async def create_document(
+    doc_id: str,
+    character_id: str,
+    universe_id: str,
+    name: str,
+    doc_type: str = "text",
+    content: str | None = None,
+    file_path: str | None = None,
+    file_size_bytes: int = 0,
+    metadata_json: str | None = None,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Create a new character document and return it."""
+    db = await connect(db_path)
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        await db.execute(
+            """INSERT INTO character_documents
+               (id, character_id, universe_id, name, doc_type, content,
+                file_path, file_size_bytes, chunk_count, status, metadata_json,
+                created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'pending', ?, ?, ?)""",
+            (doc_id, character_id, universe_id, name, doc_type, content,
+             file_path, file_size_bytes, metadata_json, now, now),
+        )
+        await db.commit()
+        cursor = await db.execute("SELECT * FROM character_documents WHERE id = ?", (doc_id,))
+        row = await cursor.fetchone()
+        return dict(row) if row else {}
+    finally:
+        await db.close()
+
+
+async def get_document(doc_id: str, db_path: Path | None = None) -> dict[str, Any] | None:
+    """Get a document by ID."""
+    db = await connect(db_path)
+    try:
+        cursor = await db.execute("SELECT * FROM character_documents WHERE id = ?", (doc_id,))
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        await db.close()
+
+
+async def list_documents_by_character(
+    character_id: str,
+    db_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """List documents for a character."""
+    db = await connect(db_path)
+    try:
+        cursor = await db.execute(
+            "SELECT * FROM character_documents WHERE character_id = ? ORDER BY created_at DESC",
+            (character_id,),
+        )
+        return [dict(r) for r in await cursor.fetchall()]
+    finally:
+        await db.close()
+
+
+async def delete_document(doc_id: str, db_path: Path | None = None) -> bool:
+    """Delete a document AND its chunks. Returns True if deleted."""
+    db = await connect(db_path)
+    try:
+        # Delete chunks first
+        await db.execute("DELETE FROM document_chunks WHERE document_id = ?", (doc_id,))
+        cursor = await db.execute("DELETE FROM character_documents WHERE id = ?", (doc_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+    finally:
+        await db.close()
+
+
+async def update_document(
+    doc_id: str,
+    db_path: Path | None = None,
+    **kwargs: Any,
+) -> dict[str, Any] | None:
+    """Update document fields (status, chunk_count, etc.). Returns updated document."""
+    db = await connect(db_path)
+    try:
+        allowed = {"status", "chunk_count", "content", "file_path", "file_size_bytes", "metadata_json", "name", "doc_type"}
+        sets = ["updated_at = ?"]
+        params: list[Any] = [datetime.now(timezone.utc).isoformat()]
+        for key, val in kwargs.items():
+            if key in allowed:
+                sets.append(f"{key} = ?")
+                params.append(val)
+        params.append(doc_id)
+        await db.execute(f"UPDATE character_documents SET {', '.join(sets)} WHERE id = ?", params)
+        await db.commit()
+        cursor = await db.execute("SELECT * FROM character_documents WHERE id = ?", (doc_id,))
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        await db.close()
+
+
+async def create_chunk(
+    chunk_id: str,
+    document_id: str,
+    character_id: str,
+    chunk_index: int,
+    content: str,
+    token_count: int = 0,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Create a document chunk and return it."""
+    db = await connect(db_path)
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        await db.execute(
+            """INSERT INTO document_chunks
+               (id, document_id, character_id, chunk_index, content, token_count, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (chunk_id, document_id, character_id, chunk_index, content, token_count, now),
+        )
+        await db.commit()
+        cursor = await db.execute("SELECT * FROM document_chunks WHERE id = ?", (chunk_id,))
+        row = await cursor.fetchone()
+        return dict(row) if row else {}
+    finally:
+        await db.close()
+
+
+async def list_chunks_by_document(
+    document_id: str,
+    db_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """List chunks for a document, ordered by chunk_index."""
+    db = await connect(db_path)
+    try:
+        cursor = await db.execute(
+            "SELECT * FROM document_chunks WHERE document_id = ? ORDER BY chunk_index",
+            (document_id,),
+        )
+        return [dict(r) for r in await cursor.fetchall()]
+    finally:
+        await db.close()
+
+
+async def delete_chunks_by_document(
+    document_id: str,
+    db_path: Path | None = None,
+) -> None:
+    """Delete all chunks for a document."""
+    db = await connect(db_path)
+    try:
+        await db.execute("DELETE FROM document_chunks WHERE document_id = ?", (document_id,))
+        await db.commit()
+    finally:
+        await db.close()
+
+
+# --- Script CRUD ---
+
+
+async def create_script(
+    script_id: str,
+    universe_id: str,
+    title: str,
+    script_type: str = "idea",
+    content: str = "",
+    character_ids: list[str] | None = None,
+    target_duration_seconds: int | None = None,
+    scene_count: int | None = None,
+    metadata: dict | None = None,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Create a new script and return it."""
+    db = await connect(db_path)
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        await db.execute(
+            """INSERT INTO scripts
+               (id, universe_id, title, script_type, content,
+                character_ids_json, target_duration_seconds, scene_count,
+                status, metadata_json, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)""",
+            (script_id, universe_id, title, script_type, content,
+             json.dumps(character_ids) if character_ids else None,
+             target_duration_seconds, scene_count,
+             json.dumps(metadata) if metadata else None,
+             now, now),
+        )
+        await db.commit()
+        cursor = await db.execute("SELECT * FROM scripts WHERE id = ?", (script_id,))
+        row = await cursor.fetchone()
+        return dict(row) if row else {}
+    finally:
+        await db.close()
+
+
+async def get_script(script_id: str, db_path: Path | None = None) -> dict[str, Any] | None:
+    """Get a script by ID."""
+    db = await connect(db_path)
+    try:
+        cursor = await db.execute("SELECT * FROM scripts WHERE id = ?", (script_id,))
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        await db.close()
+
+
+async def list_scripts_by_universe(
+    universe_id: str,
+    character_id: str | None = None,
+    script_type: str | None = None,
+    db_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """List scripts in a universe with optional filters."""
+    db = await connect(db_path)
+    try:
+        sql = "SELECT * FROM scripts WHERE universe_id = ?"
+        params: list[Any] = [universe_id]
+        if character_id:
+            # Filter where character_ids_json contains the character ID
+            sql += " AND character_ids_json LIKE ?"
+            params.append(f"%{character_id}%")
+        if script_type:
+            sql += " AND script_type = ?"
+            params.append(script_type)
+        sql += " ORDER BY created_at DESC"
+        cursor = await db.execute(sql, params)
+        return [dict(r) for r in await cursor.fetchall()]
+    finally:
+        await db.close()
+
+
+async def update_script(
+    script_id: str,
+    db_path: Path | None = None,
+    **kwargs: Any,
+) -> dict[str, Any] | None:
+    """Update script fields. Returns updated script."""
+    db = await connect(db_path)
+    try:
+        allowed = {
+            "title", "content", "script_type", "status",
+            "target_duration_seconds", "scene_count",
+        }
+        sets = ["updated_at = ?"]
+        params: list[Any] = [datetime.now(timezone.utc).isoformat()]
+        for key, val in kwargs.items():
+            if key in allowed:
+                sets.append(f"{key} = ?")
+                params.append(val)
+            elif key == "character_ids":
+                sets.append("character_ids_json = ?")
+                params.append(json.dumps(val) if val else None)
+            elif key == "metadata":
+                sets.append("metadata_json = ?")
+                params.append(json.dumps(val) if val else None)
+        params.append(script_id)
+        await db.execute(f"UPDATE scripts SET {', '.join(sets)} WHERE id = ?", params)
+        await db.commit()
+        cursor = await db.execute("SELECT * FROM scripts WHERE id = ?", (script_id,))
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        await db.close()
+
+
+async def delete_script(script_id: str, db_path: Path | None = None) -> bool:
+    """Delete a script. Returns True if deleted."""
+    db = await connect(db_path)
+    try:
+        cursor = await db.execute("DELETE FROM scripts WHERE id = ?", (script_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+    finally:
+        await db.close()
+
+
+# --- Character Voice CRUD ---
+
+
+async def create_character_voice(
+    voice_id: str,
+    character_id: str,
+    tts_model: str = "fal-ai/minimax/speech-2.6-turbo",
+    voice_id_str: str | None = None,
+    voice_name: str = "Default",
+    reference_audio_path: str | None = None,
+    settings_json: str | None = None,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Create a character voice profile and return it."""
+    db = await connect(db_path)
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        await db.execute(
+            """INSERT INTO character_voices
+               (id, character_id, tts_model, voice_id, voice_name,
+                reference_audio_path, settings_json, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (voice_id, character_id, tts_model, voice_id_str, voice_name,
+             reference_audio_path, settings_json, now, now),
+        )
+        await db.commit()
+        cursor = await db.execute("SELECT * FROM character_voices WHERE id = ?", (voice_id,))
+        row = await cursor.fetchone()
+        return dict(row) if row else {}
+    finally:
+        await db.close()
+
+
+async def get_character_voice(
+    character_id: str,
+    db_path: Path | None = None,
+) -> dict[str, Any] | None:
+    """Get the voice profile for a character."""
+    db = await connect(db_path)
+    try:
+        cursor = await db.execute(
+            "SELECT * FROM character_voices WHERE character_id = ? LIMIT 1",
+            (character_id,),
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        await db.close()
+
+
+async def update_character_voice(
+    voice_id: str,
+    db_path: Path | None = None,
+    **kwargs: Any,
+) -> dict[str, Any] | None:
+    """Update character voice fields. Returns updated voice."""
+    db = await connect(db_path)
+    try:
+        allowed = {"tts_model", "voice_id", "voice_name", "reference_audio_path", "settings_json"}
+        sets = ["updated_at = ?"]
+        params: list[Any] = [datetime.now(timezone.utc).isoformat()]
+        for key, val in kwargs.items():
+            if key in allowed:
+                sets.append(f"{key} = ?")
+                params.append(val)
+        params.append(voice_id)
+        await db.execute(f"UPDATE character_voices SET {', '.join(sets)} WHERE id = ?", params)
+        await db.commit()
+        cursor = await db.execute("SELECT * FROM character_voices WHERE id = ?", (voice_id,))
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        await db.close()
+
+
+async def delete_character_voice(
+    voice_id: str,
+    db_path: Path | None = None,
+) -> bool:
+    """Delete a character voice profile. Returns True if deleted."""
+    db = await connect(db_path)
+    try:
+        cursor = await db.execute("DELETE FROM character_voices WHERE id = ?", (voice_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+    finally:
+        await db.close()
+
+
+# --- Project Audio Asset CRUD ---
+
+
+async def create_audio_asset(
+    asset_id: str,
+    project_id: str,
+    asset_type: str = "music",
+    name: str = "",
+    file_path: str = "",
+    duration_seconds: float | None = None,
+    metadata_json: str | None = None,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Create a project audio asset and return it."""
+    db = await connect(db_path)
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        await db.execute(
+            """INSERT INTO project_audio_assets
+               (id, project_id, asset_type, name, file_path, duration_seconds, metadata_json, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (asset_id, project_id, asset_type, name, file_path, duration_seconds, metadata_json, now),
+        )
+        await db.commit()
+        cursor = await db.execute("SELECT * FROM project_audio_assets WHERE id = ?", (asset_id,))
+        row = await cursor.fetchone()
+        return dict(row) if row else {}
+    finally:
+        await db.close()
+
+
+async def list_audio_assets(
+    project_id: str,
+    db_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """List audio assets for a project."""
+    db = await connect(db_path)
+    try:
+        cursor = await db.execute(
+            "SELECT * FROM project_audio_assets WHERE project_id = ? ORDER BY created_at DESC",
+            (project_id,),
+        )
+        return [dict(r) for r in await cursor.fetchall()]
+    finally:
+        await db.close()
+
+
+async def delete_audio_asset(
+    asset_id: str,
+    db_path: Path | None = None,
+) -> bool:
+    """Delete an audio asset. Returns True if deleted."""
+    db = await connect(db_path)
+    try:
+        cursor = await db.execute("DELETE FROM project_audio_assets WHERE id = ?", (asset_id,))
         await db.commit()
         return cursor.rowcount > 0
     finally:

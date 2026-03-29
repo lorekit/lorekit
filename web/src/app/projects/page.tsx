@@ -9,7 +9,7 @@ export default function ProjectsRedirect() {
   const { activeUniverseId } = useUniverseStore();
 
   useEffect(() => {
-    router.replace(`/studio/${activeUniverseId}/projects`);
+    router.replace(`/universe/${activeUniverseId}/projects`);
   }, [router, activeUniverseId]);
 
   return null;

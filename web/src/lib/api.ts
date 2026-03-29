@@ -61,7 +61,6 @@ export interface Project {
   name: string;
   character_id: string;
   character_name: string;
-  civilization: string;
   universe_id?: string;
   hook_quote: string;
   truth_quote: string;
@@ -78,14 +77,17 @@ export interface Project {
   thumbnail_url: string | null;
   character_image_url: string | null;
   character_image_path: string | null;
+  audio_mode?: string;
+  uploaded_audio_path?: string;
+  narration_json?: string;
 }
 
 export interface Universe {
   id: string;
   name: string;
   description: string;
-  theme: string;
   icon: string;
+  video_vibe_preset: string;
   character_count: number;
   project_count: number;
   created_at: string;
@@ -162,8 +164,6 @@ export interface Settings {
   llm_provider: "openai" | "anthropic";
   llm_model: string;
   youtube_connected: boolean;
-  video_vibe: string;
-  video_vibe_preset: string;
 }
 
 // --- API Functions ---
@@ -232,9 +232,9 @@ export const getStats = () => fetchAPI<Stats>("/api/stats");
 // Universes
 export const getUniverses = () => fetchAPI<Universe[]>("/api/universes");
 export const getUniverse = (id: string) => fetchAPI<Universe>(`/api/universes/${id}`);
-export const createUniverse = (data: { name: string; description?: string; theme?: string; icon?: string }) =>
+export const createUniverse = (data: { name: string; description?: string; icon?: string; video_vibe_preset?: string }) =>
   fetchAPI<Universe>("/api/universes", { method: "POST", body: JSON.stringify(data) });
-export const updateUniverse = (id: string, data: Partial<Pick<Universe, "name" | "description" | "theme" | "icon">>) =>
+export const updateUniverse = (id: string, data: Partial<Pick<Universe, "name" | "description" | "icon" | "video_vibe_preset">>) =>
   fetchAPI<Universe>(`/api/universes/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 export const deleteUniverse = (id: string) =>
   fetchAPI<{ deleted: boolean }>(`/api/universes/${id}`, { method: "DELETE" });
@@ -244,6 +244,8 @@ export const getUniverseCharacters = (universeId: string) =>
   fetchAPI<Character[]>(`/api/universes/${universeId}/characters`);
 export const getUniverseProjects = (universeId: string) =>
   fetchAPI<Project[]>(`/api/universes/${universeId}/projects`);
+export const getUniverseSources = (universeId: string) =>
+  fetchAPI<SourceItem[]>(`/api/universes/${universeId}/sources`);
 
 // Universe Environments
 export const getUniverseEnvironments = (universeId: string) =>
@@ -271,7 +273,7 @@ export const updateEnvironment = (universeId: string, envId: string, data: Parti
 export const deleteEnvironment = (universeId: string, envId: string) =>
   fetchAPI<{ deleted: boolean }>(`/api/universes/${universeId}/environments/${envId}`, { method: "DELETE" });
 
-// Universe Scene Templates
+// Universe Story Templates (DB table still named scene_templates)
 export const getUniverseTemplates = (universeId: string) =>
   fetchAPI<SceneTemplate[]>(`/api/universes/${universeId}/templates`);
 export const createTemplate = (universeId: string, data: {
@@ -316,6 +318,8 @@ export const generateStory = (data: {
   target_duration?: number;
   arc_template?: string;
   theme?: string;
+  audio_mode?: string;
+  uploaded_audio_path?: string;
 }) =>
   fetchAPI<StoryBreakdown>("/api/generate/story", { method: "POST", body: JSON.stringify(data) });
 export const generateClips = (projectId: string) =>
@@ -404,3 +408,173 @@ export const generateCharacterForPhilosopher = (
 // Publish
 export const publishToYouTube = (projectId: string) =>
   fetchAPI<{ youtube_id: string }>("/api/publish", { method: "POST", body: JSON.stringify({ project_id: projectId }) });
+
+// --- Scripts ---
+
+export interface Script {
+  id: string;
+  universe_id: string;
+  title: string;
+  script_type: 'idea' | 'outline' | 'full_script';
+  content: string;
+  character_ids_json: string | null;
+  target_duration_seconds: number | null;
+  scene_count: number | null;
+  status: 'draft' | 'review' | 'ready' | 'archived';
+  metadata_json: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const getUniverseScripts = (universeId: string, params?: { character_id?: string; script_type?: string }) => {
+  const qs = new URLSearchParams();
+  if (params?.character_id) qs.set("character_id", params.character_id);
+  if (params?.script_type) qs.set("script_type", params.script_type);
+  return fetchAPI<Script[]>(`/api/universes/${universeId}/scripts${qs.toString() ? `?${qs}` : ""}`);
+};
+
+export const getScript = (universeId: string, scriptId: string) =>
+  fetchAPI<Script>(`/api/universes/${universeId}/scripts/${scriptId}`);
+
+export const createScript = (universeId: string, data: { title: string; script_type?: string; content?: string; character_ids?: string[]; target_duration_seconds?: number }) =>
+  fetchAPI<Script>(`/api/universes/${universeId}/scripts`, { method: "POST", body: JSON.stringify(data) });
+
+export const updateScript = (universeId: string, scriptId: string, data: Partial<{ title: string; script_type: string; content: string; character_ids: string[]; status: string; target_duration_seconds: number; scene_count: number }>) =>
+  fetchAPI<Script>(`/api/universes/${universeId}/scripts/${scriptId}`, { method: "PATCH", body: JSON.stringify(data) });
+
+export const deleteScript = (universeId: string, scriptId: string) =>
+  fetchAPI<{ deleted: boolean }>(`/api/universes/${universeId}/scripts/${scriptId}`, { method: "DELETE" });
+
+// --- Character Documents (Knowledge Base) ---
+
+export interface CharacterDocument {
+  id: string;
+  character_id: string;
+  universe_id: string;
+  name: string;
+  doc_type: 'text' | 'pdf' | 'url';
+  content: string | null;
+  file_path: string | null;
+  file_size_bytes: number;
+  chunk_count: number;
+  status: 'pending' | 'processing' | 'ready' | 'error';
+  metadata_json: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const getCharacterDocuments = (universeId: string, characterId: string) =>
+  fetchAPI<CharacterDocument[]>(`/api/universes/${universeId}/characters/${characterId}/documents/`);
+
+export const createCharacterDocument = (universeId: string, characterId: string, data: { name: string; doc_type?: string; content: string }) =>
+  fetchAPI<CharacterDocument>(`/api/universes/${universeId}/characters/${characterId}/documents/`, { method: "POST", body: JSON.stringify(data) });
+
+export const deleteCharacterDocument = (universeId: string, characterId: string, docId: string) =>
+  fetchAPI<{ deleted: boolean }>(`/api/universes/${universeId}/characters/${characterId}/documents/${docId}`, { method: "DELETE" });
+
+export const processCharacterDocument = (universeId: string, characterId: string, docId: string) =>
+  fetchAPI<{ chunks_created: number }>(`/api/universes/${universeId}/characters/${characterId}/documents/${docId}/process`, { method: "POST" });
+
+// --- Character Voices ---
+
+export interface CharacterVoice {
+  id: string;
+  character_id: string;
+  tts_model: string;
+  voice_id: string | null;
+  voice_name: string;
+  reference_audio_path: string | null;
+  settings_json: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AudioAnalysis {
+  duration_seconds: number;
+  sample_rate: number;
+  channels: number;
+  segments: Array<{
+    index: number;
+    start: number;
+    end: number;
+    duration: number;
+    transition: 'hard_cut' | 'flash' | 'zoom' | 'fade' | 'whip_pan';
+    energy_level: number;
+    camera_speed: 'slow' | 'medium' | 'fast';
+    has_bass_drop: boolean;
+  }>;
+  segment_count: number;
+  beats_per_cut?: number;
+  analysis_type: 'beat_synced' | 'simple';
+  beats?: {
+    bpm: number;
+    beat_count: number;
+    beat_times: number[];
+    strong_onset_times: number[];
+  };
+  energy?: {
+    bass_drop_times: number[];
+    bass_drop_count: number;
+    avg_energy: number;
+    peak_energy: number;
+  };
+  sections?: Array<{
+    index: number;
+    label: string;
+    start: number;
+    end: number;
+    duration: number;
+  }>;
+}
+
+export interface TTSModel {
+  name: string;
+  supports_voice_id: boolean;
+  supports_reference_audio: boolean;
+}
+
+export const getCharacterVoice = (universeId: string, characterId: string) =>
+  fetchAPI<CharacterVoice | null>(`/api/universes/${universeId}/characters/${characterId}/voice`);
+
+export const upsertCharacterVoice = (universeId: string, characterId: string, data: { tts_model: string; voice_id?: string; voice_name?: string }) =>
+  fetchAPI<CharacterVoice>(`/api/universes/${universeId}/characters/${characterId}/voice`, { method: "PUT", body: JSON.stringify(data) });
+
+export const deleteCharacterVoice = (universeId: string, characterId: string) =>
+  fetchAPI<{ deleted: boolean }>(`/api/universes/${universeId}/characters/${characterId}/voice`, { method: "DELETE" });
+
+export const getTTSModels = () =>
+  fetchAPI<Record<string, TTSModel>>("/api/tts-models");
+
+// --- Transitions ---
+
+export interface TransitionType {
+  label: string;
+  ffmpeg: string | null;
+  duration: number;
+}
+
+export interface TransitionTypes {
+  [category: string]: {
+    [key: string]: TransitionType;
+  };
+}
+
+export const getTransitions = () =>
+  fetchAPI<{ transitions: TransitionTypes }>("/api/audio/transitions");
+
+export const getTransitionsFlat = () =>
+  fetchAPI<{ transitions: Record<string, TransitionType> }>("/api/audio/transitions/flat");
+
+export const uploadAudio = async (file: File): Promise<AudioAnalysis & { filename: string; file_path: string }> => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_BASE}/api/audio/upload`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+  return res.json();
+};
+
+export const reanalyzeAudio = (filename: string, beatsPerCut: number) =>
+  fetchAPI<AudioAnalysis & { filename: string; file_path: string }>(`/api/audio/analyze/${filename}?beats_per_cut=${beatsPerCut}`);

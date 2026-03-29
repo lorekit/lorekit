@@ -1,4 +1,4 @@
-"""Scene template CRUD endpoints."""
+"""Story template CRUD endpoints."""
 
 from __future__ import annotations
 

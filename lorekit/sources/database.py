@@ -59,14 +59,19 @@ def get_available_characters() -> list[str]:
     return sorted(ids)
 
 
-async def load_all_sources(db: aiosqlite.Connection) -> dict[str, Character]:
-    """Load all characters and source items from JSON files into DB if not already loaded."""
+async def load_all_sources(db: aiosqlite.Connection, universe_id: str | None = None) -> dict[str, Character]:
+    """Load all characters and source items from JSON files into DB if not already loaded.
+    
+    Requires universe_id to properly scope the imported data.
+    """
+    if not universe_id:
+        raise ValueError("universe_id is required for load_all_sources")
     characters: dict[str, Character] = {}
 
     for path in SOURCES_DIR.glob("*.json"):
         if path.stem == ".gitkeep":
             continue
-        character = await import_sources_from_json(db, str(path))
+        character = await import_sources_from_json(db, str(path), universe_id=universe_id)
         if character:
             characters[character.id] = character
 
@@ -74,11 +79,12 @@ async def load_all_sources(db: aiosqlite.Connection) -> dict[str, Character]:
 
 
 async def import_sources_from_json(
-    db: aiosqlite.Connection, json_path: str
+    db: aiosqlite.Connection, json_path: str, universe_id: str | None = None
 ) -> Character | None:
     """Import a single character's source items from JSON.
 
     Inserts into the database if not already present. Returns the parsed Character.
+    Requires universe_id for proper data scoping.
     """
     path = Path(json_path)
     if not path.exists():
@@ -90,15 +96,18 @@ async def import_sources_from_json(
     character = _parse_character(data)
 
     # Upsert character
+    if not universe_id:
+        raise ValueError("universe_id is required for import_sources_from_json")
     await db.execute(
-        """INSERT INTO characters (id, name, group_name, character_description)
-           VALUES (?, ?, ?, ?)
+        """INSERT INTO characters (id, universe_id, name, group_name, character_description)
+           VALUES (?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
                name = excluded.name,
                group_name = excluded.group_name,
                character_description = excluded.character_description""",
         (
             character.id,
+            universe_id,
             character.name,
             character.group,
             character.character_description,
@@ -109,11 +118,12 @@ async def import_sources_from_json(
     for item in character.quotes:
         await db.execute(
             """INSERT OR IGNORE INTO source_items
-               (character_id, text, short_version, theme, emotional_function,
+               (character_id, universe_id, text, short_version, theme, emotional_function,
                 word_count, read_time_seconds, pair_with_visual, used_count)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)""",
             (
                 character.id,
+                universe_id,
                 item.text,
                 item.short_version,
                 item.theme,

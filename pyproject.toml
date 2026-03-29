@@ -17,13 +17,19 @@ dependencies = [
     "uvicorn>=0.32.0",
     "google-api-python-client>=2.150.0",
     "google-auth-oauthlib>=1.2.0",
+    "python-multipart>=0.0.22",
+    "librosa>=0.10.0",
+    "numpy>=1.24.0",
 ]
 
 [project.scripts]
 lk = "lorekit.cli:main"
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff"]
+dev = ["pytest", "pytest-asyncio", "httpx", "ruff"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 [tool.setuptools.packages.find]
 include = ["lorekit*"]

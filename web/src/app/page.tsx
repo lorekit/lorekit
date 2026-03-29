@@ -104,7 +104,7 @@ export default function HomePage() {
             {universes.map((uni) => (
               <Link
                 key={uni.id}
-                href={`/studio/${uni.id}`}
+                href={`/universe/${uni.id}`}
                 onClick={() => setActiveUniverse(uni.id)}
                 className="bg-slate-900 rounded-xl border border-slate-800 p-6 hover:border-slate-700 transition-all group"
               >
@@ -125,10 +125,10 @@ export default function HomePage() {
                     {uni.project_count ?? 0} projects
                   </span>
                 </div>
-                {uni.theme && (
+                {uni.video_vibe_preset && (
                   <div className="mt-3">
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                      {uni.theme}
+                      {uni.video_vibe_preset.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
                     </span>
                   </div>
                 )}

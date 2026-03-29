@@ -16,15 +16,15 @@ router = APIRouter(prefix="/api/universes", tags=["universes"])
 class UniverseCreate(BaseModel):
     name: str
     description: str = ""
-    theme: str = ""
     icon: str = ""
+    video_vibe_preset: str = "mobile_game"
 
 
 class UniverseUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
-    theme: str | None = None
     icon: str | None = None
+    video_vibe_preset: str | None = None
 
 
 @router.get("")
@@ -42,15 +42,11 @@ async def get_universe(universe_id: str) -> dict:
     return result
 
 
-@router.post("", status_code=201)
+@router.post("")
 async def create_universe(body: UniverseCreate) -> dict:
     """Create a new universe."""
-    universe_id = body.name.lower().replace(" ", "_").replace("-", "_")[:32]
-    # Ensure uniqueness
-    existing = await db.get_universe(universe_id)
-    if existing:
-        universe_id = f"{universe_id}_{uuid.uuid4().hex[:6]}"
-    return await db.create_universe(universe_id, body.name, body.description, body.theme, body.icon)
+    universe_id = uuid.uuid4().hex[:12]
+    return await db.create_universe(universe_id, body.name, body.description, body.icon, body.video_vibe_preset)
 
 
 @router.patch("/{universe_id}")
@@ -86,6 +82,58 @@ async def list_universe_characters(universe_id: str) -> list[dict]:
     if not uni:
         raise HTTPException(status_code=404, detail="Universe not found")
     return await db.list_characters_by_universe(universe_id)
+
+
+class CharacterCreate(BaseModel):
+    name: str
+    group_name: str = ""
+    era: str = ""
+    character_description: str = ""
+
+
+@router.post("/{universe_id}/characters")
+async def create_universe_character(universe_id: str, body: CharacterCreate) -> dict:
+    """Create a character in a universe."""
+    uni = await db.get_universe(universe_id)
+    if not uni:
+        raise HTTPException(status_code=404, detail="Universe not found")
+    character_id = uuid.uuid4().hex[:12]
+    await db.upsert_character(
+        character_id=character_id,
+        name=body.name,
+        group_name=body.group_name,
+        era=body.era,
+        character_description=body.character_description,
+        universe_id=universe_id,
+    )
+    conn = await db.connect()
+    try:
+        cursor = await conn.execute("SELECT * FROM characters WHERE id = ?", (character_id,))
+        row = await cursor.fetchone()
+        return dict(row) if row else {}
+    finally:
+        await conn.close()
+
+
+# --- Universe-scoped source items ---
+
+@router.get("/{universe_id}/sources")
+async def list_universe_sources(universe_id: str) -> list[dict]:
+    """List source items in a universe."""
+    uni = await db.get_universe(universe_id)
+    if not uni:
+        raise HTTPException(status_code=404, detail="Universe not found")
+    conn = await db.connect()
+    try:
+        cursor = await conn.execute(
+            "SELECT q.*, c.name as character_name "
+            "FROM source_items q JOIN characters c ON q.character_id = c.id "
+            "WHERE q.universe_id = ? ORDER BY q.character_id, q.emotional_function",
+            (universe_id,),
+        )
+        return [dict(r) for r in await cursor.fetchall()]
+    finally:
+        await conn.close()
 
 
 # --- Universe-scoped projects ---
@@ -175,7 +223,7 @@ async def delete_universe_environment(universe_id: str, environment_id: str) -> 
 
 @router.get("/{universe_id}/templates")
 async def list_universe_templates(universe_id: str) -> list[dict]:
-    """List scene templates in a universe."""
+    """List story templates in a universe."""
     return await db.list_scene_templates(universe_id=universe_id)
 
 

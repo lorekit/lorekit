@@ -23,70 +23,15 @@ from lorekit.api.character import router as character_router
 from lorekit.api.universes import router as universes_router
 from lorekit.api.environments import router as environments_router
 from lorekit.api.templates import router as templates_router
+from lorekit.api.documents import router as documents_router
+from lorekit.api.scripts import router as scripts_router
+from lorekit.api.voices import router as voices_router
+from lorekit.api.audio import router as audio_router
 
 
 async def _seed_default_universe():
-    """Ensure the default 'philosophywise' universe exists with environments and templates."""
-    import json as _json
-    import logging
-    logger = logging.getLogger(__name__)
-
-    from lorekit.config import CIVILIZATIONS
-    from lorekit.story.templates import ARC_TEMPLATES
-
-    # Create universe if missing
-    existing = await db.get_universe("philosophywise")
-    if not existing:
-        try:
-            await db.create_universe(
-                universe_id="philosophywise",
-                name="PhilosophyWise",
-                description="Ancient philosophy wisdom shorts",
-                theme="cinematic",
-                icon="🏛️",
-            )
-        except Exception:
-            pass
-
-    # Seed environments from CIVILIZATIONS
-    envs = await db.list_environments(universe_id="philosophywise")
-    if not envs:
-        for key, civ in CIVILIZATIONS.items():
-            try:
-                await db.create_environment(
-                    environment_id=f"pw_{key}",
-                    universe_id="philosophywise",
-                    name=civ.name,
-                    color_grade=civ.color_grade.model_dump(),
-                    font=civ.font,
-                    text_color=civ.text_color,
-                    text_shadow=civ.text_shadow,
-                    environment_description=f"{civ.name} civilization environment",
-                )
-            except Exception:
-                pass
-        logger.info("Seeded %d environments for philosophywise", len(CIVILIZATIONS))
-
-    # Seed scene templates from arc templates
-    tmpls = await db.list_scene_templates(universe_id="philosophywise")
-    if not tmpls:
-        for key, arc in ARC_TEMPLATES.items():
-            beats_data = [{"beat": b["beat"], "duration_range": b["duration_range"], "purpose": b["purpose"]} for b in arc.beats]
-            try:
-                await db.create_scene_template(
-                    template_id=f"pw_{key}",
-                    universe_id="philosophywise",
-                    name=arc.name,
-                    description=arc.description,
-                    beats=beats_data,
-                    min_duration=arc.min_duration,
-                    max_duration=arc.max_duration,
-                    min_scenes=arc.min_scenes,
-                    max_scenes=arc.max_scenes,
-                )
-            except Exception:
-                pass
-        logger.info("Seeded %d scene templates for philosophywise", len(ARC_TEMPLATES))
+    """No-op — legacy seed function. Universes are now created via the UI."""
+    pass
 
 
 async def _auto_import_sources():
@@ -185,6 +130,10 @@ app.include_router(character_router)
 app.include_router(universes_router)
 app.include_router(environments_router)
 app.include_router(templates_router)
+app.include_router(documents_router)
+app.include_router(scripts_router)
+app.include_router(voices_router)
+app.include_router(audio_router)
 
 
 @app.get("/api/health")

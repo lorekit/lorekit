@@ -8,6 +8,7 @@ import {
   Film,
   BookOpen,
   Loader2,
+
 } from "lucide-react";
 import { getUniverse, getUniverseProjects, getUniverseCharacters } from "@/lib/api";
 import type { Universe, Project, Character } from "@/lib/api";
@@ -109,27 +110,7 @@ export default function UniverseDashboardPage({
 
   return (
     <div className="p-8 space-y-6">
-      {/* Header */}
       <div className="space-y-4">
-        <div className="flex items-center gap-4">
-          <span className="text-4xl">{universe.icon || "🌍"}</span>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-white tracking-tight">
-                {universe.name}
-              </h1>
-              {universe.theme && (
-                <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-                  {universe.theme}
-                </Badge>
-              )}
-            </div>
-            {universe.description && (
-              <p className="text-slate-400 mt-1">{universe.description}</p>
-            )}
-          </div>
-        </div>
-
         {/* Stats Row */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
@@ -176,21 +157,21 @@ export default function UniverseDashboardPage({
         {/* Quick Actions */}
         <div className="flex flex-wrap gap-3">
           <Link
-            href={`/studio/${universeId}/generate`}
+            href={`/universe/${universeId}/projects/generate`}
             className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-medium text-slate-950 hover:bg-amber-400 transition-colors"
           >
             <Sparkles className="h-4 w-4" />
             Generate
           </Link>
           <Link
-            href={`/studio/${universeId}/characters`}
+            href={`/universe/${universeId}/characters`}
             className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-100 hover:bg-slate-700 border border-slate-700 transition-colors"
           >
             <Users className="h-4 w-4" />
             Browse Characters
           </Link>
           <Link
-            href={`/studio/${universeId}/projects`}
+            href={`/universe/${universeId}/projects`}
             className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-100 hover:bg-slate-700 border border-slate-700 transition-colors"
           >
             <Film className="h-4 w-4" />
@@ -205,7 +186,7 @@ export default function UniverseDashboardPage({
           <h2 className="text-xl font-semibold text-white">Recent Projects</h2>
           {projects.length > 6 && (
             <Link
-              href={`/studio/${universeId}/projects`}
+              href={`/universe/${universeId}/projects`}
               className="text-sm text-amber-500 hover:text-amber-400 transition-colors"
             >
               View all &rarr;

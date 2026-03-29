@@ -19,7 +19,8 @@ export function ScenePreview({ scene }: ScenePreviewProps) {
   const [mode, setMode] = useState<PreviewMode>(hasClip ? "clip" : "keyframe");
 
   useEffect(() => {
-    setMode(hasClip ? "clip" : hasKeyframe ? "keyframe" : "clip");
+    if (hasClip) setMode("clip");
+    else setMode("keyframe");
   }, [scene?.id, hasClip, hasKeyframe]);
 
   const showClip = mode === "clip" && hasClip;
@@ -100,22 +101,7 @@ export function ScenePreview({ scene }: ScenePreviewProps) {
         )}
       </div>
 
-      {/* Info bar */}
-      {scene && (
-        <div className="px-4 py-2.5 flex items-center justify-between border-t border-slate-800">
-          <span
-            className={cn(
-              "text-sm font-medium",
-              BEAT_TEXT_COLORS[scene.beat]
-            )}
-          >
-            {scene.beat}
-          </span>
-          <span className="text-sm text-slate-400 font-mono">
-            {formatDuration(scene.duration)}
-          </span>
-        </div>
-      )}
+
     </div>
   );
 }

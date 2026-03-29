@@ -260,9 +260,12 @@ export default function SourcesPage({
               className="rounded-lg border border-slate-800 bg-slate-900 overflow-hidden"
             >
               {/* Character header */}
-              <button
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => toggleCharacter(character.id)}
-                className="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-slate-800/50"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCharacter(character.id); } }}
+                className="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-slate-800/50 cursor-pointer"
               >
                 <div className="flex items-center gap-3">
                   {isExpanded ? (
@@ -286,7 +289,7 @@ export default function SourcesPage({
                   <Plus className="mr-1 h-4 w-4" />
                   Add
                 </Button>
-              </button>
+              </div>
 
               {/* Expanded content */}
               {isExpanded && (

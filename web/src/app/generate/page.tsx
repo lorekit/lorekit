@@ -9,7 +9,7 @@ export default function GenerateRedirect() {
   const { activeUniverseId } = useUniverseStore();
 
   useEffect(() => {
-    router.replace(`/studio/${activeUniverseId}/generate`);
+    router.replace(`/universe/${activeUniverseId}/projects/generate`);
   }, [router, activeUniverseId]);
 
   return null;

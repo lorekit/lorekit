@@ -21,6 +21,7 @@ async def stitch_video(
     output_path: str,
     civilization: str,
     total_duration: float,
+    transitions: list[str] | None = None,
 ) -> str:
     """Assemble the final video from clips + audio.
 
@@ -66,7 +67,9 @@ async def stitch_video(
         transition_filter = build_transition_filter(
             clip_count=len(clips),
             durations=durations,
-            transition_duration=transition_duration,
+            transitions=transitions,
+            default_transition="fade",
+            default_duration=transition_duration,
         )
         filter_parts.append(transition_filter)
         video_label = "[vout]"

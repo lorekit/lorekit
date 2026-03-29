@@ -17,7 +17,7 @@ import { getUniverseProjects, deleteProject, updateProject, type Project } from 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn, CIV_COLORS } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-slate-600/20 text-slate-400 border-slate-600/30",
@@ -112,7 +112,7 @@ export default function UniverseProjectsPage({
   const handleDuplicate = useCallback(
     (project: Project) => {
       // Navigate to generate wizard pre-filled
-      window.location.href = `/studio/${universeId}/generate?character=${project.character_id}`;
+      window.location.href = `/universe/${universeId}/projects/generate?character=${project.character_id}`;
     },
     [universeId]
   );
@@ -127,7 +127,7 @@ export default function UniverseProjectsPage({
             {projects.length} project{projects.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <Link href={`/studio/${universeId}/generate`}>
+        <Link href={`/universe/${universeId}/projects/generate`}>
           <Button>
             <Plus className="w-4 h-4 mr-2" />
             New Project
@@ -162,7 +162,7 @@ export default function UniverseProjectsPage({
           <p className="text-slate-400 mb-6 max-w-sm">
             Create your first video project to get started.
           </p>
-          <Link href={`/studio/${universeId}/generate`}>
+          <Link href={`/universe/${universeId}/projects/generate`}>
             <Button>
               <Plus className="w-4 h-4 mr-2" />
               New Project
@@ -219,7 +219,7 @@ export default function UniverseProjectsPage({
                 )}
 
                 {/* Thumbnail */}
-                <Link href={`/studio/${universeId}/projects/${project.id}`}>
+                <Link href={`/universe/${universeId}/projects/${project.id}`}>
                   <div className="relative aspect-video bg-slate-800 cursor-pointer">
                     {project.thumbnail_url ? (
                       <img
@@ -266,7 +266,7 @@ export default function UniverseProjectsPage({
                       </div>
                     ) : (
                       <>
-                        <Link href={`/studio/${universeId}/projects/${project.id}`} className="flex-1 min-w-0">
+                        <Link href={`/universe/${universeId}/projects/${project.id}`} className="flex-1 min-w-0">
                           <h3 className="font-semibold text-white hover:text-amber-400 transition-colors truncate">
                             {project.name || "Untitled"}
                           </h3>
@@ -329,22 +329,11 @@ export default function UniverseProjectsPage({
                     )}
                   </div>
 
-                  {/* Philosopher + civ */}
+                  {/* Character name */}
                   <div className="flex items-center gap-2 mt-1.5">
                     <span className="text-sm text-slate-400">
                       {project.character_name}
                     </span>
-                    {project.civilization && (
-                      <Badge
-                        className={cn(
-                          "text-[10px] px-1.5 py-0",
-                          CIV_COLORS[project.civilization] ??
-                            "bg-slate-700/40 text-slate-400 border-slate-600/30"
-                        )}
-                      >
-                        {project.civilization}
-                      </Badge>
-                    )}
                   </div>
 
                   {/* Hook quote */}
@@ -354,18 +343,8 @@ export default function UniverseProjectsPage({
                     </p>
                   )}
 
-                  {/* Status + date + cost */}
-                  <div className="flex items-center justify-between mt-3">
-                    <Badge
-                      className={cn(
-                        STATUS_COLORS[project.status] ?? STATUS_COLORS.draft,
-                        (project.status === "generating" ||
-                          project.status === "assembling") &&
-                          "animate-pulse"
-                      )}
-                    >
-                      {STATUS_LABELS[project.status] ?? project.status}
-                    </Badge>
+                  {/* Date + cost */}
+                  <div className="flex items-center justify-end mt-3">
                     <div className="flex items-center gap-2">
                       {project.cost_usd > 0 && (
                         <span className="text-xs text-slate-600">

@@ -22,12 +22,15 @@ router = APIRouter(prefix="/api/generate", tags=["generate"])
 
 class StoryRequest(BaseModel):
     character_id: str
+    universe_id: str | None = None
     hook_quote_id: str | None = None
     truth_quote_id: str | None = None
     quote_ids: list[str] | None = None  # flexible: user picks quotes, backend assigns roles
     target_duration: int = 35
     arc_template: str | None = None  # "story", "rapid_montage", etc.
     theme: str | None = None  # vibe preset key, e.g. "dark_masculine"
+    audio_mode: str = "auto"  # auto | narration | uploaded | silent
+    uploaded_audio_path: str | None = None  # for uploaded mode
 
 
 class ClipsRequest(BaseModel):
@@ -119,12 +122,22 @@ async def generate_story_endpoint(body: StoryRequest) -> dict:
     finally:
         await conn.close()
 
+    # If uploaded audio mode, analyze and use as timing constraint
+    effective_duration = body.target_duration
+    if body.audio_mode == "uploaded" and body.uploaded_audio_path:
+        from lorekit.audio.analyzer import analyze_audio as _analyze_audio
+        try:
+            audio_analysis = await _analyze_audio(body.uploaded_audio_path)
+            effective_duration = int(audio_analysis["duration_seconds"])
+        except Exception:
+            pass  # fallback to default duration
+
     # Generate story via LLM
     story = await generate_story(
         character=character,
         hook_quote=hook_quote,
         truth_quote=truth_quote,
-        target_duration=body.target_duration,
+        target_duration=effective_duration,
         theme=body.theme,
         arc_template=body.arc_template,
     )
@@ -136,7 +149,7 @@ async def generate_story_endpoint(body: StoryRequest) -> dict:
     await db.create_project(
         project_id=project_id,
         character_id=body.character_id,
-        civilization=character.group,
+        universe_id=body.universe_id,
         name=name,
         hook_quote_id=body.hook_quote_id,
         truth_quote_id=body.truth_quote_id,
@@ -145,6 +158,8 @@ async def generate_story_endpoint(body: StoryRequest) -> dict:
         project_id,
         status="story_ready",
         story_json=story.model_dump_json(),
+        audio_mode=body.audio_mode,
+        uploaded_audio_path=body.uploaded_audio_path,
     )
 
     return {
@@ -659,7 +674,15 @@ async def _render_task(
 
         story = StoryBreakdown.model_validate_json(story_json)
         clip_entries = json.loads(clips_json)
-        civilization = project.get("civilization", "roman")
+        # Look up character group for civilization context
+        character_id = project.get("character_id", "")
+        conn = await db.connect()
+        try:
+            cursor = await conn.execute("SELECT group_name FROM characters WHERE id = ?", (character_id,))
+            char_row = await cursor.fetchone()
+            civilization = char_row["group_name"] if char_row else "roman"
+        finally:
+            await conn.close()
 
         await db.update_project(project_id, status="assembling")
 
@@ -748,10 +771,27 @@ async def _render_task(
 
             from lorekit.assembly.stitch import stitch_video
 
+            # Parse per-scene transitions from project
+            render_transitions: list[str] | None = None
+            transitions_raw = project.get("transitions_json")
+            if transitions_raw:
+                try:
+                    t_data = json.loads(transitions_raw)
+                    # t_data is a list of {scene_id: int, transition: str}
+                    # Build ordered transition list matching scene boundaries
+                    t_map = {item["scene_id"]: item["transition"] for item in t_data}
+                    render_transitions = []
+                    for idx in range(len(ordered_scenes) - 1):
+                        sid = ordered_scenes[idx].scene_id
+                        render_transitions.append(t_map.get(sid, "fade"))
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    logger.warning("Invalid transitions_json, using defaults")
+
             stitched_path = str(project_output_dir / "stitched.mp4")
             await stitch_video(
                 ordered_clips, ordered_scenes, audio_path,
                 stitched_path, civilization, total_duration,
+                transitions=render_transitions,
             )
 
             # Step 3: Burn text overlays (optional)

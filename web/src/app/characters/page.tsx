@@ -9,7 +9,7 @@ export default function CharactersRedirect() {
   const { activeUniverseId } = useUniverseStore();
 
   useEffect(() => {
-    router.replace(`/studio/${activeUniverseId}/characters`);
+    router.replace(`/universe/${activeUniverseId}/characters`);
   }, [router, activeUniverseId]);
 
   return null;
