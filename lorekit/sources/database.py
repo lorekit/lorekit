@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import json
 import random
+import uuid
 from pathlib import Path
 from typing import Any
 
-import aiosqlite
+import asyncpg
 
 from lorekit.models import Character, SourceItem
 from lorekit.sources.selector import find_compatible_truth, pick_source_for_function
@@ -59,9 +60,9 @@ def get_available_characters() -> list[str]:
     return sorted(ids)
 
 
-async def load_all_sources(db: aiosqlite.Connection, universe_id: str | None = None) -> dict[str, Character]:
+async def load_all_sources(pool: asyncpg.Pool, universe_id: str | None = None) -> dict[str, Character]:
     """Load all characters and source items from JSON files into DB if not already loaded.
-    
+
     Requires universe_id to properly scope the imported data.
     """
     if not universe_id:
@@ -71,7 +72,7 @@ async def load_all_sources(db: aiosqlite.Connection, universe_id: str | None = N
     for path in SOURCES_DIR.glob("*.json"):
         if path.stem == ".gitkeep":
             continue
-        character = await import_sources_from_json(db, str(path), universe_id=universe_id)
+        character = await import_sources_from_json(pool, str(path), universe_id=universe_id)
         if character:
             characters[character.id] = character
 
@@ -79,7 +80,7 @@ async def load_all_sources(db: aiosqlite.Connection, universe_id: str | None = N
 
 
 async def import_sources_from_json(
-    db: aiosqlite.Connection, json_path: str, universe_id: str | None = None
+    pool: asyncpg.Pool, json_path: str, universe_id: str | None = None
 ) -> Character | None:
     """Import a single character's source items from JSON.
 
@@ -95,67 +96,54 @@ async def import_sources_from_json(
 
     character = _parse_character(data)
 
-    # Upsert character
     if not universe_id:
         raise ValueError("universe_id is required for import_sources_from_json")
-    await db.execute(
-        """INSERT INTO characters (id, universe_id, name, group_name, character_description)
-           VALUES (?, ?, ?, ?, ?)
-           ON CONFLICT(id) DO UPDATE SET
-               name = excluded.name,
-               group_name = excluded.group_name,
-               character_description = excluded.character_description""",
-        (
-            character.id,
-            universe_id,
-            character.name,
-            character.group,
-            character.character_description,
-        ),
-    )
 
-    # Insert source items (skip duplicates based on text)
-    for item in character.quotes:
-        await db.execute(
-            """INSERT OR IGNORE INTO source_items
-               (character_id, universe_id, text, short_version, theme, emotional_function,
-                word_count, read_time_seconds, pair_with_visual, used_count)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)""",
-            (
-                character.id,
-                universe_id,
-                item.text,
-                item.short_version,
-                item.theme,
-                item.emotional_function,
-                item.word_count,
-                item.read_time_seconds,
-                item.pair_with_visual,
-            ),
-        )
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Upsert character
+            await conn.execute(
+                """INSERT INTO characters (id, universe_id, name, group_name, character_description)
+                   VALUES ($1, $2, $3, $4, $5)
+                   ON CONFLICT(id) DO UPDATE SET
+                       name = EXCLUDED.name,
+                       group_name = EXCLUDED.group_name,
+                       character_description = EXCLUDED.character_description""",
+                character.id, universe_id, character.name,
+                character.group, character.character_description,
+            )
 
-    await db.commit()
+            # Insert source items (skip duplicates based on text)
+            for item in character.quotes:
+                item_id = uuid.uuid4().hex[:12]
+                await conn.execute(
+                    """INSERT INTO source_items
+                       (id, character_id, universe_id, text, short_version, theme, emotional_function,
+                        word_count, read_time_seconds, pair_with_visual, used_count)
+                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0)
+                       ON CONFLICT DO NOTHING""",
+                    item_id, character.id, universe_id, item.text,
+                    item.short_version, item.theme, item.emotional_function,
+                    item.word_count, item.read_time_seconds, item.pair_with_visual,
+                )
+
     return character
 
 
 async def get_random_character(
-    db: aiosqlite.Connection, exclude_recent: int = 3
+    pool: asyncpg.Pool, exclude_recent: int = 3
 ) -> str:
     """Pick a character that hasn't been used in the last N videos."""
-    # Get recently used character IDs
-    cursor = await db.execute(
-        """SELECT DISTINCT character_id FROM videos
-           ORDER BY created_at DESC LIMIT ?""",
-        (exclude_recent,),
+    rows = await pool.fetch(
+        """SELECT DISTINCT character_id FROM universe_projects
+           ORDER BY created_at DESC LIMIT $1""",
+        exclude_recent,
     )
-    recent_rows = await cursor.fetchall()
-    recent_ids = {row[0] for row in recent_rows}
+    recent_ids = {row["character_id"] for row in rows}
 
-    # Get all available characters
     available = get_available_characters()
     candidates = [cid for cid in available if cid not in recent_ids]
 
-    # Fallback to all if every character is recent
     if not candidates:
         candidates = available
 
@@ -166,35 +154,55 @@ async def get_random_character(
 
 
 async def select_source_pair(
-    db: aiosqlite.Connection, character_id: str
+    pool: asyncpg.Pool, character_id: str, org_id: str | None = None,
 ) -> tuple[SourceItem, SourceItem]:
     """Select a hook + truth source item pair. Prefers least-used items.
 
-    Ensures the pair makes thematic sense (same theme family).
+    When org_id is provided, source items are scoped to that organization's
+    universes to prevent cross-tenant data leaks.
     """
-    # Get least-used hook source items
-    cursor = await db.execute(
-        """SELECT text, short_version, theme, emotional_function,
-                  word_count, read_time_seconds, pair_with_visual
-           FROM source_items
-           WHERE character_id = ? AND emotional_function = 'hook'
-           ORDER BY used_count ASC, RANDOM()
-           LIMIT 10""",
-        (character_id,),
-    )
-    hook_rows = await cursor.fetchall()
-
-    # Get least-used truth source items
-    cursor = await db.execute(
-        """SELECT text, short_version, theme, emotional_function,
-                  word_count, read_time_seconds, pair_with_visual
-           FROM source_items
-           WHERE character_id = ? AND emotional_function = 'truth'
-           ORDER BY used_count ASC, RANDOM()
-           LIMIT 10""",
-        (character_id,),
-    )
-    truth_rows = await cursor.fetchall()
+    if org_id and org_id != "local":
+        hook_rows = await pool.fetch(
+            """SELECT q.text, q.short_version, q.theme, q.emotional_function,
+                      q.word_count, q.read_time_seconds, q.pair_with_visual
+               FROM source_items q
+               JOIN universes u ON q.universe_id = u.id
+               WHERE q.character_id = $1 AND q.emotional_function = 'hook'
+                 AND u.organization_id = $2
+               ORDER BY q.used_count ASC, RANDOM()
+               LIMIT 10""",
+            character_id, org_id,
+        )
+        truth_rows = await pool.fetch(
+            """SELECT q.text, q.short_version, q.theme, q.emotional_function,
+                      q.word_count, q.read_time_seconds, q.pair_with_visual
+               FROM source_items q
+               JOIN universes u ON q.universe_id = u.id
+               WHERE q.character_id = $1 AND q.emotional_function = 'truth'
+                 AND u.organization_id = $2
+               ORDER BY q.used_count ASC, RANDOM()
+               LIMIT 10""",
+            character_id, org_id,
+        )
+    else:
+        hook_rows = await pool.fetch(
+            """SELECT text, short_version, theme, emotional_function,
+                      word_count, read_time_seconds, pair_with_visual
+               FROM source_items
+               WHERE character_id = $1 AND emotional_function = 'hook'
+               ORDER BY used_count ASC, RANDOM()
+               LIMIT 10""",
+            character_id,
+        )
+        truth_rows = await pool.fetch(
+            """SELECT text, short_version, theme, emotional_function,
+                      word_count, read_time_seconds, pair_with_visual
+               FROM source_items
+               WHERE character_id = $1 AND emotional_function = 'truth'
+               ORDER BY used_count ASC, RANDOM()
+               LIMIT 10""",
+            character_id,
+        )
 
     if not hook_rows or not truth_rows:
         raise ValueError(
@@ -202,21 +210,20 @@ async def select_source_pair(
             f"{len(hook_rows)} hooks, {len(truth_rows)} truths"
         )
 
-    def _row_to_source_item(row: tuple) -> SourceItem:
+    def _row_to_source_item(row: asyncpg.Record) -> SourceItem:
         return SourceItem(
-            text=row[0],
-            short_version=row[1],
-            theme=row[2],
-            emotional_function=row[3],
-            word_count=row[4],
-            read_time_seconds=row[5],
-            pair_with_visual=row[6] or "",
+            text=row["text"],
+            short_version=row["short_version"],
+            theme=row["theme"],
+            emotional_function=row["emotional_function"],
+            word_count=row["word_count"],
+            read_time_seconds=row["read_time_seconds"],
+            pair_with_visual=row["pair_with_visual"] or "",
         )
 
     hooks = [_row_to_source_item(r) for r in hook_rows]
     truths = [_row_to_source_item(r) for r in truth_rows]
 
-    # Try to find a thematically compatible pair
     hook = pick_source_for_function(hooks, "hook")
     if hook is None:
         hook = hooks[0]
@@ -229,7 +236,7 @@ async def select_source_pair(
 
 
 async def get_character(
-    db: aiosqlite.Connection, character_id: str
+    pool: asyncpg.Pool, character_id: str
 ) -> Character:
     """Get full character data including character/environment descriptions."""
     # Try loading from JSON first (authoritative source)
@@ -240,40 +247,52 @@ async def get_character(
         return _parse_character(data)
 
     # Fallback to DB
-    cursor = await db.execute(
-        "SELECT id, name, group_name, character_description FROM characters WHERE id = ?",
-        (character_id,),
+    row = await pool.fetchrow(
+        "SELECT id, name, group_name, character_description, character_styles_json FROM characters WHERE id = $1",
+        character_id,
     )
-    row = await cursor.fetchone()
     if not row:
         raise ValueError(f"Character not found: {character_id}")
 
-    cursor = await db.execute(
+    item_rows = await pool.fetch(
         """SELECT text, short_version, theme, emotional_function,
                   word_count, read_time_seconds, pair_with_visual
-           FROM source_items WHERE character_id = ?""",
-        (character_id,),
+           FROM source_items WHERE character_id = $1""",
+        character_id,
     )
-    item_rows = await cursor.fetchall()
     source_items = [
         SourceItem(
-            text=r[0],
-            short_version=r[1],
-            theme=r[2],
-            emotional_function=r[3],
-            word_count=r[4],
-            read_time_seconds=r[5],
-            pair_with_visual=r[6] or "",
+            text=r["text"],
+            short_version=r["short_version"],
+            theme=r["theme"],
+            emotional_function=r["emotional_function"],
+            word_count=r["word_count"],
+            read_time_seconds=r["read_time_seconds"],
+            pair_with_visual=r["pair_with_visual"] or "",
         )
         for r in item_rows
     ]
 
+    # Parse per-style character descriptions from character_styles_json
+    char_descs: dict[str, str] = {}
+    if row["character_styles_json"]:
+        try:
+            styles = json.loads(row["character_styles_json"])
+            char_descs = {
+                theme: data["description"]
+                for theme, data in styles.items()
+                if isinstance(data, dict) and data.get("description")
+            }
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     return Character(
-        id=row[0],
-        name=row[1],
-        group=row[2],
+        id=row["id"],
+        name=row["name"],
+        group=row["group_name"],
         era="",
-        character_description=row[3],
+        character_description=row["character_description"],
+        character_descriptions=char_descs,
         environment_description="",
         source_texts=[],
         quotes=source_items,

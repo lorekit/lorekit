@@ -113,7 +113,7 @@ class Settings(BaseSettings):
     llm_model: str = "gpt-5.4"  # or "gpt-5.4-mini" (cheaper) or "claude-sonnet-4-20250514"
     fal_key: str = ""
     youtube_client_secret_path: Path | None = None
-    db_path: Path = Path("./data/lorekit.db")
+    database_url: str = "postgresql://localhost:5432/lorekit"
     output_dir: Path = Path("./output")
     clips_dir: Path = Path("./clips")
     audio_assets_dir: Path = Path("./lorekit/audio/assets")
@@ -122,7 +122,7 @@ class Settings(BaseSettings):
 
     def ensure_dirs(self) -> None:
         """Create required directories if they don't exist."""
-        for d in (self.db_path.parent, self.output_dir, self.clips_dir, self.audio_assets_dir):
+        for d in (self.output_dir, self.clips_dir, self.audio_assets_dir):
             d.mkdir(parents=True, exist_ok=True)
 
 

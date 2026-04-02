@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from lorekit import db
+from lorekit.auth.user import get_current_user, CurrentUser
 from lorekit.sources.chunker import chunk_text
 
 router = APIRouter(
@@ -38,19 +39,17 @@ class DocumentResponse(BaseModel):
     updated_at: str
 
 
-async def _verify_character(universe_id: str, character_id: str) -> None:
-    """Verify that the character exists and belongs to the universe."""
-    conn = await db.connect()
-    try:
-        cursor = await conn.execute(
-            "SELECT id FROM characters WHERE id = ? AND universe_id = ?",
-            (character_id, universe_id),
-        )
-        row = await cursor.fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="Character not found in this universe")
-    finally:
-        await conn.close()
+async def _verify_character(universe_id: str, character_id: str, org_id: str) -> None:
+    """Verify that the character exists, belongs to the universe, and the universe belongs to the user's org."""
+    pool = await db.get_pool()
+    row = await pool.fetchrow(
+        """SELECT c.id FROM characters c
+           JOIN universes u ON c.universe_id = u.id
+           WHERE c.id = $1 AND c.universe_id = $2 AND u.organization_id = $3""",
+        character_id, universe_id, org_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Character not found in this universe")
 
 
 @router.post("/", response_model=DocumentResponse)
@@ -58,9 +57,10 @@ async def create_document(
     universe_id: str,
     character_id: str,
     body: DocumentCreate,
+    user: CurrentUser = Depends(get_current_user),
 ):
     """Create a new document for a character."""
-    await _verify_character(universe_id, character_id)
+    await _verify_character(universe_id, character_id, user.org_id)
 
     doc_id = uuid.uuid4().hex[:12]
     doc = await db.create_document(
@@ -79,9 +79,10 @@ async def create_document(
 async def list_documents(
     universe_id: str,
     character_id: str,
+    user: CurrentUser = Depends(get_current_user),
 ):
     """List all documents for a character."""
-    await _verify_character(universe_id, character_id)
+    await _verify_character(universe_id, character_id, user.org_id)
     return await db.list_documents_by_character(character_id)
 
 
@@ -90,8 +91,10 @@ async def get_document(
     universe_id: str,
     character_id: str,
     document_id: str,
+    user: CurrentUser = Depends(get_current_user),
 ):
     """Get a single document."""
+    await _verify_character(universe_id, character_id, user.org_id)
     doc = await db.get_document(document_id)
     if not doc or doc["character_id"] != character_id:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -103,8 +106,10 @@ async def delete_document(
     universe_id: str,
     character_id: str,
     document_id: str,
+    user: CurrentUser = Depends(get_current_user),
 ):
     """Delete a document and its chunks."""
+    await _verify_character(universe_id, character_id, user.org_id)
     doc = await db.get_document(document_id)
     if not doc or doc["character_id"] != character_id:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -117,8 +122,10 @@ async def process_document(
     universe_id: str,
     character_id: str,
     document_id: str,
+    user: CurrentUser = Depends(get_current_user),
 ):
     """Chunk a document's content and store chunks. Updates status to 'ready'."""
+    await _verify_character(universe_id, character_id, user.org_id)
     doc = await db.get_document(document_id)
     if not doc or doc["character_id"] != character_id:
         raise HTTPException(status_code=404, detail="Document not found")

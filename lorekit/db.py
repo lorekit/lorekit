@@ -1,409 +1,90 @@
-"""SQLite database layer using aiosqlite."""
+"""PostgreSQL database layer using asyncpg with connection pooling.
+
+Schema is managed by Drizzle ORM (web/drizzle/schema.ts).
+This module handles runtime queries only.
+"""
 
 from __future__ import annotations
 
 import json
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
-import aiosqlite
+import asyncpg
 
 from lorekit.config import get_settings
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS universes (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    icon TEXT NOT NULL DEFAULT '',
-    video_vibe_preset TEXT NOT NULL DEFAULT 'mobile_game',
-    created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS environments (
-    id TEXT PRIMARY KEY,
-    universe_id TEXT NOT NULL REFERENCES universes(id),
-    name TEXT NOT NULL,
-    color_grade_json TEXT,
-    font TEXT NOT NULL DEFAULT 'Cinzel',
-    text_color TEXT NOT NULL DEFAULT '#FFFFFF',
-    text_shadow TEXT NOT NULL DEFAULT 'warm',
-    environment_description TEXT NOT NULL DEFAULT '',
-    themed_descriptions_json TEXT
-);
-
-CREATE TABLE IF NOT EXISTS scene_templates (
-    id TEXT PRIMARY KEY,
-    universe_id TEXT NOT NULL REFERENCES universes(id),
-    name TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    beats_json TEXT,
-    min_duration REAL NOT NULL DEFAULT 30,
-    max_duration REAL NOT NULL DEFAULT 50,
-    min_scenes INTEGER NOT NULL DEFAULT 5,
-    max_scenes INTEGER NOT NULL DEFAULT 8
-);
-
-CREATE TABLE IF NOT EXISTS characters (
-    id TEXT PRIMARY KEY,
-    universe_id TEXT NOT NULL REFERENCES universes(id),
-    name TEXT NOT NULL,
-    group_name TEXT NOT NULL,
-    era TEXT NOT NULL DEFAULT '',
-    character_description TEXT NOT NULL DEFAULT ''
-);
-
-CREATE TABLE IF NOT EXISTS source_items (
-    id TEXT PRIMARY KEY,
-    universe_id TEXT NOT NULL REFERENCES universes(id),
-    character_id TEXT NOT NULL REFERENCES characters(id),
-    text TEXT NOT NULL,
-    short_version TEXT,
-    theme TEXT NOT NULL,
-    emotional_function TEXT NOT NULL,
-    word_count INTEGER NOT NULL DEFAULT 0,
-    read_time_seconds REAL NOT NULL DEFAULT 0.0,
-    pair_with_visual TEXT NOT NULL DEFAULT '',
-    used_count INTEGER NOT NULL DEFAULT 0,
-    last_used_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS universe_projects (
-    id TEXT PRIMARY KEY,
-    universe_id TEXT NOT NULL REFERENCES universes(id),
-    name TEXT NOT NULL DEFAULT '',
-    character_id TEXT NOT NULL REFERENCES characters(id),
-    hook_quote_id TEXT,
-    truth_quote_id TEXT,
-    story_json TEXT,
-    status TEXT NOT NULL DEFAULT 'draft',
-    clips_json TEXT,
-    output_path TEXT,
-    youtube_id TEXT,
-    youtube_title TEXT,
-    cost_usd REAL NOT NULL DEFAULT 0.0,
-    character_image_url TEXT,
-    character_image_path TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS jobs (
-    id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
-    type TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending',
-    progress REAL NOT NULL DEFAULT 0.0,
-    message TEXT NOT NULL DEFAULT '',
-    result_json TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS costs (
-    id TEXT PRIMARY KEY,
-    video_id TEXT NOT NULL,
-    component TEXT NOT NULL,
-    amount_usd REAL NOT NULL,
-    created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS character_documents (
-    id TEXT PRIMARY KEY,
-    character_id TEXT NOT NULL REFERENCES characters(id),
-    universe_id TEXT NOT NULL REFERENCES universes(id),
-    name TEXT NOT NULL,
-    doc_type TEXT NOT NULL DEFAULT 'text',
-    content TEXT,
-    file_path TEXT,
-    file_size_bytes INTEGER DEFAULT 0,
-    chunk_count INTEGER DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'pending',
-    metadata_json TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS document_chunks (
-    id TEXT PRIMARY KEY,
-    document_id TEXT NOT NULL REFERENCES character_documents(id),
-    character_id TEXT NOT NULL REFERENCES characters(id),
-    chunk_index INTEGER NOT NULL,
-    content TEXT NOT NULL,
-    token_count INTEGER DEFAULT 0,
-    embedding_json TEXT,
-    created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS scripts (
-    id TEXT PRIMARY KEY,
-    universe_id TEXT NOT NULL REFERENCES universes(id),
-    title TEXT NOT NULL,
-    script_type TEXT NOT NULL DEFAULT 'idea',
-    content TEXT NOT NULL DEFAULT '',
-    character_ids_json TEXT,
-    target_duration_seconds INTEGER,
-    scene_count INTEGER,
-    status TEXT NOT NULL DEFAULT 'draft',
-    metadata_json TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS character_voices (
-    id TEXT PRIMARY KEY,
-    character_id TEXT NOT NULL REFERENCES characters(id),
-    tts_model TEXT NOT NULL DEFAULT 'fal-ai/minimax/speech-2.6-turbo',
-    voice_id TEXT,
-    voice_name TEXT NOT NULL DEFAULT 'Default',
-    reference_audio_path TEXT,
-    settings_json TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS project_audio_assets (
-    id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
-    asset_type TEXT NOT NULL DEFAULT 'music',
-    name TEXT NOT NULL DEFAULT '',
-    file_path TEXT NOT NULL,
-    duration_seconds REAL,
-    metadata_json TEXT,
-    created_at TEXT NOT NULL
-);
-"""
+# Module-level connection pool
+_pool: asyncpg.Pool | None = None
 
 
-async def _get_db_path() -> Path:
+async def init_pool() -> asyncpg.Pool:
+    """Create the global connection pool. Called once at startup."""
+    global _pool
     settings = get_settings()
-    settings.ensure_dirs()
-    return settings.db_path
+    _pool = await asyncpg.create_pool(
+        settings.database_url,
+        min_size=2,
+        max_size=10,
+    )
+    return _pool
 
 
-async def connect(db_path: Path | None = None) -> aiosqlite.Connection:
-    """Open a connection to the database."""
-    path = db_path or await _get_db_path()
-    db = await aiosqlite.connect(str(path))
-    db.row_factory = aiosqlite.Row
-    await db.execute("PRAGMA journal_mode=WAL")
-    await db.execute("PRAGMA foreign_keys=ON")
-    return db
+async def close_pool() -> None:
+    """Shutdown the connection pool. Called at app shutdown."""
+    global _pool
+    if _pool:
+        await _pool.close()
+        _pool = None
 
 
-async def migrate_schema(db_path: Path | None = None) -> None:
-    """Migrate from old PhilosophyWise schema to LoreKit schema.
-
-    If old ``philosophers`` table exists, renames tables and adds new columns.
-    Otherwise creates a fresh schema with the new names.
-    """
-    db = await connect(db_path)
-    try:
-        # Check if the old 'philosophers' table exists
-        cursor = await db.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='philosophers'"
-        )
-        old_exists = await cursor.fetchone()
-
-        if old_exists:
-            # Create the new universe / environment / scene_template tables first
-            await db.executescript("""
-                CREATE TABLE IF NOT EXISTS universes (
-                    id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    description TEXT NOT NULL DEFAULT '',
-                    created_at TEXT NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS environments (
-                    id TEXT PRIMARY KEY,
-                    universe_id TEXT NOT NULL REFERENCES universes(id),
-                    name TEXT NOT NULL,
-                    color_grade_json TEXT,
-                    font TEXT NOT NULL DEFAULT 'Cinzel',
-                    text_color TEXT NOT NULL DEFAULT '#FFFFFF',
-                    text_shadow TEXT NOT NULL DEFAULT 'warm',
-                    environment_description TEXT NOT NULL DEFAULT '',
-                    themed_descriptions_json TEXT
-                );
-                CREATE TABLE IF NOT EXISTS scene_templates (
-                    id TEXT PRIMARY KEY,
-                    universe_id TEXT NOT NULL REFERENCES universes(id),
-                    name TEXT NOT NULL,
-                    description TEXT NOT NULL DEFAULT '',
-                    beats_json TEXT,
-                    min_duration REAL NOT NULL DEFAULT 30,
-                    max_duration REAL NOT NULL DEFAULT 50,
-                    min_scenes INTEGER NOT NULL DEFAULT 5,
-                    max_scenes INTEGER NOT NULL DEFAULT 8
-                );
-            """)
-
-            # Create the default 'philosophywise' universe
-            now = datetime.now(timezone.utc).isoformat()
-            await db.execute(
-                "INSERT OR IGNORE INTO universes (id, name, description, created_at) VALUES (?, ?, ?, ?)",
-                ("philosophywise", "PhilosophyWise", "Default universe migrated from PhilosophyWise", now),
-            )
-
-            # Rename philosophers -> characters
-            await db.execute("ALTER TABLE philosophers RENAME TO characters")
-            # Add universe_id column
-            try:
-                await db.execute("ALTER TABLE characters ADD COLUMN universe_id TEXT NOT NULL DEFAULT 'philosophywise'")
-            except Exception:
-                pass
-            # Rename civilization -> group_name
-            try:
-                await db.execute("ALTER TABLE characters RENAME COLUMN civilization TO group_name")
-            except Exception:
-                pass
-
-            # Rename quotes -> source_items
-            await db.execute("ALTER TABLE quotes RENAME TO source_items")
-            # Add universe_id column
-            try:
-                await db.execute("ALTER TABLE source_items ADD COLUMN universe_id TEXT NOT NULL DEFAULT 'philosophywise'")
-            except Exception:
-                pass
-            # Rename philosopher_id -> character_id
-            try:
-                await db.execute("ALTER TABLE source_items RENAME COLUMN philosopher_id TO character_id")
-            except Exception:
-                pass
-
-            # Add universe_id to videos
-            try:
-                await db.execute("ALTER TABLE videos ADD COLUMN universe_id TEXT NOT NULL DEFAULT 'philosophywise'")
-            except Exception:
-                pass
-            # Rename philosopher_id -> character_id in videos
-            try:
-                await db.execute("ALTER TABLE videos RENAME COLUMN philosopher_id TO character_id")
-            except Exception:
-                pass
-
-            # Add universe_id to projects
-            try:
-                await db.execute("ALTER TABLE projects ADD COLUMN universe_id TEXT NOT NULL DEFAULT 'philosophywise'")
-            except Exception:
-                pass
-            # Rename philosopher_id -> character_id in projects
-            try:
-                await db.execute("ALTER TABLE projects RENAME COLUMN philosopher_id TO character_id")
-            except Exception:
-                pass
-
-            # Rename projects -> universe_projects
-            cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'")
-            if await cursor.fetchone():
-                await db.execute("ALTER TABLE projects RENAME TO universe_projects")
-
-            # Drop legacy videos table if it exists
-            await db.execute("DROP TABLE IF EXISTS videos")
-
-            await db.commit()
-        else:
-            # Fresh install — use new schema directly
-            await db.executescript(_SCHEMA)
-            await db.commit()
-    finally:
-        await db.close()
+async def get_pool() -> asyncpg.Pool:
+    """Return the pool, creating it if needed."""
+    if _pool is None:
+        await init_pool()
+    assert _pool is not None
+    return _pool
 
 
-async def init_db(db_path: Path | None = None) -> None:
-    """Create all tables if they don't exist."""
-    db = await connect(db_path)
-    try:
-        # Rename projects -> universe_projects if needed (before creating schema)
-        cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'")
-        if await cursor.fetchone():
-            # If universe_projects already exists (from a partial migration), drop the empty one first
-            cursor2 = await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='universe_projects'")
-            if await cursor2.fetchone():
-                await db.execute("DROP TABLE universe_projects")
-            await db.execute("ALTER TABLE projects RENAME TO universe_projects")
+def _row_to_dict(row: asyncpg.Record | None) -> dict[str, Any] | None:
+    """Convert an asyncpg Record to a dict, or None if row is None."""
+    return dict(row) if row else None
 
-        # Rename video_projects -> universe_projects if needed (from previous migration)
-        cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='video_projects'")
-        if await cursor.fetchone():
-            cursor2 = await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='universe_projects'")
-            if await cursor2.fetchone():
-                # Both exist — merge data or drop empty one
-                await db.execute("INSERT OR IGNORE INTO universe_projects SELECT * FROM video_projects")
-                await db.execute("DROP TABLE video_projects")
-            else:
-                await db.execute("ALTER TABLE video_projects RENAME TO universe_projects")
 
-        # Drop legacy videos table if it exists
-        await db.execute("DROP TABLE IF EXISTS videos")
+def _rows_to_dicts(rows: list[asyncpg.Record]) -> list[dict[str, Any]]:
+    """Convert a list of asyncpg Records to list of dicts."""
+    return [dict(r) for r in rows]
 
-        await db.executescript(_SCHEMA)
-        # Migrate: add icon/video_vibe_preset columns to universes if missing
-        for col in ("icon TEXT NOT NULL DEFAULT ''", "video_vibe_preset TEXT NOT NULL DEFAULT 'mobile_game'"):
-            try:
-                await db.execute(f"ALTER TABLE universes ADD COLUMN {col}")
-            except Exception:
-                pass
-        # Migrate: add character image columns if missing (existing DBs)
-        for col in ("character_image_url TEXT", "character_image_path TEXT"):
-            try:
-                await db.execute(f"ALTER TABLE universe_projects ADD COLUMN {col}")
-            except Exception:
-                pass  # column already exists
-        # Migrate: add character columns to characters table
-        for col in ("character_image_url TEXT", "character_ref_urls TEXT", "character_images_json TEXT"):
-            try:
-                await db.execute(f"ALTER TABLE characters ADD COLUMN {col}")
-            except Exception:
-                pass  # column already exists
-        # Migrate: add source_type, script_id, character_ids_json to universe_projects
-        for col in ("source_type TEXT NOT NULL DEFAULT 'quote'", "script_id TEXT", "character_ids_json TEXT"):
-            try:
-                await db.execute(f"ALTER TABLE universe_projects ADD COLUMN {col}")
-            except Exception:
-                pass
-        # Migrate: add audio columns to universe_projects
-        for col in ("audio_mode TEXT NOT NULL DEFAULT 'auto'", "uploaded_audio_path TEXT", "narration_json TEXT"):
-            try:
-                await db.execute(f"ALTER TABLE universe_projects ADD COLUMN {col}")
-            except Exception:
-                pass
-        # Migrate: add transitions_json to universe_projects
-        try:
-            await db.execute("ALTER TABLE universe_projects ADD COLUMN transitions_json TEXT")
-        except Exception:
-            pass
-        await db.commit()
-    finally:
-        await db.close()
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+# --- Source item helpers ---
 
 
 async def get_unused_source_items(
     character_id: str,
     function: str | None = None,
     limit: int = 5,
-    db_path: Path | None = None,
     *,
     philosopher_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Return source items sorted by least used, optionally filtered by emotional_function."""
     cid = character_id or philosopher_id
-    db = await connect(db_path)
-    try:
-        sql = "SELECT * FROM source_items WHERE character_id = ?"
-        params: list[Any] = [cid]
-        if function:
-            sql += " AND emotional_function = ?"
-            params.append(function)
-        sql += " ORDER BY used_count ASC, last_used_at ASC NULLS FIRST LIMIT ?"
-        params.append(limit)
-        cursor = await db.execute(sql, params)
-        rows = await cursor.fetchall()
-        return [dict(row) for row in rows]
-    finally:
-        await db.close()
+    pool = await get_pool()
+    sql = "SELECT * FROM source_items WHERE character_id = $1"
+    params: list[Any] = [cid]
+    idx = 2
+    if function:
+        sql += f" AND emotional_function = ${idx}"
+        params.append(function)
+        idx += 1
+    sql += f" ORDER BY used_count ASC, last_used_at ASC NULLS FIRST LIMIT ${idx}"
+    params.append(limit)
+    rows = await pool.fetch(sql, *params)
+    return _rows_to_dicts(rows)
 
 
 # Backward compatibility alias
@@ -413,131 +94,90 @@ get_unused_quotes = get_unused_source_items
 async def mark_source_item_used(
     quote_id: str,
     video_id: str,
-    db_path: Path | None = None,
 ) -> None:
     """Increment used_count and set last_used_at for a source item."""
-    db = await connect(db_path)
-    try:
-        now = datetime.now(timezone.utc).isoformat()
-        await db.execute(
-            "UPDATE source_items SET used_count = used_count + 1, last_used_at = ? WHERE id = ?",
-            (now, quote_id),
-        )
-        await db.commit()
-    finally:
-        await db.close()
+    pool = await get_pool()
+    now = _now()
+    await pool.execute(
+        "UPDATE source_items SET used_count = used_count + 1, last_used_at = $1 WHERE id = $2",
+        now, quote_id,
+    )
 
 
 # Backward compatibility alias
 mark_quote_used = mark_source_item_used
 
 
-async def create_video_record(
-    project_id: str,
-    character_id: str,
-    hook_quote_id: str | None = None,
-    truth_quote_id: str | None = None,
-    status: str = "queued",
-    db_path: Path | None = None,
-    *,
-    philosopher_id: str | None = None,
-) -> str:
-    """Insert a new video record and return its id."""
-    cid = character_id or philosopher_id
-    db = await connect(db_path)
-    try:
-        now = datetime.now(timezone.utc).isoformat()
-        await db.execute(
-            """INSERT INTO videos (id, character_id, hook_quote_id, truth_quote_id, status, created_at)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (project_id, cid, hook_quote_id, truth_quote_id, status, now),
-        )
-        await db.commit()
-        return project_id
-    finally:
-        await db.close()
-
-
-async def update_video_status(
-    video_id: str,
-    status: str,
-    db_path: Path | None = None,
-    **kwargs: Any,
-) -> None:
-    """Update a video's status and optional fields (output_path, youtube_id, cost_usd, etc.)."""
-    db = await connect(db_path)
-    try:
-        sets = ["status = ?"]
-        params: list[Any] = [status]
-        allowed = {"output_path", "youtube_id", "youtube_title", "cost_usd", "views", "published_at"}
-        for key, val in kwargs.items():
-            if key in allowed:
-                sets.append(f"{key} = ?")
-                params.append(val)
-        params.append(video_id)
-        await db.execute(f"UPDATE videos SET {', '.join(sets)} WHERE id = ?", params)
-        await db.commit()
-    finally:
-        await db.close()
-
-
 async def log_cost(
     video_id: str,
     component: str,
     amount: float,
-    db_path: Path | None = None,
 ) -> None:
     """Record a cost entry for a pipeline component."""
-    db = await connect(db_path)
-    try:
-        cost_id = uuid.uuid4().hex[:12]
-        now = datetime.now(timezone.utc).isoformat()
-        await db.execute(
-            "INSERT INTO costs (id, video_id, component, amount_usd, created_at) VALUES (?, ?, ?, ?, ?)",
-            (cost_id, video_id, component, amount, now),
-        )
-        # Also update the video's total cost
-        await db.execute(
-            "UPDATE videos SET cost_usd = cost_usd + ? WHERE id = ?",
-            (amount, video_id),
-        )
-        await db.commit()
-    finally:
-        await db.close()
+    pool = await get_pool()
+    cost_id = uuid.uuid4().hex[:12]
+    now = _now()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "INSERT INTO costs (id, video_id, component, amount_usd, created_at) VALUES ($1, $2, $3, $4, $5)",
+                cost_id, video_id, component, amount, now,
+            )
+            await conn.execute(
+                "UPDATE universe_projects SET cost_usd = cost_usd + $1 WHERE id = $2",
+                amount, video_id,
+            )
 
 
-async def get_stats(db_path: Path | None = None) -> dict[str, Any]:
-    """Return aggregate stats: total videos, total cost, avg cost, source item usage."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute(
+async def get_stats(org_id: str | None = None) -> dict[str, Any]:
+    """Return aggregate stats, scoped to org if provided."""
+    pool = await get_pool()
+
+    if org_id:
+        row = await pool.fetchrow(
+            """SELECT COUNT(*) as total, COALESCE(SUM(p.cost_usd), 0) as total_cost,
+                      COALESCE(AVG(p.cost_usd), 0) as avg_cost
+               FROM universe_projects p JOIN universes u ON p.universe_id = u.id
+               WHERE u.organization_id = $1""", org_id,
+        )
+        quote_row = await pool.fetchrow(
+            """SELECT COUNT(*) as total_quotes,
+                      COALESCE(SUM(q.used_count), 0) as total_uses,
+                      COALESCE(AVG(q.used_count), 0) as avg_uses
+               FROM source_items q JOIN universes u ON q.universe_id = u.id
+               WHERE u.organization_id = $1""", org_id,
+        )
+        cost_rows = await pool.fetch(
+            """SELECT c.component, COALESCE(SUM(c.amount_usd), 0) as total
+               FROM costs c JOIN universe_projects p ON c.video_id = p.id
+               JOIN universes u ON p.universe_id = u.id
+               WHERE u.organization_id = $1
+               GROUP BY c.component ORDER BY total DESC""", org_id,
+        )
+    else:
+        row = await pool.fetchrow(
             "SELECT COUNT(*) as total, COALESCE(SUM(cost_usd), 0) as total_cost, "
             "COALESCE(AVG(cost_usd), 0) as avg_cost FROM universe_projects"
         )
-        row = await cursor.fetchone()
-        video_stats = dict(row) if row else {"total": 0, "total_cost": 0.0, "avg_cost": 0.0}
-
-        cursor = await db.execute(
+        quote_row = await pool.fetchrow(
             "SELECT COUNT(*) as total_quotes, "
             "COALESCE(SUM(used_count), 0) as total_uses, "
             "COALESCE(AVG(used_count), 0) as avg_uses FROM source_items"
         )
-        row = await cursor.fetchone()
-        quote_stats = dict(row) if row else {"total_quotes": 0, "total_uses": 0, "avg_uses": 0.0}
-
-        cursor = await db.execute(
+        cost_rows = await pool.fetch(
             "SELECT component, COALESCE(SUM(amount_usd), 0) as total "
             "FROM costs GROUP BY component ORDER BY total DESC"
         )
-        cost_breakdown = [dict(r) for r in await cursor.fetchall()]
 
-        return {
-            "videos": video_stats,
-            "quotes": quote_stats,
-            "cost_breakdown": cost_breakdown,
-        }
-    finally:
-        await db.close()
+    video_stats = dict(row) if row else {"total": 0, "total_cost": 0.0, "avg_cost": 0.0}
+    quote_stats = dict(quote_row) if quote_row else {"total_quotes": 0, "total_uses": 0, "avg_uses": 0.0}
+    cost_breakdown = _rows_to_dicts(cost_rows)
+
+    return {
+        "videos": video_stats,
+        "quotes": quote_stats,
+        "cost_breakdown": cost_breakdown,
+    }
 
 
 # --- Character / source item import helpers ---
@@ -550,7 +190,6 @@ async def upsert_character(
     era: str = "",
     character_description: str = "",
     universe_id: str | None = None,
-    db_path: Path | None = None,
     *,
     philosopher_id: str | None = None,
     civilization: str | None = None,
@@ -558,24 +197,19 @@ async def upsert_character(
     """Insert or update a character record."""
     cid = character_id or philosopher_id
     gname = group_name or civilization or ""
-    uid = universe_id
-    if not uid:
+    if not universe_id:
         raise ValueError("universe_id is required when creating a character")
-    db = await connect(db_path)
-    try:
-        await db.execute(
-            """INSERT INTO characters (id, universe_id, name, group_name, era, character_description)
-               VALUES (?, ?, ?, ?, ?, ?)
-               ON CONFLICT(id) DO UPDATE SET
-                   name=excluded.name,
-                   group_name=excluded.group_name,
-                   era=excluded.era,
-                   character_description=excluded.character_description""",
-            (cid, uid, name, gname, era, character_description),
-        )
-        await db.commit()
-    finally:
-        await db.close()
+    pool = await get_pool()
+    await pool.execute(
+        """INSERT INTO characters (id, universe_id, name, group_name, era, character_description)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT(id) DO UPDATE SET
+               name=EXCLUDED.name,
+               group_name=EXCLUDED.group_name,
+               era=EXCLUDED.era,
+               character_description=EXCLUDED.character_description""",
+        cid, universe_id, name, gname, era, character_description,
+    )
 
 
 # Backward compatibility alias
@@ -592,27 +226,22 @@ async def insert_source_item(
     word_count: int = 0,
     read_time_seconds: float = 0.0,
     pair_with_visual: str = "",
-    db_path: Path | None = None,
     *,
     philosopher_id: str | None = None,
 ) -> str:
     """Insert a source item and return its id."""
     cid = character_id or philosopher_id
-    db = await connect(db_path)
-    try:
-        item_id = uuid.uuid4().hex[:12]
-        await db.execute(
-            """INSERT INTO source_items
-               (id, character_id, universe_id, text, short_version, theme, emotional_function,
-                word_count, read_time_seconds, pair_with_visual)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (item_id, cid, universe_id, text, short_version, theme, emotional_function,
-             word_count, read_time_seconds, pair_with_visual),
-        )
-        await db.commit()
-        return item_id
-    finally:
-        await db.close()
+    pool = await get_pool()
+    item_id = uuid.uuid4().hex[:12]
+    await pool.execute(
+        """INSERT INTO source_items
+           (id, character_id, universe_id, text, short_version, theme, emotional_function,
+            word_count, read_time_seconds, pair_with_visual)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)""",
+        item_id, cid, universe_id, text, short_version, theme, emotional_function,
+        word_count, read_time_seconds, pair_with_visual,
+    )
+    return item_id
 
 
 # Backward compatibility alias
@@ -622,55 +251,33 @@ insert_quote = insert_source_item
 async def list_source_items(
     character_id: str | None = None,
     function: str | None = None,
-    db_path: Path | None = None,
     *,
     philosopher_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """List source items with optional filters."""
     cid = character_id or philosopher_id
-    db = await connect(db_path)
-    try:
-        sql = (
-            "SELECT q.*, c.name as character_name "
-            "FROM source_items q JOIN characters c ON q.character_id = c.id WHERE 1=1"
-        )
-        params: list[Any] = []
-        if cid:
-            sql += " AND q.character_id = ?"
-            params.append(cid)
-        if function:
-            sql += " AND q.emotional_function = ?"
-            params.append(function)
-        sql += " ORDER BY q.character_id, q.emotional_function, q.used_count ASC"
-        cursor = await db.execute(sql, params)
-        return [dict(r) for r in await cursor.fetchall()]
-    finally:
-        await db.close()
+    pool = await get_pool()
+    sql = (
+        "SELECT q.*, c.name as character_name "
+        "FROM source_items q JOIN characters c ON q.character_id = c.id WHERE 1=1"
+    )
+    params: list[Any] = []
+    idx = 1
+    if cid:
+        sql += f" AND q.character_id = ${idx}"
+        params.append(cid)
+        idx += 1
+    if function:
+        sql += f" AND q.emotional_function = ${idx}"
+        params.append(function)
+        idx += 1
+    sql += " ORDER BY q.character_id, q.emotional_function, q.used_count ASC"
+    rows = await pool.fetch(sql, *params)
+    return _rows_to_dicts(rows)
 
 
 # Backward compatibility alias
 list_quotes = list_source_items
-
-
-async def list_videos(
-    status: str | None = None,
-    limit: int = 20,
-    db_path: Path | None = None,
-) -> list[dict[str, Any]]:
-    """List recent videos."""
-    db = await connect(db_path)
-    try:
-        sql = "SELECT * FROM videos WHERE 1=1"
-        params: list[Any] = []
-        if status:
-            sql += " AND status = ?"
-            params.append(status)
-        sql += " ORDER BY created_at DESC LIMIT ?"
-        params.append(limit)
-        cursor = await db.execute(sql, params)
-        return [dict(r) for r in await cursor.fetchall()]
-    finally:
-        await db.close()
 
 
 # --- Project CRUD ---
@@ -686,109 +293,126 @@ async def create_project(
     source_type: str = "quote",
     script_id: str | None = None,
     character_ids_json: str | None = None,
-    db_path: Path | None = None,
     *,
     philosopher_id: str | None = None,
 ) -> dict[str, Any]:
     """Create a new project and return it."""
     cid = character_id or philosopher_id
-    uid = universe_id
-    db = await connect(db_path)
-    try:
-        now = datetime.now(timezone.utc).isoformat()
-        await db.execute(
-            """INSERT INTO universe_projects
-               (id, universe_id, name, character_id, hook_quote_id, truth_quote_id,
-                source_type, script_id, character_ids_json,
-                status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)""",
-            (project_id, uid, name, cid,
-             hook_quote_id, truth_quote_id,
-             source_type, script_id, character_ids_json,
-             now, now),
+    pool = await get_pool()
+    now = _now()
+    await pool.execute(
+        """INSERT INTO universe_projects
+           (id, universe_id, name, character_id, hook_quote_id, truth_quote_id,
+            source_type, script_id, character_ids_json,
+            status, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'draft', $10, $11)""",
+        project_id, universe_id, name, cid,
+        hook_quote_id, truth_quote_id,
+        source_type, script_id, character_ids_json,
+        now, now,
+    )
+    row = await pool.fetchrow("SELECT * FROM universe_projects WHERE id = $1", project_id)
+    return dict(row) if row else {}
+
+
+async def get_project(
+    project_id: str,
+    org_id: str | None = None,
+) -> dict[str, Any] | None:
+    """Get a single project by ID, optionally scoped to org."""
+    pool = await get_pool()
+    if org_id:
+        row = await pool.fetchrow(
+            """SELECT p.* FROM universe_projects p
+               JOIN universes u ON p.universe_id = u.id
+               WHERE p.id = $1 AND u.organization_id = $2""",
+            project_id, org_id,
         )
-        await db.commit()
-        cursor = await db.execute("SELECT * FROM universe_projects WHERE id = ?", (project_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else {}
-    finally:
-        await db.close()
-
-
-async def get_project(project_id: str, db_path: Path | None = None) -> dict[str, Any] | None:
-    """Get a single project by ID."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute("SELECT * FROM universe_projects WHERE id = ?", (project_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        await db.close()
+    else:
+        row = await pool.fetchrow("SELECT * FROM universe_projects WHERE id = $1", project_id)
+    return _row_to_dict(row)
 
 
 async def list_projects(
     status: str | None = None,
     limit: int = 50,
-    db_path: Path | None = None,
+    org_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    """List projects, optionally filtered by status."""
-    db = await connect(db_path)
-    try:
+    """List projects, optionally filtered by status and org."""
+    pool = await get_pool()
+    params: list[Any] = []
+    idx = 1
+    if org_id:
+        sql = """SELECT p.* FROM universe_projects p
+                 JOIN universes u ON p.universe_id = u.id
+                 WHERE u.organization_id = $1"""
+        params.append(org_id)
+        idx += 1
+    else:
         sql = "SELECT * FROM universe_projects WHERE 1=1"
-        params: list[Any] = []
-        if status:
-            sql += " AND status = ?"
-            params.append(status)
-        sql += " ORDER BY created_at DESC LIMIT ?"
-        params.append(limit)
-        cursor = await db.execute(sql, params)
-        return [dict(r) for r in await cursor.fetchall()]
-    finally:
-        await db.close()
+    if status:
+        sql += f" AND status = ${idx}"
+        params.append(status)
+        idx += 1
+    sql += f" ORDER BY created_at DESC LIMIT ${idx}"
+    params.append(limit)
+    rows = await pool.fetch(sql, *params)
+    return _rows_to_dicts(rows)
 
 
 async def update_project(
     project_id: str,
-    db_path: Path | None = None,
+    *,
+    org_id: str | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
-    """Update project fields. Returns updated project."""
-    db = await connect(db_path)
-    try:
-        allowed = {
-            "name", "status", "story_json", "clips_json", "output_path",
-            "youtube_id", "youtube_title", "cost_usd",
-            "hook_quote_id", "truth_quote_id",
-            "character_image_url", "character_image_path",
-            "source_type", "script_id", "character_ids_json",
-            "audio_mode", "uploaded_audio_path", "narration_json",
-            "transitions_json",
-        }
-        sets = ["updated_at = ?"]
-        params: list[Any] = [datetime.now(timezone.utc).isoformat()]
-        for key, val in kwargs.items():
-            if key in allowed:
-                sets.append(f"{key} = ?")
-                params.append(val)
-        params.append(project_id)
-        await db.execute(f"UPDATE universe_projects SET {', '.join(sets)} WHERE id = ?", params)
-        await db.commit()
-        cursor = await db.execute("SELECT * FROM universe_projects WHERE id = ?", (project_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        await db.close()
+    """Update project fields. Returns updated project.
+
+    When ``org_id`` is provided the UPDATE joins on ``universes`` to verify
+    that the project belongs to the given organisation, preventing cross-tenant
+    writes.
+    """
+    pool = await get_pool()
+    allowed = {
+        "name", "status", "story_json", "clips_json", "output_path",
+        "youtube_id", "youtube_title", "cost_usd",
+        "hook_quote_id", "truth_quote_id",
+        "character_image_url", "character_image_path",
+        "source_type", "script_id", "character_ids_json",
+        "audio_mode", "uploaded_audio_path", "narration_json",
+        "transitions_json", "transition_clips_json", "aspect_ratio",
+    }
+    sets = ["updated_at = $1"]
+    params: list[Any] = [_now()]
+    idx = 2
+    for key, val in kwargs.items():
+        if key in allowed:
+            sets.append(f"{key} = ${idx}")
+            params.append(val)
+            idx += 1
+    params.append(project_id)
+    if org_id:
+        params.append(org_id)
+        await pool.execute(
+            f"UPDATE universe_projects p SET {', '.join(sets)} "
+            f"FROM universes u "
+            f"WHERE p.universe_id = u.id AND p.id = ${idx} AND u.organization_id = ${idx + 1}",
+            *params,
+        )
+    else:
+        await pool.execute(
+            f"UPDATE universe_projects SET {', '.join(sets)} WHERE id = ${idx}",
+            *params,
+        )
+    row = await pool.fetchrow("SELECT * FROM universe_projects WHERE id = $1", project_id)
+    return _row_to_dict(row)
 
 
-async def delete_project(project_id: str, db_path: Path | None = None) -> bool:
+async def delete_project(project_id: str) -> bool:
     """Delete a project. Returns True if deleted."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute("DELETE FROM universe_projects WHERE id = ?", (project_id,))
-        await db.commit()
-        return cursor.rowcount > 0
-    finally:
-        await db.close()
+    pool = await get_pool()
+    result = await pool.execute("DELETE FROM universe_projects WHERE id = $1", project_id)
+    return result == "DELETE 1"
 
 
 # --- Job tracking ---
@@ -798,56 +422,46 @@ async def create_job(
     job_id: str,
     project_id: str,
     job_type: str,
-    db_path: Path | None = None,
 ) -> dict[str, Any]:
     """Create a new job record."""
-    db = await connect(db_path)
-    try:
-        now = datetime.now(timezone.utc).isoformat()
-        await db.execute(
-            """INSERT INTO jobs (id, project_id, type, status, progress, message, created_at, updated_at)
-               VALUES (?, ?, ?, 'pending', 0.0, '', ?, ?)""",
-            (job_id, project_id, job_type, now, now),
-        )
-        await db.commit()
-        cursor = await db.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else {}
-    finally:
-        await db.close()
+    pool = await get_pool()
+    now = _now()
+    await pool.execute(
+        """INSERT INTO jobs (id, project_id, type, status, progress, message, created_at, updated_at)
+           VALUES ($1, $2, $3, 'pending', 0.0, '', $4, $5)""",
+        job_id, project_id, job_type, now, now,
+    )
+    row = await pool.fetchrow("SELECT * FROM jobs WHERE id = $1", job_id)
+    return dict(row) if row else {}
 
 
-async def get_job(job_id: str, db_path: Path | None = None) -> dict[str, Any] | None:
+async def get_job(job_id: str) -> dict[str, Any] | None:
     """Get a job by ID."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        await db.close()
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM jobs WHERE id = $1", job_id)
+    return _row_to_dict(row)
 
 
 async def update_job(
     job_id: str,
-    db_path: Path | None = None,
     **kwargs: Any,
 ) -> None:
     """Update job fields (status, progress, message, result_json)."""
-    db = await connect(db_path)
-    try:
-        allowed = {"status", "progress", "message", "result_json"}
-        sets = ["updated_at = ?"]
-        params: list[Any] = [datetime.now(timezone.utc).isoformat()]
-        for key, val in kwargs.items():
-            if key in allowed:
-                sets.append(f"{key} = ?")
-                params.append(val)
-        params.append(job_id)
-        await db.execute(f"UPDATE jobs SET {', '.join(sets)} WHERE id = ?", params)
-        await db.commit()
-    finally:
-        await db.close()
+    pool = await get_pool()
+    allowed = {"status", "progress", "message", "result_json"}
+    sets = ["updated_at = $1"]
+    params: list[Any] = [_now()]
+    idx = 2
+    for key, val in kwargs.items():
+        if key in allowed:
+            sets.append(f"{key} = ${idx}")
+            params.append(val)
+            idx += 1
+    params.append(job_id)
+    await pool.execute(
+        f"UPDATE jobs SET {', '.join(sets)} WHERE id = ${idx}",
+        *params,
+    )
 
 
 # --- Universe CRUD ---
@@ -859,147 +473,148 @@ async def create_universe(
     description: str = "",
     icon: str = "",
     video_vibe_preset: str = "mobile_game",
-    db_path: Path | None = None,
+    organization_id: str = "local",
+    created_by: str = "local",
 ) -> dict[str, Any]:
     """Create a new universe and return it."""
-    db = await connect(db_path)
-    try:
-        now = datetime.now(timezone.utc).isoformat()
-        await db.execute(
-            "INSERT INTO universes (id, name, description, icon, video_vibe_preset, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (universe_id, name, description, icon, video_vibe_preset, now),
-        )
-        await db.commit()
-        cursor = await db.execute("SELECT * FROM universes WHERE id = ?", (universe_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else {}
-    finally:
-        await db.close()
+    pool = await get_pool()
+    now = _now()
+    await pool.execute(
+        """INSERT INTO universes
+           (id, name, description, icon, video_vibe_preset, organization_id, created_by, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
+        universe_id, name, description, icon, video_vibe_preset, organization_id, created_by, now,
+    )
+    row = await pool.fetchrow("SELECT * FROM universes WHERE id = $1", universe_id)
+    return dict(row) if row else {}
 
 
-async def get_universe(universe_id: str, db_path: Path | None = None) -> dict[str, Any] | None:
+async def get_universe(
+    universe_id: str,
+    org_id: str | None = None,
+) -> dict[str, Any] | None:
     """Get a universe by ID with character and project counts."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute("""
-            SELECT u.*,
-                   (SELECT COUNT(*) FROM characters c WHERE c.universe_id = u.id) as character_count,
-                   (SELECT COUNT(*) FROM universe_projects p WHERE p.universe_id = u.id) as project_count
-            FROM universes u WHERE u.id = ?
-        """, (universe_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        await db.close()
+    pool = await get_pool()
+    sql = """
+        SELECT u.*,
+               (SELECT COUNT(*) FROM characters c WHERE c.universe_id = u.id) as character_count,
+               (SELECT COUNT(*) FROM universe_projects p WHERE p.universe_id = u.id) as project_count
+        FROM universes u WHERE u.id = $1
+    """
+    params: list[Any] = [universe_id]
+    if org_id:
+        sql += " AND u.organization_id = $2"
+        params.append(org_id)
+    row = await pool.fetchrow(sql, *params)
+    return _row_to_dict(row)
 
 
-async def list_universes(db_path: Path | None = None) -> list[dict[str, Any]]:
-    """List all universes with character and project counts."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute("""
-            SELECT u.*,
-                   (SELECT COUNT(*) FROM characters c WHERE c.universe_id = u.id) as character_count,
-                   (SELECT COUNT(*) FROM universe_projects p WHERE p.universe_id = u.id) as project_count
-            FROM universes u ORDER BY u.created_at DESC
-        """)
-        return [dict(r) for r in await cursor.fetchall()]
-    finally:
-        await db.close()
+async def list_universes(
+    org_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """List universes with character and project counts."""
+    pool = await get_pool()
+    if org_id:
+        rows = await pool.fetch(
+            """SELECT u.*,
+                      (SELECT COUNT(*) FROM characters c WHERE c.universe_id = u.id) as character_count,
+                      (SELECT COUNT(*) FROM universe_projects p WHERE p.universe_id = u.id) as project_count
+               FROM universes u WHERE u.organization_id = $1 ORDER BY u.created_at DESC""",
+            org_id,
+        )
+    else:
+        rows = await pool.fetch(
+            """SELECT u.*,
+                      (SELECT COUNT(*) FROM characters c WHERE c.universe_id = u.id) as character_count,
+                      (SELECT COUNT(*) FROM universe_projects p WHERE p.universe_id = u.id) as project_count
+               FROM universes u ORDER BY u.created_at DESC"""
+        )
+    return _rows_to_dicts(rows)
 
 
 async def update_universe(
     universe_id: str,
-    db_path: Path | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """Update universe fields. Returns updated universe."""
-    db = await connect(db_path)
-    try:
-        allowed = {"name", "description", "icon", "video_vibe_preset"}
-        sets: list[str] = []
-        params: list[Any] = []
-        for key, val in kwargs.items():
-            if key in allowed:
-                sets.append(f"{key} = ?")
-                params.append(val)
-        if not sets:
-            return await get_universe(universe_id, db_path)
-        params.append(universe_id)
-        await db.execute(f"UPDATE universes SET {', '.join(sets)} WHERE id = ?", params)
-        await db.commit()
-        cursor = await db.execute("SELECT * FROM universes WHERE id = ?", (universe_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        await db.close()
+    pool = await get_pool()
+    allowed = {"name", "description", "icon", "video_vibe_preset"}
+    sets: list[str] = []
+    params: list[Any] = []
+    idx = 1
+    for key, val in kwargs.items():
+        if key in allowed:
+            sets.append(f"{key} = ${idx}")
+            params.append(val)
+            idx += 1
+    if not sets:
+        return await get_universe(universe_id)
+    params.append(universe_id)
+    await pool.execute(
+        f"UPDATE universes SET {', '.join(sets)} WHERE id = ${idx}",
+        *params,
+    )
+    row = await pool.fetchrow("SELECT * FROM universes WHERE id = $1", universe_id)
+    return _row_to_dict(row)
 
 
-async def delete_universe(universe_id: str, db_path: Path | None = None) -> bool:
+async def delete_universe(universe_id: str) -> bool:
     """Delete a universe and all related data. Returns True if deleted."""
-    db = await connect(db_path)
-    try:
-        # Check it exists
-        cursor = await db.execute("SELECT id FROM universes WHERE id = ?", (universe_id,))
-        if not await cursor.fetchone():
-            return False
-        # Cascade delete related data
-        await db.execute("DELETE FROM scripts WHERE universe_id = ?", (universe_id,))
-        await db.execute("DELETE FROM character_voices WHERE character_id IN (SELECT id FROM characters WHERE universe_id = ?)", (universe_id,))
-        await db.execute("DELETE FROM project_audio_assets WHERE project_id IN (SELECT id FROM universe_projects WHERE universe_id = ?)", (universe_id,))
-        await db.execute("DELETE FROM document_chunks WHERE character_id IN (SELECT id FROM characters WHERE universe_id = ?)", (universe_id,))
-        await db.execute("DELETE FROM character_documents WHERE universe_id = ?", (universe_id,))
-        await db.execute("DELETE FROM scene_templates WHERE universe_id = ?", (universe_id,))
-        await db.execute("DELETE FROM environments WHERE universe_id = ?", (universe_id,))
-        await db.execute("DELETE FROM source_items WHERE universe_id = ?", (universe_id,))
-        await db.execute("DELETE FROM universe_projects WHERE universe_id = ?", (universe_id,))
-        await db.execute("DELETE FROM characters WHERE universe_id = ?", (universe_id,))
-        await db.execute("DELETE FROM universes WHERE id = ?", (universe_id,))
-        await db.commit()
-        return True
-    finally:
-        await db.close()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow("SELECT id FROM universes WHERE id = $1", universe_id)
+            if not row:
+                return False
+            await conn.execute("DELETE FROM scripts WHERE universe_id = $1", universe_id)
+            await conn.execute("DELETE FROM character_voices WHERE character_id IN (SELECT id FROM characters WHERE universe_id = $1)", universe_id)
+            await conn.execute("DELETE FROM project_audio_assets WHERE project_id IN (SELECT id FROM universe_projects WHERE universe_id = $1)", universe_id)
+            await conn.execute("DELETE FROM document_chunks WHERE character_id IN (SELECT id FROM characters WHERE universe_id = $1)", universe_id)
+            await conn.execute("DELETE FROM character_documents WHERE universe_id = $1", universe_id)
+            await conn.execute("DELETE FROM scene_templates WHERE universe_id = $1", universe_id)
+            await conn.execute("DELETE FROM environments WHERE universe_id = $1", universe_id)
+            await conn.execute("DELETE FROM source_items WHERE universe_id = $1", universe_id)
+            await conn.execute("DELETE FROM jobs WHERE project_id IN (SELECT id FROM universe_projects WHERE universe_id = $1)", universe_id)
+            await conn.execute("DELETE FROM costs WHERE video_id IN (SELECT id FROM universe_projects WHERE universe_id = $1)", universe_id)
+            await conn.execute("DELETE FROM universe_projects WHERE universe_id = $1", universe_id)
+            await conn.execute("DELETE FROM characters WHERE universe_id = $1", universe_id)
+            await conn.execute("DELETE FROM universes WHERE id = $1", universe_id)
+            return True
 
 
 async def list_characters_by_universe(
     universe_id: str,
-    db_path: Path | None = None,
 ) -> list[dict[str, Any]]:
     """List characters in a universe with source item counts."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute("""
-            SELECT c.*,
-                   (SELECT COUNT(*) FROM source_items q WHERE q.character_id = c.id) as quote_count,
-                   (SELECT COUNT(*) FROM source_items q WHERE q.character_id = c.id AND q.emotional_function = 'hook') as hook_count,
-                   (SELECT COUNT(*) FROM source_items q WHERE q.character_id = c.id AND q.emotional_function = 'truth') as truth_count
-            FROM characters c WHERE c.universe_id = ? ORDER BY c.name
-        """, (universe_id,))
-        return [dict(r) for r in await cursor.fetchall()]
-    finally:
-        await db.close()
+    pool = await get_pool()
+    rows = await pool.fetch("""
+        SELECT c.*,
+               (SELECT COUNT(*) FROM source_items q WHERE q.character_id = c.id) as quote_count,
+               (SELECT COUNT(*) FROM source_items q WHERE q.character_id = c.id AND q.emotional_function = 'hook') as hook_count,
+               (SELECT COUNT(*) FROM source_items q WHERE q.character_id = c.id AND q.emotional_function = 'truth') as truth_count
+        FROM characters c WHERE c.universe_id = $1 ORDER BY c.name
+    """, universe_id)
+    return _rows_to_dicts(rows)
 
 
 async def list_projects_by_universe(
     universe_id: str,
     status: str | None = None,
     limit: int = 50,
-    db_path: Path | None = None,
 ) -> list[dict[str, Any]]:
     """List projects in a universe."""
-    db = await connect(db_path)
-    try:
-        sql = "SELECT * FROM universe_projects WHERE universe_id = ?"
-        params: list[Any] = [universe_id]
-        if status:
-            sql += " AND status = ?"
-            params.append(status)
-        sql += " ORDER BY created_at DESC LIMIT ?"
-        params.append(limit)
-        cursor = await db.execute(sql, params)
-        return [dict(r) for r in await cursor.fetchall()]
-    finally:
-        await db.close()
+    pool = await get_pool()
+    params: list[Any] = [universe_id]
+    idx = 2
+    sql = "SELECT * FROM universe_projects WHERE universe_id = $1"
+    if status:
+        sql += f" AND status = ${idx}"
+        params.append(status)
+        idx += 1
+    sql += f" ORDER BY created_at DESC LIMIT ${idx}"
+    params.append(limit)
+    rows = await pool.fetch(sql, *params)
+    return _rows_to_dicts(rows)
 
 
 # --- Environment CRUD ---
@@ -1015,106 +630,88 @@ async def create_environment(
     text_shadow: str = "warm",
     environment_description: str = "",
     themed_descriptions: dict | None = None,
-    db_path: Path | None = None,
 ) -> dict[str, Any]:
     """Create a new environment and return it."""
-    db = await connect(db_path)
-    try:
-        await db.execute(
-            """INSERT INTO environments
-               (id, universe_id, name, color_grade_json, font, text_color, text_shadow,
-                environment_description, themed_descriptions_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (environment_id, universe_id, name,
-             json.dumps(color_grade) if color_grade else None,
-             font, text_color, text_shadow, environment_description,
-             json.dumps(themed_descriptions) if themed_descriptions else None),
-        )
-        await db.commit()
-        cursor = await db.execute("SELECT * FROM environments WHERE id = ?", (environment_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else {}
-    finally:
-        await db.close()
+    pool = await get_pool()
+    await pool.execute(
+        """INSERT INTO environments
+           (id, universe_id, name, color_grade_json, font, text_color, text_shadow,
+            environment_description, themed_descriptions_json)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
+        environment_id, universe_id, name,
+        json.dumps(color_grade) if color_grade else None,
+        font, text_color, text_shadow, environment_description,
+        json.dumps(themed_descriptions) if themed_descriptions else None,
+    )
+    row = await pool.fetchrow("SELECT * FROM environments WHERE id = $1", environment_id)
+    return dict(row) if row else {}
 
 
-async def get_environment(environment_id: str, db_path: Path | None = None) -> dict[str, Any] | None:
+async def get_environment(environment_id: str) -> dict[str, Any] | None:
     """Get an environment by ID."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute("SELECT * FROM environments WHERE id = ?", (environment_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        await db.close()
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM environments WHERE id = $1", environment_id)
+    return _row_to_dict(row)
 
 
 async def list_environments(
     universe_id: str | None = None,
-    db_path: Path | None = None,
 ) -> list[dict[str, Any]]:
     """List environments, optionally filtered by universe."""
-    db = await connect(db_path)
-    try:
-        if universe_id:
-            cursor = await db.execute(
-                "SELECT * FROM environments WHERE universe_id = ? ORDER BY name",
-                (universe_id,),
-            )
-        else:
-            cursor = await db.execute("SELECT * FROM environments ORDER BY name")
-        return [dict(r) for r in await cursor.fetchall()]
-    finally:
-        await db.close()
+    pool = await get_pool()
+    if universe_id:
+        rows = await pool.fetch(
+            "SELECT * FROM environments WHERE universe_id = $1 ORDER BY name",
+            universe_id,
+        )
+    else:
+        rows = await pool.fetch("SELECT * FROM environments ORDER BY name")
+    return _rows_to_dicts(rows)
 
 
 async def update_environment(
     environment_id: str,
-    db_path: Path | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """Update environment fields. Returns updated environment."""
-    db = await connect(db_path)
-    try:
-        allowed = {
-            "name", "font", "text_color", "text_shadow",
-            "environment_description",
-        }
-        sets: list[str] = []
-        params: list[Any] = []
-        for key, val in kwargs.items():
-            if key in allowed:
-                sets.append(f"{key} = ?")
-                params.append(val)
-            elif key == "color_grade":
-                sets.append("color_grade_json = ?")
-                params.append(json.dumps(val) if val else None)
-            elif key == "themed_descriptions":
-                sets.append("themed_descriptions_json = ?")
-                params.append(json.dumps(val) if val else None)
-        if not sets:
-            cursor = await db.execute("SELECT * FROM environments WHERE id = ?", (environment_id,))
-            row = await cursor.fetchone()
-            return dict(row) if row else None
-        params.append(environment_id)
-        await db.execute(f"UPDATE environments SET {', '.join(sets)} WHERE id = ?", params)
-        await db.commit()
-        cursor = await db.execute("SELECT * FROM environments WHERE id = ?", (environment_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        await db.close()
+    pool = await get_pool()
+    allowed = {
+        "name", "font", "text_color", "text_shadow",
+        "environment_description",
+    }
+    sets: list[str] = []
+    params: list[Any] = []
+    idx = 1
+    for key, val in kwargs.items():
+        if key in allowed:
+            sets.append(f"{key} = ${idx}")
+            params.append(val)
+            idx += 1
+        elif key == "color_grade":
+            sets.append(f"color_grade_json = ${idx}")
+            params.append(json.dumps(val) if val else None)
+            idx += 1
+        elif key == "themed_descriptions":
+            sets.append(f"themed_descriptions_json = ${idx}")
+            params.append(json.dumps(val) if val else None)
+            idx += 1
+    if not sets:
+        row = await pool.fetchrow("SELECT * FROM environments WHERE id = $1", environment_id)
+        return _row_to_dict(row)
+    params.append(environment_id)
+    await pool.execute(
+        f"UPDATE environments SET {', '.join(sets)} WHERE id = ${idx}",
+        *params,
+    )
+    row = await pool.fetchrow("SELECT * FROM environments WHERE id = $1", environment_id)
+    return _row_to_dict(row)
 
 
-async def delete_environment(environment_id: str, db_path: Path | None = None) -> bool:
+async def delete_environment(environment_id: str) -> bool:
     """Delete an environment. Returns True if deleted."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute("DELETE FROM environments WHERE id = ?", (environment_id,))
-        await db.commit()
-        return cursor.rowcount > 0
-    finally:
-        await db.close()
+    pool = await get_pool()
+    result = await pool.execute("DELETE FROM environments WHERE id = $1", environment_id)
+    return result == "DELETE 1"
 
 
 # --- Scene Template CRUD ---
@@ -1130,99 +727,80 @@ async def create_scene_template(
     max_duration: float = 50,
     min_scenes: int = 5,
     max_scenes: int = 8,
-    db_path: Path | None = None,
 ) -> dict[str, Any]:
     """Create a new scene template and return it."""
-    db = await connect(db_path)
-    try:
-        await db.execute(
-            """INSERT INTO scene_templates
-               (id, universe_id, name, description, beats_json,
-                min_duration, max_duration, min_scenes, max_scenes)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (template_id, universe_id, name, description,
-             json.dumps(beats) if beats else None,
-             min_duration, max_duration, min_scenes, max_scenes),
-        )
-        await db.commit()
-        cursor = await db.execute("SELECT * FROM scene_templates WHERE id = ?", (template_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else {}
-    finally:
-        await db.close()
+    pool = await get_pool()
+    await pool.execute(
+        """INSERT INTO scene_templates
+           (id, universe_id, name, description, beats_json,
+            min_duration, max_duration, min_scenes, max_scenes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
+        template_id, universe_id, name, description,
+        json.dumps(beats) if beats else None,
+        min_duration, max_duration, min_scenes, max_scenes,
+    )
+    row = await pool.fetchrow("SELECT * FROM scene_templates WHERE id = $1", template_id)
+    return dict(row) if row else {}
 
 
-async def get_scene_template(template_id: str, db_path: Path | None = None) -> dict[str, Any] | None:
+async def get_scene_template(template_id: str) -> dict[str, Any] | None:
     """Get a scene template by ID."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute("SELECT * FROM scene_templates WHERE id = ?", (template_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        await db.close()
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM scene_templates WHERE id = $1", template_id)
+    return _row_to_dict(row)
 
 
 async def list_scene_templates(
     universe_id: str | None = None,
-    db_path: Path | None = None,
 ) -> list[dict[str, Any]]:
     """List scene templates, optionally filtered by universe."""
-    db = await connect(db_path)
-    try:
-        if universe_id:
-            cursor = await db.execute(
-                "SELECT * FROM scene_templates WHERE universe_id = ? ORDER BY name",
-                (universe_id,),
-            )
-        else:
-            cursor = await db.execute("SELECT * FROM scene_templates ORDER BY name")
-        return [dict(r) for r in await cursor.fetchall()]
-    finally:
-        await db.close()
+    pool = await get_pool()
+    if universe_id:
+        rows = await pool.fetch(
+            "SELECT * FROM scene_templates WHERE universe_id = $1 ORDER BY name",
+            universe_id,
+        )
+    else:
+        rows = await pool.fetch("SELECT * FROM scene_templates ORDER BY name")
+    return _rows_to_dicts(rows)
 
 
 async def update_scene_template(
     template_id: str,
-    db_path: Path | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """Update scene template fields. Returns updated template."""
-    db = await connect(db_path)
-    try:
-        allowed = {"name", "description", "min_duration", "max_duration", "min_scenes", "max_scenes"}
-        sets: list[str] = []
-        params: list[Any] = []
-        for key, val in kwargs.items():
-            if key in allowed:
-                sets.append(f"{key} = ?")
-                params.append(val)
-            elif key == "beats":
-                sets.append("beats_json = ?")
-                params.append(json.dumps(val) if val else None)
-        if not sets:
-            cursor = await db.execute("SELECT * FROM scene_templates WHERE id = ?", (template_id,))
-            row = await cursor.fetchone()
-            return dict(row) if row else None
-        params.append(template_id)
-        await db.execute(f"UPDATE scene_templates SET {', '.join(sets)} WHERE id = ?", params)
-        await db.commit()
-        cursor = await db.execute("SELECT * FROM scene_templates WHERE id = ?", (template_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        await db.close()
+    pool = await get_pool()
+    allowed = {"name", "description", "min_duration", "max_duration", "min_scenes", "max_scenes"}
+    sets: list[str] = []
+    params: list[Any] = []
+    idx = 1
+    for key, val in kwargs.items():
+        if key in allowed:
+            sets.append(f"{key} = ${idx}")
+            params.append(val)
+            idx += 1
+        elif key == "beats":
+            sets.append(f"beats_json = ${idx}")
+            params.append(json.dumps(val) if val else None)
+            idx += 1
+    if not sets:
+        row = await pool.fetchrow("SELECT * FROM scene_templates WHERE id = $1", template_id)
+        return _row_to_dict(row)
+    params.append(template_id)
+    await pool.execute(
+        f"UPDATE scene_templates SET {', '.join(sets)} WHERE id = ${idx}",
+        *params,
+    )
+    row = await pool.fetchrow("SELECT * FROM scene_templates WHERE id = $1", template_id)
+    return _row_to_dict(row)
 
 
-async def delete_scene_template(template_id: str, db_path: Path | None = None) -> bool:
+async def delete_scene_template(template_id: str) -> bool:
     """Delete a scene template. Returns True if deleted."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute("DELETE FROM scene_templates WHERE id = ?", (template_id,))
-        await db.commit()
-        return cursor.rowcount > 0
-    finally:
-        await db.close()
+    pool = await get_pool()
+    result = await pool.execute("DELETE FROM scene_templates WHERE id = $1", template_id)
+    return result == "DELETE 1"
 
 
 # --- Character Document CRUD ---
@@ -1238,92 +816,74 @@ async def create_document(
     file_path: str | None = None,
     file_size_bytes: int = 0,
     metadata_json: str | None = None,
-    db_path: Path | None = None,
 ) -> dict[str, Any]:
     """Create a new character document and return it."""
-    db = await connect(db_path)
-    try:
-        now = datetime.now(timezone.utc).isoformat()
-        await db.execute(
-            """INSERT INTO character_documents
-               (id, character_id, universe_id, name, doc_type, content,
-                file_path, file_size_bytes, chunk_count, status, metadata_json,
-                created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'pending', ?, ?, ?)""",
-            (doc_id, character_id, universe_id, name, doc_type, content,
-             file_path, file_size_bytes, metadata_json, now, now),
-        )
-        await db.commit()
-        cursor = await db.execute("SELECT * FROM character_documents WHERE id = ?", (doc_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else {}
-    finally:
-        await db.close()
+    pool = await get_pool()
+    now = _now()
+    await pool.execute(
+        """INSERT INTO character_documents
+           (id, character_id, universe_id, name, doc_type, content,
+            file_path, file_size_bytes, chunk_count, status, metadata_json,
+            created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, 'pending', $9, $10, $11)""",
+        doc_id, character_id, universe_id, name, doc_type, content,
+        file_path, file_size_bytes, metadata_json, now, now,
+    )
+    row = await pool.fetchrow("SELECT * FROM character_documents WHERE id = $1", doc_id)
+    return dict(row) if row else {}
 
 
-async def get_document(doc_id: str, db_path: Path | None = None) -> dict[str, Any] | None:
+async def get_document(doc_id: str) -> dict[str, Any] | None:
     """Get a document by ID."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute("SELECT * FROM character_documents WHERE id = ?", (doc_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        await db.close()
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM character_documents WHERE id = $1", doc_id)
+    return _row_to_dict(row)
 
 
 async def list_documents_by_character(
     character_id: str,
-    db_path: Path | None = None,
 ) -> list[dict[str, Any]]:
     """List documents for a character."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute(
-            "SELECT * FROM character_documents WHERE character_id = ? ORDER BY created_at DESC",
-            (character_id,),
-        )
-        return [dict(r) for r in await cursor.fetchall()]
-    finally:
-        await db.close()
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT * FROM character_documents WHERE character_id = $1 ORDER BY created_at DESC",
+        character_id,
+    )
+    return _rows_to_dicts(rows)
 
 
-async def delete_document(doc_id: str, db_path: Path | None = None) -> bool:
+async def delete_document(doc_id: str) -> bool:
     """Delete a document AND its chunks. Returns True if deleted."""
-    db = await connect(db_path)
-    try:
-        # Delete chunks first
-        await db.execute("DELETE FROM document_chunks WHERE document_id = ?", (doc_id,))
-        cursor = await db.execute("DELETE FROM character_documents WHERE id = ?", (doc_id,))
-        await db.commit()
-        return cursor.rowcount > 0
-    finally:
-        await db.close()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute("DELETE FROM document_chunks WHERE document_id = $1", doc_id)
+            result = await conn.execute("DELETE FROM character_documents WHERE id = $1", doc_id)
+            return result == "DELETE 1"
 
 
 async def update_document(
     doc_id: str,
-    db_path: Path | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """Update document fields (status, chunk_count, etc.). Returns updated document."""
-    db = await connect(db_path)
-    try:
-        allowed = {"status", "chunk_count", "content", "file_path", "file_size_bytes", "metadata_json", "name", "doc_type"}
-        sets = ["updated_at = ?"]
-        params: list[Any] = [datetime.now(timezone.utc).isoformat()]
-        for key, val in kwargs.items():
-            if key in allowed:
-                sets.append(f"{key} = ?")
-                params.append(val)
-        params.append(doc_id)
-        await db.execute(f"UPDATE character_documents SET {', '.join(sets)} WHERE id = ?", params)
-        await db.commit()
-        cursor = await db.execute("SELECT * FROM character_documents WHERE id = ?", (doc_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        await db.close()
+    pool = await get_pool()
+    allowed = {"status", "chunk_count", "content", "file_path", "file_size_bytes", "metadata_json", "name", "doc_type"}
+    sets = ["updated_at = $1"]
+    params: list[Any] = [_now()]
+    idx = 2
+    for key, val in kwargs.items():
+        if key in allowed:
+            sets.append(f"{key} = ${idx}")
+            params.append(val)
+            idx += 1
+    params.append(doc_id)
+    await pool.execute(
+        f"UPDATE character_documents SET {', '.join(sets)} WHERE id = ${idx}",
+        *params,
+    )
+    row = await pool.fetchrow("SELECT * FROM character_documents WHERE id = $1", doc_id)
+    return _row_to_dict(row)
 
 
 async def create_chunk(
@@ -1333,53 +893,38 @@ async def create_chunk(
     chunk_index: int,
     content: str,
     token_count: int = 0,
-    db_path: Path | None = None,
 ) -> dict[str, Any]:
     """Create a document chunk and return it."""
-    db = await connect(db_path)
-    try:
-        now = datetime.now(timezone.utc).isoformat()
-        await db.execute(
-            """INSERT INTO document_chunks
-               (id, document_id, character_id, chunk_index, content, token_count, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (chunk_id, document_id, character_id, chunk_index, content, token_count, now),
-        )
-        await db.commit()
-        cursor = await db.execute("SELECT * FROM document_chunks WHERE id = ?", (chunk_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else {}
-    finally:
-        await db.close()
+    pool = await get_pool()
+    now = _now()
+    await pool.execute(
+        """INSERT INTO document_chunks
+           (id, document_id, character_id, chunk_index, content, token_count, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)""",
+        chunk_id, document_id, character_id, chunk_index, content, token_count, now,
+    )
+    row = await pool.fetchrow("SELECT * FROM document_chunks WHERE id = $1", chunk_id)
+    return dict(row) if row else {}
 
 
 async def list_chunks_by_document(
     document_id: str,
-    db_path: Path | None = None,
 ) -> list[dict[str, Any]]:
     """List chunks for a document, ordered by chunk_index."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute(
-            "SELECT * FROM document_chunks WHERE document_id = ? ORDER BY chunk_index",
-            (document_id,),
-        )
-        return [dict(r) for r in await cursor.fetchall()]
-    finally:
-        await db.close()
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT * FROM document_chunks WHERE document_id = $1 ORDER BY chunk_index",
+        document_id,
+    )
+    return _rows_to_dicts(rows)
 
 
 async def delete_chunks_by_document(
     document_id: str,
-    db_path: Path | None = None,
 ) -> None:
     """Delete all chunks for a document."""
-    db = await connect(db_path)
-    try:
-        await db.execute("DELETE FROM document_chunks WHERE document_id = ?", (document_id,))
-        await db.commit()
-    finally:
-        await db.close()
+    pool = await get_pool()
+    await pool.execute("DELETE FROM document_chunks WHERE document_id = $1", document_id)
 
 
 # --- Script CRUD ---
@@ -1395,111 +940,96 @@ async def create_script(
     target_duration_seconds: int | None = None,
     scene_count: int | None = None,
     metadata: dict | None = None,
-    db_path: Path | None = None,
 ) -> dict[str, Any]:
     """Create a new script and return it."""
-    db = await connect(db_path)
-    try:
-        now = datetime.now(timezone.utc).isoformat()
-        await db.execute(
-            """INSERT INTO scripts
-               (id, universe_id, title, script_type, content,
-                character_ids_json, target_duration_seconds, scene_count,
-                status, metadata_json, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)""",
-            (script_id, universe_id, title, script_type, content,
-             json.dumps(character_ids) if character_ids else None,
-             target_duration_seconds, scene_count,
-             json.dumps(metadata) if metadata else None,
-             now, now),
-        )
-        await db.commit()
-        cursor = await db.execute("SELECT * FROM scripts WHERE id = ?", (script_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else {}
-    finally:
-        await db.close()
+    pool = await get_pool()
+    now = _now()
+    await pool.execute(
+        """INSERT INTO scripts
+           (id, universe_id, title, script_type, content,
+            character_ids_json, target_duration_seconds, scene_count,
+            status, metadata_json, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft', $9, $10, $11)""",
+        script_id, universe_id, title, script_type, content,
+        json.dumps(character_ids) if character_ids else None,
+        target_duration_seconds, scene_count,
+        json.dumps(metadata) if metadata else None,
+        now, now,
+    )
+    row = await pool.fetchrow("SELECT * FROM scripts WHERE id = $1", script_id)
+    return dict(row) if row else {}
 
 
-async def get_script(script_id: str, db_path: Path | None = None) -> dict[str, Any] | None:
+async def get_script(script_id: str) -> dict[str, Any] | None:
     """Get a script by ID."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute("SELECT * FROM scripts WHERE id = ?", (script_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        await db.close()
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM scripts WHERE id = $1", script_id)
+    return _row_to_dict(row)
 
 
 async def list_scripts_by_universe(
     universe_id: str,
     character_id: str | None = None,
     script_type: str | None = None,
-    db_path: Path | None = None,
 ) -> list[dict[str, Any]]:
     """List scripts in a universe with optional filters."""
-    db = await connect(db_path)
-    try:
-        sql = "SELECT * FROM scripts WHERE universe_id = ?"
-        params: list[Any] = [universe_id]
-        if character_id:
-            # Filter where character_ids_json contains the character ID
-            sql += " AND character_ids_json LIKE ?"
-            params.append(f"%{character_id}%")
-        if script_type:
-            sql += " AND script_type = ?"
-            params.append(script_type)
-        sql += " ORDER BY created_at DESC"
-        cursor = await db.execute(sql, params)
-        return [dict(r) for r in await cursor.fetchall()]
-    finally:
-        await db.close()
+    pool = await get_pool()
+    sql = "SELECT * FROM scripts WHERE universe_id = $1"
+    params: list[Any] = [universe_id]
+    idx = 2
+    if character_id:
+        sql += f" AND character_ids_json LIKE ${idx}"
+        params.append(f"%{character_id}%")
+        idx += 1
+    if script_type:
+        sql += f" AND script_type = ${idx}"
+        params.append(script_type)
+        idx += 1
+    sql += " ORDER BY created_at DESC"
+    rows = await pool.fetch(sql, *params)
+    return _rows_to_dicts(rows)
 
 
 async def update_script(
     script_id: str,
-    db_path: Path | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """Update script fields. Returns updated script."""
-    db = await connect(db_path)
-    try:
-        allowed = {
-            "title", "content", "script_type", "status",
-            "target_duration_seconds", "scene_count",
-        }
-        sets = ["updated_at = ?"]
-        params: list[Any] = [datetime.now(timezone.utc).isoformat()]
-        for key, val in kwargs.items():
-            if key in allowed:
-                sets.append(f"{key} = ?")
-                params.append(val)
-            elif key == "character_ids":
-                sets.append("character_ids_json = ?")
-                params.append(json.dumps(val) if val else None)
-            elif key == "metadata":
-                sets.append("metadata_json = ?")
-                params.append(json.dumps(val) if val else None)
-        params.append(script_id)
-        await db.execute(f"UPDATE scripts SET {', '.join(sets)} WHERE id = ?", params)
-        await db.commit()
-        cursor = await db.execute("SELECT * FROM scripts WHERE id = ?", (script_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        await db.close()
+    pool = await get_pool()
+    allowed = {
+        "title", "content", "script_type", "status",
+        "target_duration_seconds", "scene_count",
+    }
+    sets = ["updated_at = $1"]
+    params: list[Any] = [_now()]
+    idx = 2
+    for key, val in kwargs.items():
+        if key in allowed:
+            sets.append(f"{key} = ${idx}")
+            params.append(val)
+            idx += 1
+        elif key == "character_ids":
+            sets.append(f"character_ids_json = ${idx}")
+            params.append(json.dumps(val) if val else None)
+            idx += 1
+        elif key == "metadata":
+            sets.append(f"metadata_json = ${idx}")
+            params.append(json.dumps(val) if val else None)
+            idx += 1
+    params.append(script_id)
+    await pool.execute(
+        f"UPDATE scripts SET {', '.join(sets)} WHERE id = ${idx}",
+        *params,
+    )
+    row = await pool.fetchrow("SELECT * FROM scripts WHERE id = $1", script_id)
+    return _row_to_dict(row)
 
 
-async def delete_script(script_id: str, db_path: Path | None = None) -> bool:
+async def delete_script(script_id: str) -> bool:
     """Delete a script. Returns True if deleted."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute("DELETE FROM scripts WHERE id = ?", (script_id,))
-        await db.commit()
-        return cursor.rowcount > 0
-    finally:
-        await db.close()
+    pool = await get_pool()
+    result = await pool.execute("DELETE FROM scripts WHERE id = $1", script_id)
+    return result == "DELETE 1"
 
 
 # --- Character Voice CRUD ---
@@ -1513,82 +1043,65 @@ async def create_character_voice(
     voice_name: str = "Default",
     reference_audio_path: str | None = None,
     settings_json: str | None = None,
-    db_path: Path | None = None,
 ) -> dict[str, Any]:
     """Create a character voice profile and return it."""
-    db = await connect(db_path)
-    try:
-        now = datetime.now(timezone.utc).isoformat()
-        await db.execute(
-            """INSERT INTO character_voices
-               (id, character_id, tts_model, voice_id, voice_name,
-                reference_audio_path, settings_json, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (voice_id, character_id, tts_model, voice_id_str, voice_name,
-             reference_audio_path, settings_json, now, now),
-        )
-        await db.commit()
-        cursor = await db.execute("SELECT * FROM character_voices WHERE id = ?", (voice_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else {}
-    finally:
-        await db.close()
+    pool = await get_pool()
+    now = _now()
+    await pool.execute(
+        """INSERT INTO character_voices
+           (id, character_id, tts_model, voice_id, voice_name,
+            reference_audio_path, settings_json, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
+        voice_id, character_id, tts_model, voice_id_str, voice_name,
+        reference_audio_path, settings_json, now, now,
+    )
+    row = await pool.fetchrow("SELECT * FROM character_voices WHERE id = $1", voice_id)
+    return dict(row) if row else {}
 
 
 async def get_character_voice(
     character_id: str,
-    db_path: Path | None = None,
 ) -> dict[str, Any] | None:
     """Get the voice profile for a character."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute(
-            "SELECT * FROM character_voices WHERE character_id = ? LIMIT 1",
-            (character_id,),
-        )
-        row = await cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        await db.close()
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT * FROM character_voices WHERE character_id = $1 LIMIT 1",
+        character_id,
+    )
+    return _row_to_dict(row)
 
 
 async def update_character_voice(
     voice_id: str,
-    db_path: Path | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """Update character voice fields. Returns updated voice."""
-    db = await connect(db_path)
-    try:
-        allowed = {"tts_model", "voice_id", "voice_name", "reference_audio_path", "settings_json"}
-        sets = ["updated_at = ?"]
-        params: list[Any] = [datetime.now(timezone.utc).isoformat()]
-        for key, val in kwargs.items():
-            if key in allowed:
-                sets.append(f"{key} = ?")
-                params.append(val)
-        params.append(voice_id)
-        await db.execute(f"UPDATE character_voices SET {', '.join(sets)} WHERE id = ?", params)
-        await db.commit()
-        cursor = await db.execute("SELECT * FROM character_voices WHERE id = ?", (voice_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        await db.close()
+    pool = await get_pool()
+    allowed = {"tts_model", "voice_id", "voice_name", "reference_audio_path", "settings_json"}
+    sets = ["updated_at = $1"]
+    params: list[Any] = [_now()]
+    idx = 2
+    for key, val in kwargs.items():
+        if key in allowed:
+            sets.append(f"{key} = ${idx}")
+            params.append(val)
+            idx += 1
+    params.append(voice_id)
+    await pool.execute(
+        f"UPDATE character_voices SET {', '.join(sets)} WHERE id = ${idx}",
+        *params,
+    )
+    row = await pool.fetchrow("SELECT * FROM character_voices WHERE id = $1", voice_id)
+    return _row_to_dict(row)
 
 
 async def delete_character_voice(
     voice_id: str,
-    db_path: Path | None = None,
 ) -> bool:
     """Delete a character voice profile. Returns True if deleted."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute("DELETE FROM character_voices WHERE id = ?", (voice_id,))
-        await db.commit()
-        return cursor.rowcount > 0
-    finally:
-        await db.close()
+    pool = await get_pool()
+    result = await pool.execute("DELETE FROM character_voices WHERE id = $1", voice_id)
+    return result == "DELETE 1"
 
 
 # --- Project Audio Asset CRUD ---
@@ -1602,51 +1115,177 @@ async def create_audio_asset(
     file_path: str = "",
     duration_seconds: float | None = None,
     metadata_json: str | None = None,
-    db_path: Path | None = None,
 ) -> dict[str, Any]:
     """Create a project audio asset and return it."""
-    db = await connect(db_path)
-    try:
-        now = datetime.now(timezone.utc).isoformat()
-        await db.execute(
-            """INSERT INTO project_audio_assets
-               (id, project_id, asset_type, name, file_path, duration_seconds, metadata_json, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (asset_id, project_id, asset_type, name, file_path, duration_seconds, metadata_json, now),
-        )
-        await db.commit()
-        cursor = await db.execute("SELECT * FROM project_audio_assets WHERE id = ?", (asset_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else {}
-    finally:
-        await db.close()
+    pool = await get_pool()
+    now = _now()
+    await pool.execute(
+        """INSERT INTO project_audio_assets
+           (id, project_id, asset_type, name, file_path, duration_seconds, metadata_json, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
+        asset_id, project_id, asset_type, name, file_path, duration_seconds, metadata_json, now,
+    )
+    row = await pool.fetchrow("SELECT * FROM project_audio_assets WHERE id = $1", asset_id)
+    return dict(row) if row else {}
 
 
 async def list_audio_assets(
     project_id: str,
-    db_path: Path | None = None,
 ) -> list[dict[str, Any]]:
     """List audio assets for a project."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute(
-            "SELECT * FROM project_audio_assets WHERE project_id = ? ORDER BY created_at DESC",
-            (project_id,),
-        )
-        return [dict(r) for r in await cursor.fetchall()]
-    finally:
-        await db.close()
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT * FROM project_audio_assets WHERE project_id = $1 ORDER BY created_at DESC",
+        project_id,
+    )
+    return _rows_to_dicts(rows)
 
 
 async def delete_audio_asset(
     asset_id: str,
-    db_path: Path | None = None,
 ) -> bool:
     """Delete an audio asset. Returns True if deleted."""
-    db = await connect(db_path)
-    try:
-        cursor = await db.execute("DELETE FROM project_audio_assets WHERE id = ?", (asset_id,))
-        await db.commit()
-        return cursor.rowcount > 0
-    finally:
-        await db.close()
+    pool = await get_pool()
+    result = await pool.execute("DELETE FROM project_audio_assets WHERE id = $1", asset_id)
+    return result == "DELETE 1"
+
+
+# --- Video Style CRUD ---
+
+
+async def create_video_style(
+    style_id: str,
+    name: str,
+    prompt: str,
+    description: str = "",
+    character_prompt: str = "",
+    image_model: str = "kontext",
+    is_builtin: int = 0,
+    organization_id: str = "local",
+) -> dict[str, Any]:
+    """Create a video style and return it."""
+    pool = await get_pool()
+    now = datetime.now(timezone.utc).isoformat()
+    await pool.execute(
+        """INSERT INTO video_styles
+           (id, name, description, prompt, character_prompt, image_model, is_builtin, organization_id, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           ON CONFLICT (id) DO NOTHING""",
+        style_id, name, description, prompt, character_prompt, image_model, is_builtin, organization_id, now,
+    )
+    row = await pool.fetchrow("SELECT * FROM video_styles WHERE id = $1", style_id)
+    return dict(row) if row else {}
+
+
+async def get_video_style(style_id: str) -> dict[str, Any] | None:
+    """Get a video style by ID."""
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM video_styles WHERE id = $1", style_id)
+    return _row_to_dict(row)
+
+
+async def list_video_styles(
+    organization_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """List video styles (built-in + org-specific)."""
+    pool = await get_pool()
+    if organization_id:
+        rows = await pool.fetch(
+            "SELECT * FROM video_styles WHERE is_builtin = 1 OR organization_id = $1 ORDER BY is_builtin DESC, name",
+            organization_id,
+        )
+    else:
+        rows = await pool.fetch("SELECT * FROM video_styles ORDER BY is_builtin DESC, name")
+    return _rows_to_dicts(rows)
+
+
+async def update_video_style(
+    style_id: str,
+    **kwargs: Any,
+) -> dict[str, Any] | None:
+    """Update video style fields. Returns updated style. Cannot update built-in styles."""
+    pool = await get_pool()
+    allowed = {"name", "description", "prompt", "character_prompt", "image_model"}
+    sets: list[str] = []
+    params: list[Any] = []
+    idx = 1
+    for key, val in kwargs.items():
+        if key in allowed:
+            sets.append(f"{key} = ${idx}")
+            params.append(val)
+            idx += 1
+    if not sets:
+        row = await pool.fetchrow("SELECT * FROM video_styles WHERE id = $1", style_id)
+        return _row_to_dict(row)
+    params.append(style_id)
+    await pool.execute(
+        f"UPDATE video_styles SET {', '.join(sets)} WHERE id = ${idx} AND is_builtin = 0",
+        *params,
+    )
+    row = await pool.fetchrow("SELECT * FROM video_styles WHERE id = $1", style_id)
+    return _row_to_dict(row)
+
+
+async def delete_video_style(style_id: str) -> bool:
+    """Delete a video style. Only non-builtin styles can be deleted."""
+    pool = await get_pool()
+    result = await pool.execute(
+        "DELETE FROM video_styles WHERE id = $1 AND is_builtin = 0", style_id
+    )
+    return result == "DELETE 1"
+
+
+async def seed_builtin_video_styles() -> None:
+    """Seed built-in video styles from VIBE_PRESETS if they don't exist."""
+    from lorekit.config import VIBE_PRESETS
+
+    # Model assignment per style — kontext for stylized, nano_banana_2 for photorealistic
+    _STYLE_MODELS: dict[str, str] = {
+        "dark_masculine": "kontext",
+        "mobile_game": "kontext",
+        "stylized_cinematic": "kontext",
+        "cinematic": "nano_banana_2",
+    }
+
+    pool = await get_pool()
+    now = datetime.now(timezone.utc).isoformat()
+    for key, preset in VIBE_PRESETS.items():
+        if key == "custom":
+            continue
+        image_model = _STYLE_MODELS.get(key, "kontext")
+        existing = await pool.fetchrow("SELECT id FROM video_styles WHERE id = $1", key)
+        if not existing:
+            await pool.execute(
+                """INSERT INTO video_styles
+                   (id, name, description, prompt, character_prompt, image_model, is_builtin, organization_id, created_at)
+                   VALUES ($1, $2, $3, $4, $5, $6, 1, 'local', $7)""",
+                key,
+                preset.get("name", key),
+                preset.get("description", ""),
+                preset.get("prompt", ""),
+                preset.get("character_prompt", ""),
+                image_model,
+                now,
+            )
+
+
+async def backfill_project_themes() -> None:
+    """Backfill theme column on existing projects from story_json.
+
+    Idempotent — only updates rows where theme IS NULL.
+    """
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT id, story_json FROM universe_projects WHERE theme IS NULL AND story_json IS NOT NULL"
+    )
+    for row in rows:
+        try:
+            story = json.loads(row["story_json"])
+            theme = story.get("theme")
+            if theme:
+                await pool.execute(
+                    "UPDATE universe_projects SET theme = $1 WHERE id = $2",
+                    theme, row["id"],
+                )
+        except (json.JSONDecodeError, TypeError):
+            pass

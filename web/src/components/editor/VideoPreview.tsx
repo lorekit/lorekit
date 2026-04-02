@@ -1,38 +1,56 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Pause, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
+import { Play, Pause, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Scene } from "@/lib/api";
 import { clipUrl } from "@/lib/api";
-import { cn } from "@/lib/utils";
+
+interface TransitionClip {
+  from_scene_id: number;
+  to_scene_id: number;
+  clip_path: string;
+}
 
 interface VideoPreviewProps {
   scenes: Scene[];
-  transitions: Record<number, string>;
+  transitionClips?: Record<string, TransitionClip>;
+  audioUrl?: string | null;
 }
 
 type PlayState = "idle" | "playing" | "transitioning" | "done";
 
-export function VideoPreview({ scenes, transitions }: VideoPreviewProps) {
-  const [expanded, setExpanded] = useState(false);
+export function VideoPreview({ scenes, transitionClips, audioUrl }: VideoPreviewProps) {
   const [playState, setPlayState] = useState<PlayState>("idle");
   const [currentIdx, setCurrentIdx] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [totalRealDuration, setTotalRealDuration] = useState(0);
 
   const videoARef = useRef<HTMLVideoElement>(null);
   const videoBRef = useRef<HTMLVideoElement>(null);
-  const overlayRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const rafRef = useRef<number>(0);
   const abortRef = useRef(false);
+  const elapsedRef = useRef(0);
 
   const playableScenes = scenes.filter((s) => s.clip_url);
   const hasClips = playableScenes.length > 0;
-  const totalDuration = playableScenes.reduce((sum, s) => sum + (s.duration || 3), 0);
 
-  // Reset when scenes change
   useEffect(() => {
     stop();
+    // Precompute total real duration by loading metadata for all clips
+    let cancelled = false;
+    async function computeDurations() {
+      let total = 0;
+      for (const scene of playableScenes) {
+        if (cancelled) return;
+        const dur = await getVideoDuration(clipUrl(scene.clip_url!));
+        total += dur / (scene.speed ?? 1.0);
+      }
+      if (!cancelled) setTotalRealDuration(total);
+    }
+    computeDurations();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scenes]);
 
@@ -41,83 +59,12 @@ export function VideoPreview({ scenes, transitions }: VideoPreviewProps) {
     setPlayState("idle");
     setCurrentIdx(0);
     setProgress(0);
+    elapsedRef.current = 0;
     cancelAnimationFrame(rafRef.current);
-    if (videoARef.current) {
-      videoARef.current.pause();
-      videoARef.current.style.opacity = "1";
-    }
-    if (videoBRef.current) {
-      videoBRef.current.pause();
-      videoBRef.current.style.opacity = "0";
-    }
-    if (overlayRef.current) {
-      overlayRef.current.style.opacity = "0";
-    }
+    if (videoARef.current) { videoARef.current.pause(); videoARef.current.style.opacity = "1"; }
+    if (videoBRef.current) { videoBRef.current.pause(); videoBRef.current.style.opacity = "0"; }
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; }
   }, []);
-
-  const sleep = (ms: number) =>
-    new Promise<void>((resolve) => {
-      const id = setTimeout(resolve, ms);
-      // Check abort in a tight loop isn't needed — we check after each await
-      void id;
-    });
-
-  const applyTransition = useCallback(
-    async (
-      fromVideo: HTMLVideoElement,
-      toVideo: HTMLVideoElement,
-      type: string
-    ) => {
-      const overlay = overlayRef.current;
-      const durationMs = 300;
-
-      // Preload next
-      toVideo.style.opacity = "0";
-      toVideo.currentTime = 0;
-
-      if (
-        type === "fadeblack" ||
-        type === "fade_to_black" ||
-        type === "fadewhite" ||
-        type === "flash"
-      ) {
-        // Overlay-based transition
-        if (overlay) {
-          overlay.style.backgroundColor =
-            type === "fadewhite" || type === "flash" ? "white" : "black";
-          overlay.style.transition = `opacity ${durationMs / 2}ms ease-in`;
-          overlay.style.opacity = "1";
-        }
-        await sleep(durationMs / 2);
-        if (abortRef.current) return;
-
-        fromVideo.style.opacity = "0";
-        toVideo.style.opacity = "1";
-        try { await toVideo.play(); } catch { /* */ }
-
-        if (overlay) {
-          overlay.style.transition = `opacity ${durationMs / 2}ms ease-out`;
-          overlay.style.opacity = "0";
-        }
-        await sleep(durationMs / 2);
-      } else {
-        // Default: crossfade
-        fromVideo.style.transition = `opacity ${durationMs}ms ease`;
-        toVideo.style.transition = `opacity ${durationMs}ms ease`;
-        fromVideo.style.opacity = "0";
-        toVideo.style.opacity = "1";
-        try { await toVideo.play(); } catch { /* */ }
-        await sleep(durationMs);
-      }
-
-      if (abortRef.current) return;
-      fromVideo.pause();
-      // Reset transitions
-      fromVideo.style.transition = "";
-      toVideo.style.transition = "";
-    },
-    []
-  );
 
   const play = useCallback(async () => {
     if (!hasClips) return;
@@ -125,35 +72,40 @@ export function VideoPreview({ scenes, transitions }: VideoPreviewProps) {
     setPlayState("playing");
     setCurrentIdx(0);
     setProgress(0);
+    elapsedRef.current = 0;
+
+    // Start audio
+    if (audioRef.current && audioUrl) {
+      audioRef.current.currentTime = 0;
+      try { await audioRef.current.play(); } catch { /* */ }
+    }
 
     const videos = [videoARef.current!, videoBRef.current!];
     let activeIdx = 0;
-    let elapsed = 0;
 
     for (let i = 0; i < playableScenes.length; i++) {
       if (abortRef.current) return;
 
       const scene = playableScenes[i];
       const current = videos[activeIdx];
-      const next = videos[1 - activeIdx];
+      const speed = scene.speed ?? 1.0;
 
       setCurrentIdx(i);
-
-      // Load and play current
       current.src = clipUrl(scene.clip_url!);
       current.style.opacity = "1";
       current.currentTime = 0;
+      current.playbackRate = speed;
 
       try { await current.play(); } catch { /* */ }
       if (abortRef.current) return;
 
-      // Wait for clip to end
+      // Wait for clip to end, track real progress
       await new Promise<void>((resolve) => {
         const updateProgress = () => {
           if (abortRef.current) { resolve(); return; }
           const sceneElapsed = current.currentTime || 0;
-          const total = elapsed + sceneElapsed;
-          setProgress(totalDuration > 0 ? total / totalDuration : 0);
+          const total = elapsedRef.current + sceneElapsed;
+          setProgress(totalRealDuration > 0 ? total / totalRealDuration : 0);
           rafRef.current = requestAnimationFrame(updateProgress);
         };
         rafRef.current = requestAnimationFrame(updateProgress);
@@ -167,152 +119,159 @@ export function VideoPreview({ scenes, transitions }: VideoPreviewProps) {
       });
 
       if (abortRef.current) return;
-      elapsed += scene.duration || 3;
+      elapsedRef.current += (current.duration || 0) / speed;
 
-      // Apply transition to next scene
+      // Transition to next scene
       if (i < playableScenes.length - 1) {
         const sceneNum = scene.scene_id ?? i + 1;
-        const transType = transitions[sceneNum] || "fade";
         const nextScene = playableScenes[i + 1];
-        next.src = clipUrl(nextScene.clip_url!);
+        const nextSceneNum = nextScene.scene_id ?? i + 2;
+        const next = videos[1 - activeIdx];
 
-        setPlayState("transitioning");
-        await applyTransition(current, next, transType);
-        if (abortRef.current) return;
-        setPlayState("playing");
+        // Check for AI transition clip
+        const transKey = `${sceneNum}_${nextSceneNum}`;
+        const aiClip = transitionClips?.[transKey];
 
-        activeIdx = 1 - activeIdx;
+        if (aiClip?.clip_path) {
+          // Play AI transition clip sped up 1.5x
+          setPlayState("transitioning");
+          current.style.opacity = "0";
+          next.src = clipUrl(`/files/${aiClip.clip_path}`);
+          next.style.opacity = "1";
+          next.currentTime = 0.25;
+          next.playbackRate = 1.5;
+          try { await next.play(); } catch { /* */ }
+
+          await new Promise<void>((resolve) => {
+            const onEnded = () => { next.removeEventListener("ended", onEnded); resolve(); };
+            next.addEventListener("ended", onEnded);
+          });
+          next.playbackRate = 1.0;
+          if (abortRef.current) return;
+          elapsedRef.current += (next.duration || 0) / 1.5;
+
+          // Swap back for next scene
+          current.src = clipUrl(nextScene.clip_url!);
+          current.style.opacity = "1";
+          next.style.opacity = "0";
+          next.pause();
+          setPlayState("playing");
+        } else {
+          // Hard cut — no transition clip exists yet
+          current.style.opacity = "0";
+          next.src = clipUrl(nextScene.clip_url!);
+          next.style.opacity = "1";
+          next.currentTime = 0;
+          current.pause();
+          activeIdx = 1 - activeIdx;
+          setPlayState("playing");
+        }
       }
     }
 
+    // Stop audio when done
+    if (audioRef.current) audioRef.current.pause();
     setProgress(1);
     setPlayState("done");
-  }, [hasClips, playableScenes, transitions, totalDuration, applyTransition]);
+  }, [hasClips, playableScenes, transitionClips, totalRealDuration, audioUrl]);
 
-  // Compute scene markers on progress bar
+  // Compute scene markers based on real durations
   const markers = (() => {
-    if (totalDuration <= 0) return [];
+    if (totalRealDuration <= 0) return [];
     let acc = 0;
-    return playableScenes.slice(0, -1).map((s) => {
-      acc += s.duration || 3;
-      return acc / totalDuration;
+    // Use equal segments as approximation (real durations computed async)
+    const avgDur = totalRealDuration / playableScenes.length;
+    return playableScenes.slice(0, -1).map(() => {
+      acc += avgDur;
+      return acc / totalRealDuration;
     });
   })();
 
-  if (!hasClips) {
-    return (
-      <div className="bg-slate-900/50 border-t border-slate-800 px-4 py-3">
-        <p className="text-xs text-slate-500 text-center">
-          Generate clips to preview
-        </p>
-      </div>
-    );
-  }
+  if (!hasClips) return null;
 
   return (
-    <div className="bg-slate-900/50 border-t border-slate-800 px-4 py-3">
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="flex items-center gap-2 w-full text-left"
+    <div className="space-y-3">
+      {/* Video player — 9:16 */}
+      <div
+        className="relative mx-auto bg-black rounded-lg overflow-hidden"
+        style={{ aspectRatio: "9/16", maxHeight: "60vh", maxWidth: "calc(60vh * 9 / 16)" }}
       >
-        <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wider">
-          Preview
-        </h3>
-        {expanded ? (
-          <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
-        ) : (
-          <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-        )}
-        <span className="text-[10px] text-slate-500 ml-auto">
-          {playableScenes.length} clips
-        </span>
-      </button>
+        <video
+          ref={videoARef}
+          className="absolute inset-0 w-full h-full object-contain"
+          playsInline
+          preload="metadata"
+          style={{ opacity: 1 }}
+        />
+        <video
+          ref={videoBRef}
+          className="absolute inset-0 w-full h-full object-contain"
+          playsInline
+          preload="metadata"
+          style={{ opacity: 0 }}
+        />
+        {/* Audio element for background track */}
+        {audioUrl && <audio ref={audioRef} src={clipUrl(audioUrl)} preload="auto" />}
 
-      {expanded && (
-        <div className="mt-3 space-y-3">
-          {/* Video player area — 9:16 aspect ratio */}
-          <div className="relative mx-auto bg-black rounded-lg overflow-hidden"
-            style={{ aspectRatio: "9/16", maxHeight: "40vh", maxWidth: "calc(40vh * 9 / 16)" }}
+        {/* Play overlay when idle */}
+        {(playState === "idle" || playState === "done") && (
+          <button
+            type="button"
+            onClick={play}
+            className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/30 transition-colors"
           >
-            <video
-              ref={videoARef}
-              className="absolute inset-0 w-full h-full object-contain"
-              muted
-              playsInline
-              preload="metadata"
-              style={{ opacity: 1 }}
-            />
-            <video
-              ref={videoBRef}
-              className="absolute inset-0 w-full h-full object-contain"
-              muted
-              playsInline
-              preload="metadata"
-              style={{ opacity: 0 }}
-            />
-            {/* Transition overlay */}
-            <div
-              ref={overlayRef}
-              className="absolute inset-0 pointer-events-none"
-              style={{ opacity: 0 }}
-            />
-
-            {/* Play overlay when idle */}
-            {(playState === "idle" || playState === "done") && (
-              <button
-                type="button"
-                onClick={play}
-                className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/30 transition-colors"
-              >
-                <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                  <Play className="w-7 h-7 text-white ml-0.5" />
-                </div>
-              </button>
-            )}
-          </div>
-
-          {/* Progress bar */}
-          <div className="relative">
-            <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-amber-500 rounded-full transition-[width] duration-100"
-                style={{ width: `${Math.min(progress * 100, 100)}%` }}
-              />
+            <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+              <Play className="w-7 h-7 text-white ml-0.5" />
             </div>
-            {/* Scene markers */}
-            {markers.map((pos, i) => (
-              <div
-                key={i}
-                className="absolute top-0 w-px h-1.5 bg-slate-600"
-                style={{ left: `${pos * 100}%` }}
-              />
-            ))}
-          </div>
+          </button>
+        )}
+      </div>
 
-          {/* Controls */}
-          <div className="flex items-center justify-center gap-2">
-            {playState === "playing" || playState === "transitioning" ? (
-              <Button variant="ghost" size="sm" className="gap-1.5" onClick={stop}>
-                <Pause className="w-4 h-4" /> Pause
-              </Button>
-            ) : (
-              <Button variant="ghost" size="sm" className="gap-1.5" onClick={play}>
-                <Play className="w-4 h-4" />
-                {playState === "done" ? "Replay" : "Play"}
-              </Button>
-            )}
-            {playState !== "idle" && (
-              <Button variant="ghost" size="sm" className="gap-1.5" onClick={stop}>
-                <RotateCcw className="w-4 h-4" /> Reset
-              </Button>
-            )}
-            <span className="text-[10px] text-slate-500 ml-2">
-              Scene {currentIdx + 1}/{playableScenes.length}
-            </span>
-          </div>
+      {/* Progress bar */}
+      <div className="relative">
+        <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-amber-500 rounded-full transition-[width] duration-100"
+            style={{ width: `${Math.min(progress * 100, 100)}%` }}
+          />
         </div>
-      )}
+        {markers.map((pos, i) => (
+          <div key={i} className="absolute top-0 w-px h-1.5 bg-slate-600" style={{ left: `${pos * 100}%` }} />
+        ))}
+      </div>
+
+      {/* Controls */}
+      <div className="flex items-center justify-center gap-2">
+        {playState === "playing" || playState === "transitioning" ? (
+          <Button variant="ghost" size="sm" className="gap-1.5" onClick={stop}>
+            <Pause className="w-4 h-4" /> Pause
+          </Button>
+        ) : (
+          <Button variant="ghost" size="sm" className="gap-1.5" onClick={play}>
+            <Play className="w-4 h-4" />
+            {playState === "done" ? "Replay" : "Play"}
+          </Button>
+        )}
+        {playState !== "idle" && (
+          <Button variant="ghost" size="sm" className="gap-1.5" onClick={stop}>
+            <RotateCcw className="w-4 h-4" /> Reset
+          </Button>
+        )}
+        <span className="text-[10px] text-slate-500 ml-2">
+          Scene {currentIdx + 1}/{playableScenes.length}
+        </span>
+      </div>
     </div>
   );
+}
+
+/** Load a video's metadata to get its real duration */
+function getVideoDuration(src: string): Promise<number> {
+  return new Promise((resolve) => {
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    v.onloadedmetadata = () => { resolve(v.duration || 3); v.remove(); };
+    v.onerror = () => { resolve(3); v.remove(); };
+    v.src = src;
+  });
 }

@@ -2,6 +2,8 @@
 .env
 .env.local
 .env.*.local
+docs/
+CLAUDE.md
 
 # Python
 __pycache__/
@@ -46,6 +48,9 @@ assets/brand/
 node_modules/
 web/.next/
 web/tsconfig.tsbuildinfo
+
+# Claude Code
+.claude/
 
 # IDE & OS
 .vscode/

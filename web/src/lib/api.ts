@@ -16,6 +16,7 @@ export interface Character {
   era: string;
   character_description: string;
   character_image_url: string | null;
+  character_styles_json: string | null; // {"theme": {"description": "...", "image_url": "...", "image_path": "..."}}
   character_ref_urls: string | null; // JSON array of reference image URLs
   quote_count: number;
   hook_count: number;
@@ -45,15 +46,36 @@ export interface Scene {
   id: string;
   scene_id?: number;
   beat: string;
-  duration: number;
+  duration: number;           // clip length (3-15s, sent to Kling API)
   visual_description: string;
   text_overlay: string;
   camera: string;
   clip_url: string | null;
   keyframe_url: string | null;
+  keyframe_path?: string | null;
+  keyframe_history?: Array<{ url: string; path: string }> | null;
+  end_keyframe_url?: string | null;
+  extracted_frames?: Array<{ url: string; path: string; timestamp: number }> | null;
+  reference_images?: string[] | null;
   quote_id: string | null;
   cta_scene?: boolean;
   character_present?: boolean;
+  speed?: number;              // playback speed multiplier (default 1.0)
+}
+
+export interface Transition {
+  from_scene_id: number;
+  to_scene_id: number;
+  prompt: string;
+  duration: number;           // clip length (3-15s, sent to Kling API)
+  speed: number;              // playback speed multiplier (default 1.5)
+  clip_path?: string | null;  // generated clip file path
+  clip_url?: string | null;   // generated clip URL
+}
+
+/** Compute effective timeline duration: clip length / speed */
+export function effectiveDuration(item: { duration: number; speed?: number }): number {
+  return item.duration / (item.speed ?? 1.0);
 }
 
 export interface Project {
@@ -80,6 +102,7 @@ export interface Project {
   audio_mode?: string;
   uploaded_audio_path?: string;
   narration_json?: string;
+  transition_clips_json?: string;
 }
 
 export interface Universe {
@@ -145,6 +168,19 @@ export interface VibePreset {
   description: string;
   prompt: string;
   character_prompt?: string;
+  is_builtin?: boolean;
+}
+
+export interface VideoStyle {
+  id: string;
+  name: string;
+  description: string;
+  prompt: string;
+  character_prompt: string;
+  image_model: string;  // "kontext" or "nano_banana_2"
+  is_builtin: number;
+  organization_id: string;
+  created_at: string;
 }
 
 export interface ArcTemplate {
@@ -158,23 +194,46 @@ export interface ArcTemplate {
 }
 
 export interface Settings {
-  openai_api_key: string;
-  anthropic_api_key: string;
-  fal_api_key: string;
+  openai_api_key?: string;
+  anthropic_api_key?: string;
+  fal_key?: string;
   llm_provider: "openai" | "anthropic";
   llm_model: string;
-  youtube_connected: boolean;
 }
 
 // --- API Functions ---
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
+  // Inject Bearer token if available (cloud mode)
+  const authHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("lorekit_token");
+    if (token) {
+      authHeaders["Authorization"] = `Bearer ${token}`;
+    }
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
+    headers: { ...authHeaders, ...options?.headers },
     ...options,
   });
+
+  // Handle auth errors — redirect to login
+  if (res.status === 401 && typeof window !== "undefined") {
+    localStorage.removeItem("lorekit_token");
+    window.location.href = "/login";
+    throw new Error("Authentication required");
+  }
+
   if (!res.ok) {
-    throw new Error(`API error: ${res.status} ${res.statusText}`);
+    let detail = res.statusText;
+    try {
+      const body = await res.json();
+      if (body?.detail) detail = body.detail;
+    } catch {}
+    throw new Error(`API error: ${res.status} — ${detail}`);
   }
   return res.json();
 }
@@ -316,6 +375,7 @@ export const generateStory = (data: {
   truth_quote_id?: string;
   quote_ids?: string[];
   target_duration?: number;
+  aspect_ratio?: string;
   arc_template?: string;
   theme?: string;
   audio_mode?: string;
@@ -326,8 +386,27 @@ export const generateClips = (projectId: string) =>
   fetchAPI<{ job_id: string }>("/api/generate/clips", { method: "POST", body: JSON.stringify({ project_id: projectId }) });
 export const generateClip = (projectId: string, sceneId: string) =>
   fetchAPI<{ job_id: string }>("/api/generate/clip", { method: "POST", body: JSON.stringify({ project_id: projectId, scene_id: sceneId }) });
-export const generateKeyframe = (projectId: string, sceneId: number) =>
-  fetchAPI<{ job_id: string }>("/api/generate/keyframe", { method: "POST", body: JSON.stringify({ project_id: projectId, scene_id: sceneId }) });
+export const generateKeyframe = (projectId: string, sceneId: number, referenceImageUrls?: string[]) =>
+  fetchAPI<{ job_id: string }>("/api/generate/keyframe", {
+    method: "POST",
+    body: JSON.stringify({
+      project_id: projectId,
+      scene_id: sceneId,
+      ...(referenceImageUrls?.length ? { reference_image_urls: referenceImageUrls } : {}),
+    }),
+  });
+export const generateTransition = (projectId: string, fromSceneId: number, toSceneId: number, prompt?: string, duration?: number) =>
+  fetchAPI<{ job_id: string }>("/api/generate/transition", {
+    method: "POST",
+    body: JSON.stringify({
+      project_id: projectId,
+      from_scene_id: fromSceneId,
+      to_scene_id: toSceneId,
+      ...(prompt ? { prompt } : {}),
+      ...(duration ? { duration } : {}),
+    }),
+  });
+
 export interface RenderOptions {
   raw?: boolean;
   text_overlays?: boolean;
@@ -341,18 +420,25 @@ export const renderProject = (projectId: string, options: RenderOptions = {}) =>
   });
 
 // Scenes
-export const getScenes = async (projectId: string): Promise<Scene[]> => {
-  const data = await fetchAPI<{ scenes: Array<Scene & { clip_path?: string; keyframe_url?: string }>; total_duration: number }>(`/api/scenes/${projectId}`);
-  // Map backend clip_path to frontend clip_url; pass through keyframe_url
-  return (data.scenes ?? []).map((s, idx) => ({
+export const getScenes = async (projectId: string): Promise<{ scenes: Scene[]; transitions: Transition[] }> => {
+  const data = await fetchAPI<{ scenes: Array<Scene & { clip_path?: string }>; transitions?: Transition[]; total_duration: number }>(`/api/scenes/${projectId}`);
+  const scenes = (data.scenes ?? []).map((s, idx) => ({
     ...s,
     id: s.id ?? String(s.scene_id ?? idx),
-    clip_url: s.clip_url ?? s.clip_path ?? null,
+    clip_url: s.clip_url ?? (s.clip_path ? `/files/${s.clip_path}` : null),
     keyframe_url: s.keyframe_url ?? null,
+    keyframe_path: s.keyframe_path ?? null,
+    keyframe_history: s.keyframe_history ?? null,
+    end_keyframe_url: s.end_keyframe_url ?? null,
+    extracted_frames: s.extracted_frames ?? null,
   }));
+  const transitions = data.transitions ?? [];
+  return { scenes, transitions };
 };
 export const updateScene = (projectId: string, sceneId: string, data: Partial<Scene>) =>
   fetchAPI<Scene>(`/api/scenes/${projectId}/${sceneId}`, { method: "PATCH", body: JSON.stringify(data) });
+export const updateTransition = (projectId: string, fromId: number, toId: number, data: Partial<Transition>) =>
+  fetchAPI<Transition>(`/api/scenes/${projectId}/transition/${fromId}/${toId}`, { method: "PATCH", body: JSON.stringify(data) });
 export const reorderScenes = (projectId: string, sceneIds: string[]) =>
   fetchAPI<void>(`/api/scenes/${projectId}/reorder`, { method: "POST", body: JSON.stringify({ scene_ids: sceneIds }) });
 export const copyKeyframe = (projectId: string, sourceSceneId: number, targetSceneIds: number[]) =>
@@ -360,6 +446,32 @@ export const copyKeyframe = (projectId: string, sourceSceneId: number, targetSce
     method: "POST",
     body: JSON.stringify({ source_scene_id: sourceSceneId, target_scene_ids: targetSceneIds }),
   });
+
+export const extractFrame = (projectId: string, sceneId: number, timestamp: number) =>
+  fetchAPI<{ url: string; path: string; timestamp: number }>("/api/generate/extract-frame", {
+    method: "POST",
+    body: JSON.stringify({ project_id: projectId, scene_id: sceneId, timestamp }),
+  });
+export const setStartKeyframe = (projectId: string, sceneId: number, keyframeUrl: string | null, keyframePath?: string | null) =>
+  fetchAPI<{ scene_id: number; keyframe_url: string | null }>(`/api/scenes/${projectId}/${sceneId}/start-keyframe`, {
+    method: "POST",
+    body: JSON.stringify({ keyframe_url: keyframeUrl, ...(keyframePath ? { keyframe_path: keyframePath } : {}) }),
+  });
+export const setEndKeyframe = (projectId: string, sceneId: number, endKeyframeUrl: string | null) =>
+  fetchAPI<{ scene_id: number; end_keyframe_url: string | null }>(`/api/scenes/${projectId}/${sceneId}/end-keyframe`, {
+    method: "POST",
+    body: JSON.stringify({ end_keyframe_url: endKeyframeUrl }),
+  });
+
+export const setReferenceImages = (projectId: string, sceneId: number, urls: string[]) =>
+  fetchAPI<{ scene_id: number; reference_images: string[] }>(`/api/scenes/${projectId}/${sceneId}/reference-images`, {
+    method: "POST",
+    body: JSON.stringify({ urls }),
+  });
+export const deleteScene = (projectId: string, sceneId: number) =>
+  fetchAPI<{ deleted: number; scene_count: number }>(`/api/scenes/${projectId}/${sceneId}`, { method: "DELETE" });
+export const deleteTransition = (projectId: string, fromId: number, toId: number) =>
+  fetchAPI<{ deleted: string }>(`/api/scenes/${projectId}/transition/${fromId}/${toId}`, { method: "DELETE" });
 
 // Jobs
 export const getJob = (id: string) => fetchAPI<Job>(`/api/jobs/${id}`);
@@ -369,9 +481,21 @@ export const getSettings = () => fetchAPI<Settings>("/api/settings");
 export const updateSettings = (data: Partial<Settings>) =>
   fetchAPI<Settings>("/api/settings", { method: "PATCH", body: JSON.stringify(data) });
 export const getVibePresets = () =>
-  fetchAPI<{ presets: Record<string, VibePreset> }>("/api/settings/vibe-presets");
+  fetchAPI<{ presets: Record<string, VibePreset>; styles: VideoStyle[] }>("/api/settings/vibe-presets");
 export const getArcTemplates = () =>
   fetchAPI<{ templates: Record<string, ArcTemplate> }>("/api/settings/arc-templates");
+
+// Video Styles CRUD
+export const listVideoStyles = () =>
+  fetchAPI<{ styles: VideoStyle[] }>("/api/settings/video-styles");
+export const createVideoStyle = (data: { name: string; description?: string; prompt: string; character_prompt?: string; image_model?: string }) =>
+  fetchAPI<VideoStyle>("/api/settings/video-styles", { method: "POST", body: JSON.stringify(data) });
+export const updateVideoStyle = (id: string, data: Partial<Pick<VideoStyle, "name" | "description" | "prompt" | "character_prompt" | "image_model">>) =>
+  fetchAPI<VideoStyle>(`/api/settings/video-styles/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+export const deleteVideoStyle = (id: string) =>
+  fetchAPI<{ deleted: boolean }>(`/api/settings/video-styles/${id}`, { method: "DELETE" });
+export const duplicateVideoStyle = (id: string) =>
+  fetchAPI<VideoStyle>(`/api/settings/video-styles/${id}/duplicate`, { method: "POST" });
 
 // Character Image
 export const generateCharacterImage = (projectId: string, customDescription?: string, theme?: string) =>
@@ -405,9 +529,47 @@ export const generateCharacterForPhilosopher = (
   opts?: { theme?: string; force?: boolean; custom_description?: string },
 ) => generateCharacterForCharacter(characterId, opts);
 
-// Publish
-export const publishToYouTube = (projectId: string) =>
-  fetchAPI<{ youtube_id: string }>("/api/publish", { method: "POST", body: JSON.stringify({ project_id: projectId }) });
+// Character Reference Images
+export const getCharacterReferenceImages = (characterId: string) =>
+  fetchAPI<{ character_id: string; urls: string[] }>(`/api/character/reference-images/${characterId}`);
+
+export const uploadCharacterReferenceImage = async (characterId: string, file: File): Promise<{ url: string; urls: string[] }> => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const headers: Record<string, string> = {};
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("lorekit_token");
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API_BASE}/api/character/reference-images/${characterId}`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+  if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+  return res.json();
+};
+
+export const deleteCharacterReferenceImage = (characterId: string, url: string) =>
+  fetchAPI<{ urls: string[] }>(`/api/character/reference-images/${characterId}`, {
+    method: "DELETE",
+    body: JSON.stringify({ url }),
+  });
+
+// Download
+export interface ProjectAsset {
+  path: string;
+  filename: string;
+  category: string;
+  url: string;
+  scene_id?: number;
+}
+
+export const downloadProjectFile = (projectId: string, type: "render" | "clip" | "raw" = "render", sceneId?: number) =>
+  fetchAPI<{ url: string }>(`/api/projects/${projectId}/download?type=${type}${sceneId != null ? `&scene_id=${sceneId}` : ""}`);
+
+export const listProjectAssets = (projectId: string) =>
+  fetchAPI<{ project_id: string; project_name: string; assets: ProjectAsset[]; count: number }>(`/api/projects/${projectId}/assets`);
 
 // --- Scripts ---
 
@@ -568,8 +730,14 @@ export const getTransitionsFlat = () =>
 export const uploadAudio = async (file: File): Promise<AudioAnalysis & { filename: string; file_path: string }> => {
   const formData = new FormData();
   formData.append("file", file);
+  const headers: Record<string, string> = {};
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("lorekit_token");
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+  }
   const res = await fetch(`${API_BASE}/api/audio/upload`, {
     method: "POST",
+    headers,
     body: formData,
   });
   if (!res.ok) throw new Error(`Upload failed: ${res.status}`);

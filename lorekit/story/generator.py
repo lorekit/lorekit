@@ -182,8 +182,22 @@ Return ONLY valid JSON matching this exact schema — no markdown, no commentary
             }}
         }}
     ],
+    "transitions": [
+        {{
+            "from_scene_id": 1,
+            "to_scene_id": 2,
+            "prompt": "Cinematic description of how the camera/visual morphs from scene 1 to scene 2"
+        }}
+    ],
     "music_theme": "overall musical theme description"
-}}"""
+}}
+
+TRANSITION RULES:
+- Include one transition object for each pair of adjacent scenes (N-1 transitions for N scenes)
+- Each transition prompt describes the visual morph/movement between scenes
+- Think cinematically: camera pushes, dissolves through smoke, light shifts, focus pulls
+- Keep prompts under 200 characters
+- These will be used to generate AI video transitions between clips"""
 
 
 def _parse_scene(raw: dict[str, Any], character_name: str) -> Scene:
@@ -321,6 +335,29 @@ async def generate_story(
             ]
             total_dur = sum(s.duration for s in scenes)
 
+            # Parse transitions (optional — older stories may not have them)
+            from lorekit.models import Transition
+            raw_transitions = data.get("transitions", [])
+            transitions = []
+            for t in raw_transitions:
+                try:
+                    transitions.append(Transition(
+                        from_scene_id=t["from_scene_id"],
+                        to_scene_id=t["to_scene_id"],
+                        prompt=t["prompt"],
+                    ))
+                except (KeyError, TypeError):
+                    continue
+
+            # Auto-generate default transitions if LLM didn't provide them
+            if not transitions and len(scenes) > 1:
+                for i in range(len(scenes) - 1):
+                    transitions.append(Transition(
+                        from_scene_id=scenes[i].scene_id,
+                        to_scene_id=scenes[i + 1].scene_id,
+                        prompt="Smooth cinematic transition with fluid camera motion",
+                    ))
+
             story = StoryBreakdown(
                 character_id=character.id,
                 civilization=character.group,
@@ -329,6 +366,7 @@ async def generate_story(
                 hook_quote=hook_quote,
                 truth_quote=truth_quote,
                 scenes=scenes,
+                transitions=transitions,
                 total_duration=total_dur,
                 music_theme=data.get("music_theme", "cinematic orchestral"),
             )

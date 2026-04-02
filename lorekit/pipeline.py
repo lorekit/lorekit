@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+import uuid
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -136,7 +137,7 @@ async def generate_video(
     """
     settings = get_settings()
     settings.ensure_dirs()
-    await db.init_db()
+    await db.init_pool()
 
     # Resolve theme from settings if not explicitly provided
     if theme is None:
@@ -180,26 +181,40 @@ async def generate_video(
             return project
 
         # 4. Create DB record
-        await db.create_video_record(project.id, character_id)
-        await db.update_video_status(project.id, "generating")
+        pool = await db.get_pool()
+        await pool.execute(
+            "INSERT INTO videos (id, character_id, status, created_at) VALUES ($1, $2, $3, NOW())",
+            project.id, character_id, "generating",
+        )
 
         # 5. Generate video clips via fal.ai (parallel)
         task = progress.add_task("Generating video clips...", total=None)
         project.clips = await generate_video_clips(project)
-        await db.log_cost(project.id, "video_gen", 0.0)  # actual cost logged by Agent 3
+        await pool.execute(
+            "INSERT INTO cost_log (id, video_id, component, cost_usd) VALUES ($1, $2, $3, $4)",
+            uuid.uuid4().hex[:12], project.id, "video_gen", 0.0,
+        )
         progress.update(task, description="[green]Video clips generated[/]")
 
         # 6. Build audio mix
         task = progress.add_task("Building audio mix...", total=None)
         audio_path = await build_audio_mix(project)
-        await db.log_cost(project.id, "audio", 0.0)
+        await pool.execute(
+            "INSERT INTO cost_log (id, video_id, component, cost_usd) VALUES ($1, $2, $3, $4)",
+            uuid.uuid4().hex[:12], project.id, "audio", 0.0,
+        )
         progress.update(task, description="[green]Audio mix ready[/]")
 
         # 7. Assemble final video
         task = progress.add_task("Assembling final video...", total=None)
-        await db.update_video_status(project.id, "assembling")
+        await pool.execute(
+            "UPDATE videos SET status = $1 WHERE id = $2", "assembling", project.id,
+        )
         project.output_path = await assemble_final_video(project, audio_path)
-        await db.log_cost(project.id, "assembly", 0.0)
+        await pool.execute(
+            "INSERT INTO cost_log (id, video_id, component, cost_usd) VALUES ($1, $2, $3, $4)",
+            uuid.uuid4().hex[:12], project.id, "assembly", 0.0,
+        )
         progress.update(task, description="[green]Video assembled[/]")
 
         # 8. Generate metadata
@@ -208,10 +223,9 @@ async def generate_video(
         progress.update(task, description="[green]Metadata ready[/]")
 
         # 9. Mark complete
-        await db.update_video_status(
-            project.id, "complete",
-            output_path=project.output_path,
-            cost_usd=project.cost_usd,
+        await pool.execute(
+            "UPDATE videos SET status = $1, output_path = $2, cost_usd = $3 WHERE id = $4",
+            "complete", project.output_path, project.cost_usd, project.id,
         )
         project.status = "complete"
 
@@ -224,7 +238,7 @@ async def batch_generate(count: int = 1, schedule: str | None = None) -> list[Vi
     """Generate multiple videos, rotating characters."""
     settings = get_settings()
     settings.ensure_dirs()
-    await db.init_db()
+    await db.init_pool()
 
     # If schedule is given, pick characters based on day-of-week mapping
     character_ids = list(CHARACTERS.keys())

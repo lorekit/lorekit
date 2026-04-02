@@ -13,11 +13,12 @@ logger = logging.getLogger(__name__)
 async def export_final(
     video_with_text_path: str,
     output_path: str,
+    aspect_ratio: str = "9:16",
 ) -> str:
-    """Final encode optimized for YouTube Shorts.
+    """Final encode optimized for YouTube/social export.
 
     Specs:
-    - Resolution: 1080x1920 (9:16)
+    - Resolution: 1080x1920 (9:16) or 1920x1080 (16:9)
     - Codec: H.264 (libx264)
     - Profile: high
     - Preset: slow (quality over speed)
@@ -34,8 +35,8 @@ async def export_final(
     cmd = [
         "ffmpeg", "-y",
         "-i", video_with_text_path,
-        "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,"
-               "pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
+        "-vf", f"scale={'1920:1080' if aspect_ratio == '16:9' else '1080:1920'}:force_original_aspect_ratio=decrease,"
+               f"pad={'1920:1080' if aspect_ratio == '16:9' else '1080:1920'}:(ow-iw)/2:(oh-ih)/2",
         "-c:v", "libx264",
         "-profile:v", "high",
         "-preset", "slow",

@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from lorekit import db
+from lorekit.auth.user import get_current_user, CurrentUser
 from lorekit.config import get_settings
+
+logger = logging.getLogger(__name__)
 from lorekit.api.characters_routes import router as characters_router, legacy_router as philosophers_router
 from lorekit.api.sources_routes import router as sources_router, legacy_router as quotes_router
 from lorekit.api.projects import router as projects_router
@@ -29,93 +34,71 @@ from lorekit.api.voices import router as voices_router
 from lorekit.api.audio import router as audio_router
 
 
-async def _seed_default_universe():
-    """No-op — legacy seed function. Universes are now created via the UI."""
-    pass
+def _init_cloud_if_present() -> None:
+    """Load cloud layer if the cloud/ submodule is available.
 
-
-async def _auto_import_sources():
-    """Import all character JSON files into the DB if empty."""
-    conn = await db.connect()
+    Called at module level (before MCP app creation) so that auth providers
+    are registered before FastMCP's http_app() bakes in the auth config.
+    """
     try:
-        cursor = await conn.execute("SELECT COUNT(*) FROM characters")
-        row = await cursor.fetchone()
-        if row and row[0] > 0:
-            return  # Already populated
+        from cloud.startup import init_cloud
+        init_cloud()
+    except ImportError:
+        pass  # No cloud submodule — open source mode
 
-        import json
-        import logging
-        logger = logging.getLogger(__name__)
 
-        sources_dir = Path(__file__).parent / "sources" / "data"
-        if not sources_dir.exists():
-            sources_dir = Path(__file__).parent / "quotes" / "sources"
-            if not sources_dir.exists():
-                return
-
-        total_items = 0
-        for json_file in sorted(sources_dir.glob("*.json")):
-            data = json.loads(json_file.read_text())
-            phil = data.get("philosopher", data.get("character", {}))
-
-            await db.upsert_character(
-                character_id=phil["id"],
-                name=phil["name"],
-                group_name=phil.get("civilization", phil.get("group", "")),
-                era=phil.get("era", ""),
-                character_description=phil.get("character_description", ""),
-            )
-
-            for q in data.get("quotes", data.get("source_items", [])):
-                await db.insert_source_item(
-                    character_id=phil["id"],
-                    text=q["text"],
-                    theme=q["theme"],
-                    emotional_function=q["emotional_function"],
-                    short_version=q.get("short_version"),
-                    word_count=q.get("word_count", len(q["text"].split())),
-                    read_time_seconds=q.get("read_time_seconds", len(q["text"].split()) / 2.5),
-                    pair_with_visual=q.get("pair_with_visual", ""),
-                )
-                total_items += 1
-
-        logger.info("Auto-imported %d source items from %d character files", total_items, len(list(sources_dir.glob("*.json"))))
-    finally:
-        await conn.close()
+# Cloud init MUST run before MCP http_app() so auth is wired up
+_init_cloud_if_present()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Initialize DB, auto-import sources, ensure directories on startup."""
+async def _lorekit_lifespan(app: FastAPI):
+    """Initialize DB pool, ensure directories on startup."""
     settings = get_settings()
     settings.ensure_dirs()
-    await db.init_db()
-    await _seed_default_universe()
-    await _auto_import_sources()
+    await db.init_pool()
+    await db.seed_builtin_video_styles()
+    await db.backfill_project_themes()
+    from lorekit.auth.user import _user_provider
+    if _user_provider is None:
+        logger.warning(
+            "SECURITY: Running without authentication. All API endpoints are "
+            "public. Set BETTER_AUTH_SECRET for production."
+        )
     yield
+    from lorekit.tasks import get_task_runner
+    await get_task_runner().shutdown()
+    await db.close_pool()
 
 
-app = FastAPI(title="LoreKit", lifespan=lifespan)
+# MCP server — mounted at /mcp for streamable HTTP transport
+from lorekit.mcp.server import mcp as _mcp_server
+from lorekit.mcp.auth import get_mcp_auth
+from fastmcp.utilities.lifespan import combine_lifespans
+
+_mcp_server.auth = get_mcp_auth()  # None (open-source) or BetterAuthMCPVerifier (cloud)
+if os.environ.get("BETTER_AUTH_SECRET") and _mcp_server.auth is None:
+    raise RuntimeError(
+        "BETTER_AUTH_SECRET is set but MCP auth provider was not registered. "
+        "Check cloud/ submodule initialization order."
+    )
+_mcp_app = _mcp_server.http_app(path="/mcp")
+
+app = FastAPI(
+    title="LoreKit",
+    lifespan=combine_lifespans(_lorekit_lifespan, _mcp_app.lifespan),
+)
+app.mount("/mcp", _mcp_app)
 
 # CORS for Next.js frontend
+cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:3001").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3001"],
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
-
-# Static file mounts for generated assets
-clips_dir = Path("clips")
-output_dir = Path("output")
-chars_dir = Path("characters")
-clips_dir.mkdir(exist_ok=True)
-output_dir.mkdir(exist_ok=True)
-chars_dir.mkdir(exist_ok=True)
-app.mount("/clips", StaticFiles(directory=str(clips_dir)), name="clips")
-app.mount("/output", StaticFiles(directory=str(output_dir)), name="output")
-app.mount("/characters", StaticFiles(directory=str(chars_dir)), name="characters")
 
 # Register API routers
 app.include_router(characters_router)
@@ -143,6 +126,242 @@ async def health() -> dict:
 
 
 @app.get("/api/stats")
-async def stats() -> dict:
+async def stats(user: CurrentUser = Depends(get_current_user)) -> dict:
     """Aggregate stats: videos, sources, costs."""
-    return await db.get_stats()
+    return await db.get_stats(org_id=user.org_id)
+
+
+@app.get("/clips/{project_id}/{filename}")
+async def serve_clip(
+    project_id: str,
+    filename: str,
+    user: CurrentUser = Depends(get_current_user),
+) -> FileResponse:
+    """Serve a clip file with auth check."""
+    project = await db.get_project(project_id, org_id=user.org_id)
+    if not project:
+        raise HTTPException(status_code=404)
+    file_path = Path("clips") / project_id / filename
+    if not file_path.resolve().is_relative_to(Path("clips").resolve()) or not file_path.exists():
+        raise HTTPException(status_code=404)
+    return FileResponse(file_path)
+
+
+@app.get("/output/{project_id}/{filename}")
+async def serve_output(
+    project_id: str,
+    filename: str,
+    user: CurrentUser = Depends(get_current_user),
+) -> FileResponse:
+    """Serve an output file with org ownership check."""
+    project = await db.get_project(project_id, org_id=user.org_id)
+    if not project:
+        raise HTTPException(status_code=404)
+    file_path = (Path("output") / project_id / filename).resolve()
+    if not file_path.is_relative_to(Path("output").resolve()) or not file_path.exists():
+        # Fallback: legacy flat files like {project_id}_final.mp4
+        file_path = (Path("output") / f"{project_id}_{filename}").resolve()
+        if not file_path.is_relative_to(Path("output").resolve()) or not file_path.exists():
+            raise HTTPException(status_code=404)
+    return FileResponse(file_path)
+
+
+@app.get("/characters/{character_id}/{filename}")
+async def serve_character(
+    character_id: str,
+    filename: str,
+    user: CurrentUser = Depends(get_current_user),
+) -> FileResponse:
+    """Serve a character image with org ownership check."""
+    pool = await db.get_pool()
+    char = await pool.fetchrow(
+        """SELECT c.id FROM characters c
+           JOIN universes u ON c.universe_id = u.id
+           WHERE c.id = $1 AND u.organization_id = $2""",
+        character_id, user.org_id,
+    )
+    if not char:
+        raise HTTPException(status_code=404)
+    file_path = (Path("characters") / f"{character_id}_{filename}").resolve()
+    if not file_path.is_relative_to(Path("characters").resolve()) or not file_path.exists():
+        raise HTTPException(status_code=404)
+    return FileResponse(file_path)
+
+
+@app.get("/files/{path:path}")
+async def serve_file(
+    path: str,
+    user: CurrentUser = Depends(get_current_user),
+) -> FileResponse:
+    """Serve any file from the store with auth + org ownership check.
+
+    This is the generic file-serving endpoint that the store's get_url()
+    returns local URLs for (e.g., /files/projects/abc/renders/final.mp4).
+    """
+    from lorekit.storage import get_file_store
+    store = get_file_store()
+
+    if not hasattr(store, "base_dir"):
+        raise HTTPException(status_code=404)
+
+    file_path = (store.base_dir / path).resolve()
+    if not file_path.is_relative_to(store.base_dir) or not file_path.exists():
+        raise HTTPException(status_code=404)
+
+    # Cloud mode: paths are prefixed with org_id — verify it matches the user
+    parts = path.split("/")
+    if user.org_id != "local":
+        # In cloud mode, all paths must be prefixed with the user's org_id
+        if not parts or parts[0] != user.org_id:
+            raise HTTPException(status_code=404)
+        # Strip org_id prefix for the ownership checks below
+        parts = parts[1:]
+
+    # Org ownership check based on path structure
+    if len(parts) >= 2 and parts[0] == "projects":
+        # projects/{project_id}/... — verify project ownership
+        project_id = parts[1]
+        project = await db.get_project(project_id, org_id=user.org_id)
+        if not project:
+            raise HTTPException(status_code=404)
+    elif len(parts) >= 2 and parts[0] == "characters":
+        # characters/{character_id}/... — verify character ownership
+        character_id = parts[1]
+        pool = await db.get_pool()
+        char = await pool.fetchrow(
+            """SELECT c.id FROM characters c
+               JOIN universes u ON c.universe_id = u.id
+               WHERE c.id = $1 AND u.organization_id = $2""",
+            character_id, user.org_id,
+        )
+        if not char:
+            raise HTTPException(status_code=404)
+    elif len(parts) >= 1 and parts[0] == "uploads":
+        pass  # Upload paths validated by org_id prefix above (cloud) or auth-only (local)
+    else:
+        # Unknown path structure — deny by default in cloud mode
+        if user.org_id != "local":
+            raise HTTPException(status_code=404)
+
+    return FileResponse(file_path, headers={
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "no-cache",
+    })
+
+
+@app.get("/api/projects/{project_id}/download")
+async def download_project_file(
+    project_id: str,
+    type: str = "render",
+    filename: str = "final.mp4",
+    scene_id: int | None = None,
+    user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """Get a download URL for a project file.
+
+    Query params:
+        type: "render" | "clip" | "raw"
+        filename: override filename (default: final.mp4)
+        scene_id: required when type=clip
+
+    Returns: { url: string } — local file path or signed Supabase URL.
+    """
+    import re
+    # Validate filename — alphanumeric, hyphens, underscores, dots only
+    if not re.match(r'^[a-zA-Z0-9_.-]+$', filename):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    project = await db.get_project(project_id, org_id=user.org_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    from lorekit.storage import get_file_store
+    from lorekit.storage.paths import project_render_path, project_clip_path
+    store = get_file_store()
+
+    if type == "clip":
+        if scene_id is None:
+            raise HTTPException(status_code=400, detail="scene_id required for clip download")
+        path = project_clip_path(project_id, scene_id, org_id=user.org_id)
+    elif type == "raw":
+        path = project_render_path(project_id, "raw.mp4", org_id=user.org_id)
+    else:
+        # Use the project's actual output_path from DB if available
+        db_output = project.get("output_path", "")
+        if db_output:
+            path = db_output
+        else:
+            path = project_render_path(project_id, filename, org_id=user.org_id)
+
+    if not await store.exists(path):
+        # Fallback to legacy paths (pre-storage-abstraction files)
+        legacy_paths = {
+            "render": f"output/{project_id}/{filename}",
+            "raw": f"output/{project_id}/raw.mp4",
+            "clip": f"clips/{project_id}/scene_{scene_id:03d}.mp4" if scene_id else "",
+        }
+        legacy = legacy_paths.get(type, "")
+        if legacy:
+            from pathlib import Path as P
+            legacy_resolved = P(legacy).resolve()
+            if legacy_resolved.is_relative_to(P.cwd()) and legacy_resolved.exists():
+                return {"url": f"/{legacy}", "legacy": True}
+        raise HTTPException(status_code=404, detail="File not found")
+
+    url = await store.get_url(path)
+    return {"url": url}
+
+
+@app.get("/api/projects/{project_id}/assets")
+async def list_project_assets(
+    project_id: str,
+    user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """List all files for a project with metadata.
+
+    Returns categorized assets: clips, renders, audio, keyframes.
+    """
+    project = await db.get_project(project_id, org_id=user.org_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    from lorekit.storage import get_file_store
+    store = get_file_store()
+
+    assets: list[dict] = []
+    prefix = f"projects/{project_id}"
+    files = await store.list_files(prefix)
+
+    for f in files:
+        parts = f.split("/")
+        # Determine category from path: projects/{id}/{category}/{filename}
+        category = parts[2] if len(parts) > 2 else "other"
+        filename = parts[-1]
+        url = await store.get_url(f)
+
+        asset = {
+            "path": f,
+            "filename": filename,
+            "category": category,
+            "url": url,
+        }
+
+        # Extract scene_id from clip filenames like scene_001.mp4
+        if category == "clips" and filename.startswith("scene_"):
+            try:
+                asset["scene_id"] = int(filename.split("_")[1].split(".")[0])
+            except (ValueError, IndexError):
+                pass
+
+        assets.append(asset)
+
+    # Sort: renders first, then clips by scene_id, then audio
+    category_order = {"renders": 0, "clips": 1, "keyframes": 2, "audio": 3}
+    assets.sort(key=lambda a: (category_order.get(a["category"], 9), a.get("scene_id", 0), a["filename"]))
+
+    return {
+        "project_id": project_id,
+        "project_name": project.get("name", ""),
+        "assets": assets,
+        "count": len(assets),
+    }

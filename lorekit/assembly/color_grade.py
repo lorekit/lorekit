@@ -35,20 +35,31 @@ _GRADE_EXTRAS: dict[str, dict] = {
 }
 
 
-def get_color_grade_filter(civilization: str) -> str:
-    """Return ffmpeg filter string for civilization-specific color grading.
+def get_color_grade_filter(
+    civilization: str,
+    color_grade_override: dict | None = None,
+) -> str:
+    """Return ffmpeg filter string for color grading.
 
-    Roman: warm temperature, lifted shadows, slight vignette
-    Greek: high contrast, clean whites, slightly cool mid-tones
-    Chinese: desaturated, crushed blacks, green tint in shadows
-    Japanese: low saturation, film grain, soft contrast, warm highlights
+    If color_grade_override is provided (from DB environment), use those values.
+    Otherwise fall back to hardcoded civilization presets.
+
+    Expected override keys: temperature, saturation, contrast, vignette
     """
-    preset = CIVILIZATIONS.get(civilization)
-    if not preset:
-        logger.warning("Unknown civilization %r, using neutral grade", civilization)
-        return "null"
-
-    cg = preset.color_grade
+    if color_grade_override:
+        from lorekit.config import ColorGrade
+        cg = ColorGrade(
+            temperature=color_grade_override.get("temperature", 6500),
+            saturation=color_grade_override.get("saturation", 1.0),
+            contrast=color_grade_override.get("contrast", 1.0),
+            vignette=color_grade_override.get("vignette", 0.0),
+        )
+    else:
+        preset = CIVILIZATIONS.get(civilization)
+        if not preset:
+            logger.warning("Unknown civilization %r, using neutral grade", civilization)
+            return "null"
+        cg = preset.color_grade
     filters: list[str] = []
 
     # Color temperature

@@ -17,19 +17,19 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from pathlib import Path
 
 import httpx
 
 from lorekit.config import get_settings
 from lorekit.models import Character, Scene
+from lorekit.storage import get_file_store, project_clip_path
 from lorekit.video.prompt_builder import build_video_prompt
 
 logger = logging.getLogger(__name__)
 
-# Keyframe generation
-FAL_FLUX_I2I_ENDPOINT = "https://queue.fal.run/fal-ai/flux/dev/image-to-image"
-FAL_FLUX_T2I_ENDPOINT = "https://queue.fal.run/fal-ai/flux/dev"
+# Image generation models
+FAL_NANO_BANANA_2 = "https://queue.fal.run/fal-ai/nano-banana-2"
+FAL_KONTEXT_MAX_MULTI = "https://queue.fal.run/fal-ai/flux-pro/kontext/max/multi"
 
 # Character scenes — V3 Pro has native elements for character consistency
 FAL_KLING_V3_PRO_I2V = "https://queue.fal.run/fal-ai/kling-video/v3/pro/image-to-video"
@@ -52,12 +52,20 @@ def _resolve_vibe(theme: str | None) -> str:
     return get_settings().video_vibe
 
 
+def _aspect_composition(aspect_ratio: str) -> str:
+    """Return composition prompt fragment for the given aspect ratio."""
+    if aspect_ratio == "16:9":
+        return "16:9 horizontal composition"
+    return "9:16 vertical composition"
+
+
 async def generate_scene_clips(
     scenes: list[Scene],
     character: Character,
-    clips_dir: str,
+    project_id: str,
     character_image_url: str | None = None,
     theme: str | None = None,
+    aspect_ratio: str = "9:16",
 ) -> list[str]:
     """Generate all scene video clips with seamless loop support.
 
@@ -67,9 +75,8 @@ async def generate_scene_clips(
     3. Generate all middle scenes in parallel
     4. Generate last scene with end_image_url = scene 1's keyframe (loop!)
 
-    Returns list of clip file paths ordered by scene_id.
+    Returns list of clip storage paths ordered by scene_id.
     """
-    Path(clips_dir).mkdir(parents=True, exist_ok=True)
 
     if not scenes:
         return []
@@ -92,25 +99,26 @@ async def generate_scene_clips(
     if has_char_first:
         hook_keyframe_url = await _generate_keyframe_from_portrait(
             first_prompt, settings.fal_key, character_image_url,  # type: ignore
+            aspect_ratio=aspect_ratio,
         )
     else:
         hook_keyframe_url = await _generate_keyframe_text(
-            first_prompt, settings.fal_key,
+            first_prompt, settings.fal_key, aspect_ratio=aspect_ratio,
         )
 
     logger.info("Hook keyframe generated: %s", hook_keyframe_url)
 
     # --- Step 2: Generate scene 1 video (using the keyframe we already made) ---
     first_clip_path = await _generate_clip_with_keyframe(
-        first_scene, character, clips_dir, settings,
+        first_scene, character, project_id, settings,
         civ_config.model_dump(), character_image_url,
         keyframe_url=hook_keyframe_url,
-        theme=theme,
+        theme=theme, aspect_ratio=aspect_ratio,
     )
 
     # --- Step 3: Generate middle scenes in parallel ---
     middle_tasks = [
-        generate_single_clip(scene, character, clips_dir, character_image_url, theme=theme)
+        generate_single_clip(scene, character, project_id, character_image_url, theme=theme, aspect_ratio=aspect_ratio)
         for scene in middle_scenes
     ]
     middle_results = await asyncio.gather(*middle_tasks, return_exceptions=True)
@@ -124,8 +132,8 @@ async def generate_scene_clips(
     last_clip_path: str | None = None
     if last_scene:
         last_clip_path = await generate_single_clip(
-            last_scene, character, clips_dir, character_image_url,
-            end_image_url=hook_keyframe_url, theme=theme,
+            last_scene, character, project_id, character_image_url,
+            end_image_url=hook_keyframe_url, theme=theme, aspect_ratio=aspect_ratio,
         )
 
     # Assemble in order
@@ -141,11 +149,12 @@ async def generate_scene_clips(
 async def generate_single_clip(
     scene: Scene,
     character: Character,
-    clips_dir: str,
+    project_id: str,
     character_image_url: str | None = None,
     end_image_url: str | None = None,
     theme: str | None = None,
     keyframe_url: str | None = None,
+    aspect_ratio: str = "9:16",
 ) -> str:
     """Generate one video clip.
 
@@ -159,7 +168,7 @@ async def generate_single_clip(
     video transitions toward that ending frame.
 
     Retries up to 3 times with exponential backoff.
-    Returns path to downloaded clip.
+    Returns storage path to downloaded clip.
     """
     from lorekit.config import get_civilization
 
@@ -167,33 +176,35 @@ async def generate_single_clip(
     settings = get_settings()
 
     return await _generate_clip_with_keyframe(
-        scene, character, clips_dir, settings,
+        scene, character, project_id, settings,
         civ_config.model_dump(), character_image_url,
         keyframe_url=keyframe_url,
         end_image_url=end_image_url,
-        theme=theme,
+        theme=theme, aspect_ratio=aspect_ratio,
     )
 
 
 async def _generate_clip_with_keyframe(
     scene: Scene,
     character: Character,
-    clips_dir: str,
+    project_id: str,
     settings: object,
     civ_config: dict,
     character_image_url: str | None = None,
     keyframe_url: str | None = None,
     end_image_url: str | None = None,
     theme: str | None = None,
+    aspect_ratio: str = "9:16",
 ) -> str:
     """Core clip generation — optionally reuses a pre-generated keyframe.
 
     If keyframe_url is provided, skips keyframe generation.
     If end_image_url is provided, passes it to Kling for loop support.
+
+    Returns the storage-relative path to the downloaded clip.
     """
-    clips_dir_path = Path(clips_dir)
-    clips_dir_path.mkdir(parents=True, exist_ok=True)
-    clip_path = str(clips_dir_path / f"scene_{scene.scene_id:03d}.mp4")
+    store = get_file_store()
+    storage_path = project_clip_path(project_id, scene.scene_id)
 
     vibe_text = _resolve_vibe(theme)
 
@@ -229,6 +240,7 @@ async def _generate_clip_with_keyframe(
                     scene_id_hint=scene.scene_id,
                     keyframe_url=keyframe_url,
                     end_image_url=end_image_url,
+                    aspect_ratio=aspect_ratio,
                 )
             elif scene.character_present:
                 video_url = await _generate_character_scene_no_ref(
@@ -236,6 +248,7 @@ async def _generate_clip_with_keyframe(
                     scene_id_hint=scene.scene_id,
                     keyframe_url=keyframe_url,
                     end_image_url=end_image_url,
+                    aspect_ratio=aspect_ratio,
                 )
             else:
                 video_url = await _generate_environment_scene(
@@ -243,14 +256,15 @@ async def _generate_clip_with_keyframe(
                     scene_id_hint=scene.scene_id,
                     keyframe_url=keyframe_url,
                     end_image_url=end_image_url,
+                    aspect_ratio=aspect_ratio,
                 )
 
             elapsed = time.monotonic() - start_time
             logger.info("Scene %d generated in %.1fs via %s", scene.scene_id, elapsed, route)
 
-            await _download_clip(video_url, clip_path, settings.fal_key)  # type: ignore
+            await _download_clip(video_url, store, storage_path, settings.fal_key)  # type: ignore
             _log_cost(scene.scene_id, scene.duration, route)
-            return clip_path
+            return storage_path
 
         except Exception as exc:
             last_error = exc
@@ -280,48 +294,143 @@ async def _generate_keyframe_from_portrait(
     scene_prompt: str,
     fal_key: str,
     character_image_url: str,
+    aspect_ratio: str = "9:16",
 ) -> str:
-    """Generate a keyframe via Flux img2img from the character portrait."""
+    """Generate a keyframe from a character portrait using Nano Banana 2."""
     headers = _fal_headers(fal_key)
 
     image_prompt = (
-        f"Single still frame, 9:16 vertical composition, cinematic framing. "
-        f"{scene_prompt[:1900]}"
+        "Image 1 shows the character — maintain their face, build, and visual style. "
+        f"Generate a new scene: Single still frame, {_aspect_composition(aspect_ratio)}, cinematic framing. "
+        f"{scene_prompt}"
     )
 
-    payload = {
-        "image_url": character_image_url,
+    payload: dict = {
         "prompt": image_prompt,
-        "strength": 0.9,
-        "num_images": 1,
-        "num_inference_steps": 40,
-        "guidance_scale": 3.5,
-        "enable_safety_checker": False,
+        "image_urls": [character_image_url],
+        "aspect_ratio": aspect_ratio,
+        "output_format": "png",
+        "safety_tolerance": 6,
     }
 
-    return await _submit_and_get_image(FAL_FLUX_I2I_ENDPOINT, payload, headers, "Flux i2i keyframe")
+    return await _submit_and_get_image(FAL_NANO_BANANA_2, payload, headers, "Nano Banana 2 keyframe (portrait)")
 
 
 async def _generate_keyframe_text(
     scene_prompt: str,
     fal_key: str,
+    aspect_ratio: str = "9:16",
 ) -> str:
-    """Generate a keyframe via Flux text-to-image (no reference image)."""
+    """Generate a keyframe from text only using Nano Banana 2."""
     headers = _fal_headers(fal_key)
 
     image_prompt = (
-        f"Single still frame, 9:16 vertical composition, cinematic framing. "
-        f"{scene_prompt[:1900]}"
+        f"Single still frame, {_aspect_composition(aspect_ratio)}, cinematic framing. "
+        f"{scene_prompt}"
     )
 
-    payload = {
+    payload: dict = {
         "prompt": image_prompt,
-        "image_size": {"width": 768, "height": 1344},
-        "num_images": 1,
-        "enable_safety_checker": False,
+        "aspect_ratio": aspect_ratio,
+        "output_format": "png",
+        "safety_tolerance": 6,
     }
 
-    return await _submit_and_get_image(FAL_FLUX_T2I_ENDPOINT, payload, headers, "Flux t2i keyframe")
+    return await _submit_and_get_image(FAL_NANO_BANANA_2, payload, headers, "Nano Banana 2 keyframe (text)")
+
+
+async def _generate_keyframe_with_refs(
+    scene_prompt: str,
+    fal_key: str,
+    reference_image_urls: list[str],
+    aspect_ratio: str = "9:16",
+    character_description: str | None = None,
+    has_portrait: bool = False,
+) -> str:
+    """Generate a keyframe using Nano Banana 2 with reference images.
+
+    Nano Banana 2 is a generation model (not an editing model) that creates
+    new scenes while maintaining character/style consistency from references.
+    Supports up to 14 reference images.
+
+    When has_portrait=True, Image 1 is the character portrait (match exactly).
+    Remaining images are style/mood references only.
+    """
+    headers = _fal_headers(fal_key)
+
+    # Build structured prompt using Nano Banana 2's documented "Image N: role" syntax
+    ref_labels: list[str] = []
+    for i in range(len(reference_image_urls)):
+        if i == 0 and has_portrait:
+            label = (
+                "Image 1: character identity reference — preserve EXACT face, body type, "
+                "skin texture, physique, and clothing from this image. "
+                "Do not correct or normalize the character's appearance."
+            )
+            if character_description:
+                label += f" Character details: {character_description}"
+            ref_labels.append(label)
+        elif i == 0:
+            ref_labels.append(
+                "Image 1: primary visual reference — maintain its style and aesthetic."
+            )
+        else:
+            ref_labels.append(
+                f"Image {i + 1}: style and mood reference only — use for lighting, "
+                f"atmosphere, and composition. Do not use this face or body."
+            )
+
+    image_prompt = (
+        " ".join(ref_labels)
+        + " Generate a new scene: "
+        + f"Single still frame, {_aspect_composition(aspect_ratio)}, cinematic framing. "
+        + scene_prompt
+    )
+
+    payload: dict = {
+        "prompt": image_prompt,
+        "image_urls": reference_image_urls[:14],
+        "aspect_ratio": aspect_ratio,
+        "output_format": "png",
+        "safety_tolerance": 6,
+    }
+
+    label = f"Nano Banana 2 keyframe ({len(reference_image_urls[:14])} refs)"
+    logger.info("Generating keyframe with Nano Banana 2 (%d refs)", len(reference_image_urls))
+    return await _submit_and_get_image(FAL_NANO_BANANA_2, payload, headers, label)
+
+
+async def _generate_keyframe_kontext(
+    scene_prompt: str,
+    fal_key: str,
+    reference_image_urls: list[str],
+    aspect_ratio: str = "9:16",
+) -> str:
+    """Generate a keyframe using Kontext Max Multi.
+
+    Kontext preserves character identity and visual style from reference images
+    while creating new scene compositions based on the prompt.
+    Always uses Max Multi (even for 1 image) since Pro I2I only edits in-place.
+    Supports up to 5 reference images.
+    """
+    headers = _fal_headers(fal_key)
+
+    image_prompt = (
+        f"Single still frame, {_aspect_composition(aspect_ratio)}, cinematic framing. "
+        f"{scene_prompt}"
+    )
+
+    payload: dict = {
+        "prompt": image_prompt,
+        "image_urls": reference_image_urls[:5],
+        "aspect_ratio": aspect_ratio,
+        "output_format": "png",
+        "safety_tolerance": 6,
+    }
+
+    label = f"Kontext Max Multi keyframe ({len(reference_image_urls[:5])} refs)"
+    logger.info("Generating keyframe with Kontext Max Multi (%d refs)", len(reference_image_urls))
+    return await _submit_and_get_image(FAL_KONTEXT_MAX_MULTI, payload, headers, label)
 
 
 # ---------------------------------------------------------------------------
@@ -337,6 +446,7 @@ async def _generate_character_scene(
     scene_id_hint: int | None = None,
     keyframe_url: str | None = None,
     end_image_url: str | None = None,
+    aspect_ratio: str = "9:16",
 ) -> str:
     """Character scene with portrait: Flux keyframe → Kling V3 Pro i2v + elements."""
     headers = _fal_headers(fal_key)
@@ -344,7 +454,7 @@ async def _generate_character_scene(
     # Generate keyframe if not provided
     if not keyframe_url:
         logger.info("Scene %s — generating Flux keyframe from portrait", scene_id_hint or "?")
-        keyframe_url = await _generate_keyframe_from_portrait(full_prompt, fal_key, character_image_url)
+        keyframe_url = await _generate_keyframe_from_portrait(full_prompt, fal_key, character_image_url, aspect_ratio=aspect_ratio)
 
     duration_str = str(max(3, min(15, int(round(duration)))))
     element_prompt = anim_prompt.rstrip(". ") + ". @Element1 is the main character."
@@ -384,13 +494,14 @@ async def _generate_character_scene_no_ref(
     scene_id_hint: int | None = None,
     keyframe_url: str | None = None,
     end_image_url: str | None = None,
+    aspect_ratio: str = "9:16",
 ) -> str:
     """Character scene without portrait: Flux keyframe → Kling V3 Pro i2v."""
     headers = _fal_headers(fal_key)
 
     if not keyframe_url:
         logger.info("Scene %s — generating Flux keyframe (no portrait)", scene_id_hint or "?")
-        keyframe_url = await _generate_keyframe_text(full_prompt, fal_key)
+        keyframe_url = await _generate_keyframe_text(full_prompt, fal_key, aspect_ratio=aspect_ratio)
 
     duration_str = str(max(3, min(15, int(round(duration)))))
 
@@ -423,13 +534,14 @@ async def _generate_environment_scene(
     scene_id_hint: int | None = None,
     keyframe_url: str | None = None,
     end_image_url: str | None = None,
+    aspect_ratio: str = "9:16",
 ) -> str:
     """Environment scene: Flux keyframe → Kling O3 i2v."""
     headers = _fal_headers(fal_key)
 
     if not keyframe_url:
         logger.info("Scene %s — generating Flux keyframe (environment)", scene_id_hint or "?")
-        keyframe_url = await _generate_keyframe_text(full_prompt, fal_key)
+        keyframe_url = await _generate_keyframe_text(full_prompt, fal_key, aspect_ratio=aspect_ratio)
 
     duration_str = str(max(3, min(15, int(round(duration)))))
 
@@ -446,6 +558,37 @@ async def _generate_environment_scene(
     return await _submit_and_get_video(
         FAL_KLING_O3_I2V, payload, headers,
         label=f"O3 i2v scene {scene_id_hint}",
+    )
+
+
+# ---------------------------------------------------------------------------
+# AI Transition generation — morph between last frame of clip A → first frame of clip B
+# ---------------------------------------------------------------------------
+
+async def _generate_transition_clip(
+    start_image_url: str,
+    end_image_url: str,
+    fal_key: str,
+    prompt: str = "Smooth cinematic transition, continuous fluid camera motion, seamless morph",
+    duration: str = "3",
+    aspect_ratio: str = "9:16",
+) -> str:
+    """Generate an AI morph transition between two frames using Kling V3 Pro."""
+    headers = _fal_headers(fal_key)
+
+    payload: dict = {
+        "start_image_url": start_image_url,
+        "end_image_url": end_image_url,
+        "prompt": prompt[:2500],
+        "duration": duration,
+        "generate_audio": False,
+        "negative_prompt": "static, frozen, text, subtitles, watermarks, logos, blurry, distorted, jump cut",
+        "cfg_scale": 0.5,
+    }
+
+    return await _submit_and_get_video(
+        FAL_KLING_V3_PRO_I2V, payload, headers,
+        label="AI morph transition",
     )
 
 
@@ -540,18 +683,20 @@ async def _submit_and_get_image(
     return image_url
 
 
-async def _download_clip(url: str, output_path: str, fal_key: str) -> None:
-    """Download a video clip from a URL to a local file."""
+async def _download_clip(url: str, store, storage_path: str, fal_key: str) -> None:
+    """Download a video clip from a URL and write it via the file store."""
     headers = {"Authorization": f"Key {fal_key}"}
 
     async with httpx.AsyncClient(timeout=120.0) as client:
         async with client.stream("GET", url, headers=headers) as response:
             response.raise_for_status()
-            with open(output_path, "wb") as f:
-                async for chunk in response.aiter_bytes(chunk_size=65536):
-                    f.write(chunk)
+            chunks: list[bytes] = []
+            async for chunk in response.aiter_bytes(chunk_size=65536):
+                chunks.append(chunk)
+            data = b"".join(chunks)
 
-    logger.info("Downloaded clip to %s", output_path)
+    await store.write(storage_path, data)
+    logger.info("Downloaded clip to store: %s", storage_path)
 
 
 def _log_cost(scene_id: int, duration: float, route: str) -> None:

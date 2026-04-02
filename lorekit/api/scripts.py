@@ -4,12 +4,20 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from lorekit import db
+from lorekit.auth.user import get_current_user, CurrentUser
 
 router = APIRouter(prefix="/api/universes/{universe_id}/scripts", tags=["scripts"])
+
+
+async def _verify_universe_access(universe_id: str, org_id: str) -> None:
+    """Verify the universe belongs to the user's org."""
+    uni = await db.get_universe(universe_id, org_id=org_id)
+    if not uni:
+        raise HTTPException(status_code=404, detail="Universe not found")
 
 
 class ScriptCreate(BaseModel):
@@ -32,10 +40,10 @@ class ScriptUpdate(BaseModel):
 
 
 @router.post("", status_code=201)
-async def create_script(universe_id: str, body: ScriptCreate) -> dict:
+async def create_script(universe_id: str, body: ScriptCreate, user: CurrentUser = Depends(get_current_user)) -> dict:
     """Create a new script."""
     # Verify universe exists
-    uni = await db.get_universe(universe_id)
+    uni = await db.get_universe(universe_id, org_id=user.org_id)
     if not uni:
         raise HTTPException(status_code=404, detail="Universe not found")
 
@@ -58,8 +66,10 @@ async def list_scripts(
     universe_id: str,
     character_id: str | None = Query(None),
     script_type: str | None = Query(None),
+    user: CurrentUser = Depends(get_current_user),
 ) -> list[dict]:
     """List scripts in a universe."""
+    await _verify_universe_access(universe_id, user.org_id)
     return await db.list_scripts_by_universe(
         universe_id,
         character_id=character_id,
@@ -68,8 +78,9 @@ async def list_scripts(
 
 
 @router.get("/{script_id}")
-async def get_script(universe_id: str, script_id: str) -> dict:
+async def get_script(universe_id: str, script_id: str, user: CurrentUser = Depends(get_current_user)) -> dict:
     """Get a single script."""
+    await _verify_universe_access(universe_id, user.org_id)
     row = await db.get_script(script_id)
     if not row or row["universe_id"] != universe_id:
         raise HTTPException(status_code=404, detail="Script not found")
@@ -77,8 +88,9 @@ async def get_script(universe_id: str, script_id: str) -> dict:
 
 
 @router.patch("/{script_id}")
-async def update_script(universe_id: str, script_id: str, body: ScriptUpdate) -> dict:
+async def update_script(universe_id: str, script_id: str, body: ScriptUpdate, user: CurrentUser = Depends(get_current_user)) -> dict:
     """Update a script."""
+    await _verify_universe_access(universe_id, user.org_id)
     existing = await db.get_script(script_id)
     if not existing or existing["universe_id"] != universe_id:
         raise HTTPException(status_code=404, detail="Script not found")
@@ -101,8 +113,9 @@ async def update_script(universe_id: str, script_id: str, body: ScriptUpdate) ->
 
 
 @router.delete("/{script_id}")
-async def delete_script(universe_id: str, script_id: str) -> dict:
+async def delete_script(universe_id: str, script_id: str, user: CurrentUser = Depends(get_current_user)) -> dict:
     """Delete a script."""
+    await _verify_universe_access(universe_id, user.org_id)
     existing = await db.get_script(script_id)
     if not existing or existing["universe_id"] != universe_id:
         raise HTTPException(status_code=404, detail="Script not found")

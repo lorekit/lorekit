@@ -3,6 +3,7 @@
 import React from "react";
 import { RotateCcw, Quote, Loader2 } from "lucide-react";
 import type { Scene } from "@/lib/api";
+import { effectiveDuration } from "@/lib/api";
 import { cn, BEAT_COLORS, BEAT_TEXT_COLORS, formatDuration } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -50,63 +51,11 @@ export function SceneDetail({
 
   return (
     <div className="space-y-5">
-      {/* Characters in this scene */}
-      {characters && characters.length > 0 && (
-        <div className="space-y-2">
-          <Label className="text-slate-500 text-xs uppercase tracking-wider">Characters</Label>
-          <div className="flex gap-3">
-            {characters.map((char) => (
-              <div key={char.name} className="flex items-center gap-2.5 bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-700/50">
-                {char.imageUrl ? (
-                  <img
-                    src={char.imageUrl}
-                    alt={char.name}
-                    className="w-10 h-10 rounded-lg object-cover border border-slate-600"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-lg bg-slate-700 flex items-center justify-center text-slate-500 text-lg">
-                    🏛️
-                  </div>
-                )}
-                <span className="text-sm text-slate-300 font-medium">{char.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Character Present toggle */}
-      <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-800/40 border border-slate-700/50">
-        <div>
-          <p className="text-sm text-slate-300 font-medium">Character in Scene</p>
-          <p className="text-[11px] text-slate-500 mt-0.5">
-            {scene.character_present
-              ? "Character portrait will be composited into keyframe & video"
-              : "Environment only — no character injection"}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => onUpdate(scene.id, { character_present: !scene.character_present })}
-          className={cn(
-            "relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0",
-            scene.character_present ? "bg-amber-500" : "bg-slate-600"
-          )}
-        >
-          <span
-            className={cn(
-              "inline-block h-4 w-4 rounded-full bg-white transition-transform",
-              scene.character_present ? "translate-x-6" : "translate-x-1"
-            )}
-          />
-        </button>
-      </div>
-
-      {/* Duration */}
+      {/* Clip Length */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="duration" className="text-slate-300">
-            Duration
+            Clip Length
           </Label>
           <span className="text-sm font-mono text-amber-400">
             {formatDuration(scene.duration)}
@@ -114,16 +63,43 @@ export function SceneDetail({
         </div>
         <Slider
           id="duration"
-          min={1}
+          min={3}
           max={15}
           step={0.5}
           value={scene.duration}
           onChange={(value) => onUpdate(scene.id, { duration: value })}
         />
         <div className="flex justify-between text-xs text-slate-600">
-          <span>1s</span>
+          <span>3s</span>
           <span>15s</span>
         </div>
+      </div>
+
+      {/* Speed */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="speed" className="text-slate-300">
+            Speed
+          </Label>
+          <span className="text-sm font-mono text-cyan-400">
+            {(scene.speed ?? 1.0).toFixed(2)}x
+          </span>
+        </div>
+        <Slider
+          id="speed"
+          min={0.25}
+          max={4}
+          step={0.25}
+          value={scene.speed ?? 1.0}
+          onChange={(value) => onUpdate(scene.id, { speed: value })}
+        />
+        <div className="flex justify-between text-xs text-slate-600">
+          <span>0.25x</span>
+          <span>4x</span>
+        </div>
+        <p className="text-[10px] text-slate-500">
+          Timeline: {formatDuration(effectiveDuration(scene))} ({formatDuration(scene.duration)} at {(scene.speed ?? 1.0).toFixed(2)}x)
+        </p>
       </div>
 
       {/* Camera Direction */}

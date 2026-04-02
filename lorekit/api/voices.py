@@ -4,13 +4,21 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from lorekit import db
+from lorekit.auth.user import get_current_user, CurrentUser
 from lorekit.audio.tts import get_available_tts_models
 
 router = APIRouter(tags=["voices"])
+
+
+async def _verify_universe_access(universe_id: str, org_id: str) -> None:
+    """Verify the universe belongs to the user's org."""
+    uni = await db.get_universe(universe_id, org_id=org_id)
+    if not uni:
+        raise HTTPException(status_code=404, detail="Universe not found")
 
 
 class VoiceUpsertRequest(BaseModel):
@@ -22,17 +30,19 @@ class VoiceUpsertRequest(BaseModel):
 
 
 @router.get("/api/universes/{universe_id}/characters/{character_id}/voice")
-async def get_voice(universe_id: str, character_id: str) -> dict | None:
+async def get_voice(universe_id: str, character_id: str, user: CurrentUser = Depends(get_current_user)) -> dict | None:
     """Get voice profile for a character."""
+    await _verify_universe_access(universe_id, user.org_id)
     voice = await db.get_character_voice(character_id)
     return voice
 
 
 @router.put("/api/universes/{universe_id}/characters/{character_id}/voice")
 async def upsert_voice(
-    universe_id: str, character_id: str, body: VoiceUpsertRequest
+    universe_id: str, character_id: str, body: VoiceUpsertRequest, user: CurrentUser = Depends(get_current_user),
 ) -> dict:
     """Create or update voice profile for a character."""
+    await _verify_universe_access(universe_id, user.org_id)
     existing = await db.get_character_voice(character_id)
     if existing:
         result = await db.update_character_voice(
@@ -58,8 +68,9 @@ async def upsert_voice(
 
 
 @router.delete("/api/universes/{universe_id}/characters/{character_id}/voice")
-async def delete_voice(universe_id: str, character_id: str) -> dict:
+async def delete_voice(universe_id: str, character_id: str, user: CurrentUser = Depends(get_current_user)) -> dict:
     """Delete voice profile for a character."""
+    await _verify_universe_access(universe_id, user.org_id)
     existing = await db.get_character_voice(character_id)
     if not existing:
         return {"deleted": False}
@@ -68,6 +79,6 @@ async def delete_voice(universe_id: str, character_id: str) -> dict:
 
 
 @router.get("/api/tts-models")
-async def list_tts_models() -> dict:
+async def list_tts_models(user: CurrentUser = Depends(get_current_user)) -> dict:
     """Return available TTS models."""
     return get_available_tts_models()

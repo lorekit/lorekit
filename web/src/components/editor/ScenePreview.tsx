@@ -1,26 +1,45 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Film, Play, Image as ImageIcon } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Play, Image as ImageIcon } from "lucide-react";
 import type { Scene } from "@/lib/api";
 import { clipUrl } from "@/lib/api";
-import { cn, BEAT_TEXT_COLORS, formatDuration } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 type PreviewMode = "clip" | "keyframe";
 
 interface ScenePreviewProps {
   scene: Scene | null;
+  mode?: PreviewMode;
+  onModeChange?: (mode: PreviewMode) => void;
+  /** Mutable ref updated with current video time on timeupdate events */
+  videoTimeRef?: React.MutableRefObject<number>;
 }
 
-export function ScenePreview({ scene }: ScenePreviewProps) {
-  const hasClip = !!scene?.clip_url;
-  const hasKeyframe = !!scene?.keyframe_url;
+export type { PreviewMode };
 
-  const [mode, setMode] = useState<PreviewMode>(hasClip ? "clip" : "keyframe");
+export function ScenePreview({
+  scene,
+  mode: controlledMode,
+  onModeChange,
+  videoTimeRef,
+}: ScenePreviewProps) {
+  const hasClip = !!scene?.clip_url;
+  const hasKeyframe = !!(scene?.keyframe_path || scene?.keyframe_url);
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const [internalMode, setInternalMode] = useState<PreviewMode>(hasClip ? "clip" : "keyframe");
+  const mode = controlledMode ?? internalMode;
+  const setMode = (m: PreviewMode) => {
+    setInternalMode(m);
+    onModeChange?.(m);
+  };
 
   useEffect(() => {
-    if (hasClip) setMode("clip");
-    else setMode("keyframe");
+    const newMode = hasClip ? "clip" : "keyframe";
+    setInternalMode(newMode);
+    onModeChange?.(newMode);
   }, [scene?.id, hasClip, hasKeyframe]);
 
   const showClip = mode === "clip" && hasClip;
@@ -33,55 +52,29 @@ export function ScenePreview({ scene }: ScenePreviewProps) {
 
   return (
     <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
-      {/* Toggle tabs — always visible when a scene is selected */}
-      {scene && (
-        <div className="flex border-b border-slate-800">
-          <button
-            type="button"
-            onClick={() => setMode("clip")}
-            className={cn(
-              "flex-1 py-2 text-xs font-medium transition-colors flex items-center justify-center gap-1.5",
-              mode === "clip"
-                ? "text-amber-400 bg-amber-500/10 border-b-2 border-amber-500"
-                : "text-slate-400 hover:text-slate-300"
-            )}
-          >
-            <Play className="w-3.5 h-3.5" />
-            Video Clip
-            {hasClip && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("keyframe")}
-            className={cn(
-              "flex-1 py-2 text-xs font-medium transition-colors flex items-center justify-center gap-1.5",
-              mode === "keyframe"
-                ? "text-emerald-400 bg-emerald-500/10 border-b-2 border-emerald-500"
-                : "text-slate-400 hover:text-slate-300"
-            )}
-          >
-            <ImageIcon className="w-3.5 h-3.5" />
-            Keyframe
-            {hasKeyframe && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
-          </button>
-        </div>
-      )}
-
       {/* Preview area — 9:16 vertical */}
-      <div className="relative bg-slate-950 mx-auto" style={{ aspectRatio: "9/16", maxHeight: "55vh" }}>
+      <div className="relative bg-slate-950 mx-auto" style={{ aspectRatio: "9/16" }}>
         {showClip ? (
           <video
+            ref={videoRef}
             key={`${scene!.clip_url}-${scene!.id}`}
             controls
             src={`${clipUrl(scene!.clip_url!)}?t=${Date.now()}`}
             className="w-full h-full object-cover"
             preload="metadata"
             aria-label={`Scene preview: ${scene!.beat}`}
+            onLoadedMetadata={(e) => {
+              const speed = scene?.speed ?? 1.0;
+              if (speed !== 1.0) (e.target as HTMLVideoElement).playbackRate = speed;
+            }}
+            onTimeUpdate={(e) => {
+              if (videoTimeRef) videoTimeRef.current = (e.target as HTMLVideoElement).currentTime;
+            }}
           />
         ) : showKeyframe ? (
           <img
-            key={`kf-${scene!.keyframe_url}-${scene!.id}`}
-            src={scene!.keyframe_url!}
+            key={`kf-${scene!.keyframe_path || scene!.keyframe_url}-${scene!.id}`}
+            src={scene!.keyframe_path ? clipUrl(`/files/${scene!.keyframe_path}`) : scene!.keyframe_url!}
             alt={`Keyframe — ${scene!.beat}`}
             className="w-full h-full object-contain"
           />
@@ -100,8 +93,6 @@ export function ScenePreview({ scene }: ScenePreviewProps) {
           </div>
         )}
       </div>
-
-
     </div>
   );
 }

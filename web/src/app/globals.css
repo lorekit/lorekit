@@ -5,6 +5,8 @@
   --color-foreground: #e2e8f0;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-logo: var(--font-logo);
+  --font-logo-deco: var(--font-logo-deco);
 }
 
 body {
@@ -47,4 +49,100 @@ body {
 /* Override for elements that shouldn't transition */
 video, img, svg, canvas {
   transition: none;
+}
+
+/* ===== Landing page magical effects ===== */
+
+/* Floating sparkle particles */
+@keyframes sparkle-float {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  50% { transform: translateY(-80px) scale(1.2); }
+}
+
+@keyframes sparkle-drift {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  15% { opacity: 0.8; }
+  85% { opacity: 0.6; }
+  50% { transform: translate(20px, -60px) rotate(180deg); }
+}
+
+.sparkle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: sparkle-float linear infinite;
+}
+
+.sparkle-diamond {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  pointer-events: none;
+  animation: sparkle-drift linear infinite;
+}
+
+.sparkle-diamond::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+}
+
+/* CTA button shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.btn-shimmer {
+  background-size: 200% auto;
+  background-image: linear-gradient(
+    90deg,
+    #f59e0b 0%,
+    #fbbf24 25%,
+    #fde68a 50%,
+    #fbbf24 75%,
+    #f59e0b 100%
+  );
+  animation: shimmer 3s linear infinite;
+}
+
+/* Glow ring for icons */
+.glow-ring {
+  box-shadow:
+    0 0 15px rgba(245, 158, 11, 0.15),
+    0 0 30px rgba(245, 158, 11, 0.05);
+}
+
+/* Glass card */
+.glass-card {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  transition: box-shadow 300ms, border-color 300ms;
+}
+
+.glass-card:hover {
+  border-color: rgba(245, 158, 11, 0.3);
+  box-shadow:
+    0 0 20px rgba(245, 158, 11, 0.08),
+    0 0 40px rgba(34, 211, 238, 0.04);
+}
+
+/* Star field background */
+.starfield {
+  background-image:
+    radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.15) 50%, transparent 50%),
+    radial-gradient(1px 1px at 30% 65%, rgba(255,255,255,0.12) 50%, transparent 50%),
+    radial-gradient(1px 1px at 55% 15%, rgba(255,255,255,0.1) 50%, transparent 50%),
+    radial-gradient(1px 1px at 70% 80%, rgba(255,255,255,0.15) 50%, transparent 50%),
+    radial-gradient(1px 1px at 85% 35%, rgba(255,255,255,0.08) 50%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 20% 85%, rgba(251,191,36,0.2) 50%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 45% 45%, rgba(34,211,238,0.15) 50%, transparent 50%),
+    radial-gradient(1px 1px at 90% 60%, rgba(255,255,255,0.12) 50%, transparent 50%),
+    radial-gradient(1px 1px at 5% 50%, rgba(255,255,255,0.1) 50%, transparent 50%),
+    radial-gradient(1px 1px at 65% 40%, rgba(251,191,36,0.12) 50%, transparent 50%);
 }

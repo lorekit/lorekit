@@ -96,4 +96,4 @@ def build_video_prompt(
     # 5. Technical directives (theme-specific or default)
     parts.append(overrides.get("technical", _DEFAULT_TECHNICAL))
 
-    return " ".join(parts)[:2500]
+    return " ".join(parts)

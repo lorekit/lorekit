@@ -113,7 +113,7 @@ def sources_import(path: str):
     phil = data.get("philosopher", data.get("character", {}))
 
     async def _import():
-        await db.init_db()
+        await db.init_pool()
         await db.upsert_character(
             character_id=phil["id"],
             name=phil["name"],
@@ -144,7 +144,7 @@ def sources_import(path: str):
 def sources_stats():
     """Show source item usage statistics."""
     async def _stats():
-        await db.init_db()
+        await db.init_pool()
         return await db.get_stats()
 
     stats = run_async(_stats())
@@ -245,9 +245,13 @@ def dev(backend_port: int, frontend_port: int):
 
 
 async def _get_status() -> tuple:
-    await db.init_db()
+    await db.init_pool()
     stats = await db.get_stats()
-    videos = await db.list_videos(limit=10)
+    pool = await db.get_pool()
+    rows = await pool.fetch(
+        "SELECT * FROM videos ORDER BY created_at DESC LIMIT $1", 10
+    )
+    videos = [dict(r) for r in rows]
     return stats, videos
 
 
@@ -306,7 +310,7 @@ def publish(video_id: str):
 
 
 async def _cost_report():
-    await db.init_db()
+    await db.init_pool()
     return await db.get_stats()
 
 

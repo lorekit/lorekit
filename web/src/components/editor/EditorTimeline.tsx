@@ -1,41 +1,79 @@
 "use client";
 
 import React, { useMemo, useCallback, useRef, useState, useEffect } from "react";
-import { Diamond, Volume2, VolumeX } from "lucide-react";
-import type { Scene } from "@/lib/api";
-import { clipUrl } from "@/lib/api";
+import { Sparkles, Volume2, VolumeX } from "lucide-react";
+import type { Scene, Transition } from "@/lib/api";
+import { API_BASE, clipUrl, effectiveDuration } from "@/lib/api";
 import { cn, BEAT_COLORS, formatDuration } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
-/*  Transition pill map (shared with LeftPanel)                       */
+/*  Filmstrip thumbnail — extracts frames from video and tiles them    */
 /* ------------------------------------------------------------------ */
 
-export const TRANSITION_PILLS: Array<{ key: string; label: string }> = [
-  { key: "circle_close", label: "Circle Close" },
-  { key: "circle_open", label: "Circle Open" },
-  { key: "coverleft", label: "Cover Left" },
-  { key: "coverright", label: "Cover Right" },
-  { key: "dissolve", label: "Dissolve" },
-  { key: "fade", label: "Fade" },
-  { key: "fade_to_black", label: "Fade to Black" },
-  { key: "fast_fade", label: "Fast Fade" },
-  { key: "flash", label: "Flash" },
-  { key: "hard_cut", label: "Hard Cut" },
-  { key: "pixelize", label: "Pixelize" },
-  { key: "radial", label: "Radial" },
-  { key: "slide_down", label: "Slide Down" },
-  { key: "slide_left", label: "Slide Left" },
-  { key: "slide_right", label: "Slide Right" },
-  { key: "slide_up", label: "Slide Up" },
-  { key: "slow_fade", label: "Slow Fade" },
-  { key: "windleft", label: "Wind Left" },
-  { key: "windright", label: "Wind Right" },
-  { key: "zoom_in", label: "Zoom In" },
-];
+const THUMB_WIDTH = 48; // px width per thumbnail frame
 
-const PILL_LABEL_MAP = Object.fromEntries(
-  TRANSITION_PILLS.map((p) => [p.key, p.label])
-);
+function FilmstripThumbnail({ src, clipWidth, clipHeight }: { src: string; clipWidth: number; clipHeight: number }) {
+  const [thumbnails, setThumbnails] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Only load videos from our own API server
+    if (!src || (!src.startsWith(API_BASE) && !src.startsWith("/"))) return;
+    const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
+    video.muted = true;
+    video.preload = "auto";
+    video.src = src;
+
+    const frameCount = Math.max(1, Math.ceil(clipWidth / THUMB_WIDTH));
+    const frames: string[] = [];
+    let currentFrame = 0;
+
+    video.addEventListener("loadedmetadata", () => {
+      const interval = video.duration / frameCount;
+      video.currentTime = interval * 0.5; // start at half interval
+    });
+
+    video.addEventListener("seeked", () => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      // Small canvas for thumbnail
+      const aspect = video.videoWidth / video.videoHeight;
+      canvas.height = clipHeight;
+      canvas.width = Math.round(clipHeight * aspect);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      frames.push(canvas.toDataURL("image/jpeg", 0.5));
+      currentFrame++;
+
+      if (currentFrame < frameCount) {
+        const interval = video.duration / frameCount;
+        video.currentTime = interval * (currentFrame + 0.5);
+      } else {
+        setThumbnails(frames);
+        video.src = ""; // release
+      }
+    });
+
+    return () => { video.src = ""; };
+  }, [src, clipWidth, clipHeight]);
+
+  if (thumbnails.length === 0) return null;
+
+  return (
+    <div className="absolute inset-0 flex overflow-hidden opacity-50">
+      {thumbnails.map((thumb, i) => (
+        <img
+          key={i}
+          src={thumb}
+          alt=""
+          className="h-full object-cover flex-shrink-0"
+          style={{ width: clipWidth / thumbnails.length }}
+        />
+      ))}
+    </div>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /*  Props                                                              */
@@ -43,10 +81,11 @@ const PILL_LABEL_MAP = Object.fromEntries(
 
 interface EditorTimelineProps {
   scenes: Scene[];
+  transitions: Transition[];
   selectedSceneId: string | null;
+  selectedTransition?: { fromSceneId: number; toSceneId: number } | null;
   onSelectScene: (id: string) => void;
-  transitions: Record<number, string>;
-  onTransitionChange: (sceneId: number, transition: string) => void;
+  onSelectTransition?: (fromSceneId: number, toSceneId: number) => void;
   audioMode?: string;
   audioFilename?: string;
 }
@@ -55,11 +94,20 @@ interface EditorTimelineProps {
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-const PIXELS_PER_SECOND = 80;
+const TARGET_VISIBLE_SECONDS = 30;
+const MIN_PPS = 20;
+const MAX_PPS = 80;
 const TRACK_HEIGHT = 56;
 const RULER_HEIGHT = 24;
-const TRANSITION_WIDTH = 20;
 const TIMELINE_PAD = 40;
+
+/* ------------------------------------------------------------------ */
+/*  Segment layout types                                               */
+/* ------------------------------------------------------------------ */
+
+type SegmentEntry =
+  | { type: "scene"; scene: Scene; idx: number; offset: number; width: number }
+  | { type: "transition"; transition: Transition; offset: number; width: number };
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -67,37 +115,74 @@ const TIMELINE_PAD = 40;
 
 export function EditorTimeline({
   scenes,
-  selectedSceneId,
-  onSelectScene,
   transitions,
-  onTransitionChange,
+  selectedSceneId,
+  selectedTransition,
+  onSelectScene,
+  onSelectTransition,
   audioMode,
   audioFilename,
 }: EditorTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [playheadPos, setPlayheadPos] = useState(0);
   const [isDraggingPlayhead, setIsDraggingPlayhead] = useState(false);
-  const [openTransitionPicker, setOpenTransitionPicker] = useState<number | null>(null);
-  const pickerRef = useRef<HTMLDivElement>(null);
-  const chipRefs = useRef<Record<number, HTMLButtonElement | null>>({});
+  const [containerWidth, setContainerWidth] = useState(800);
 
-  const totalDuration = useMemo(
-    () => scenes.reduce((sum, s) => sum + s.duration, 0),
-    [scenes]
-  );
-
-  const totalWidth = totalDuration * PIXELS_PER_SECOND;
-
-  // Build scene layout: cumulative offsets
-  const sceneLayout = useMemo(() => {
-    let offset = 0;
-    return scenes.map((scene, idx) => {
-      const width = scene.duration * PIXELS_PER_SECOND;
-      const entry = { scene, idx, offset, width };
-      offset += width;
-      return entry;
+  // Measure container width for dynamic scaling
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setContainerWidth(entry.contentRect.width);
     });
-  }, [scenes]);
+    observer.observe(scrollRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const totalDuration = useMemo(() => {
+    const sceneDur = scenes.reduce((sum, s) => sum + effectiveDuration(s), 0);
+    const transDur = transitions.reduce((sum, t) => sum + effectiveDuration(t), 0);
+    return sceneDur + transDur;
+  }, [scenes, transitions]);
+
+  // Dynamic scale: fit ~30s in view
+  const pixelsPerSecond = useMemo(() => {
+    const available = containerWidth - TIMELINE_PAD * 2;
+    return Math.max(MIN_PPS, Math.min(MAX_PPS, available / TARGET_VISIBLE_SECONDS));
+  }, [containerWidth]);
+
+  // Build unified segment layout: scenes interleaved with transitions
+  const segmentLayout = useMemo(() => {
+    let offset = 0;
+    const segments: SegmentEntry[] = [];
+
+    for (let i = 0; i < scenes.length; i++) {
+      const scene = scenes[i];
+      const sceneWidth = effectiveDuration(scene) * pixelsPerSecond;
+      segments.push({ type: "scene", scene, idx: i, offset, width: sceneWidth });
+      offset += sceneWidth;
+
+      // Insert transition after scene (if not last)
+      if (i < scenes.length - 1) {
+        const sceneNum = scene.scene_id ?? i + 1;
+        const trans = transitions.find((t) => t.from_scene_id === sceneNum);
+        if (trans && trans.duration > 0) {
+          const transWidth = effectiveDuration(trans) * pixelsPerSecond;
+          segments.push({ type: "transition", transition: trans, offset, width: transWidth });
+          offset += transWidth;
+        }
+      }
+    }
+
+    return segments;
+  }, [scenes, transitions, pixelsPerSecond]);
+
+  const totalWidth = totalDuration * pixelsPerSecond;
+
+  // Scene-only layout for audio track alignment
+  const sceneLayout = useMemo(
+    () => segmentLayout.filter((s): s is Extract<SegmentEntry, { type: "scene" }> => s.type === "scene"),
+    [segmentLayout]
+  );
 
   // Time ruler ticks
   const ticks = useMemo(() => {
@@ -105,24 +190,12 @@ export function EditorTimeline({
     for (let t = 0; t <= totalDuration; t += 1) {
       result.push({
         time: t,
-        x: t * PIXELS_PER_SECOND,
+        x: t * pixelsPerSecond,
         major: t % 5 === 0,
       });
     }
     return result;
-  }, [totalDuration]);
-
-  // Close transition picker on outside click
-  useEffect(() => {
-    if (openTransitionPicker === null) return;
-    const handler = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-        setOpenTransitionPicker(null);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [openTransitionPicker]);
+  }, [totalDuration, pixelsPerSecond]);
 
   // Playhead drag
   const handleRulerMouseDown = useCallback(
@@ -243,21 +316,19 @@ export function EditorTimeline({
             className="relative flex items-center"
             style={{ height: TRACK_HEIGHT }}
           >
+            {segmentLayout.map((entry) => {
+              if (entry.type === "scene") {
+                const { scene, idx, offset, width } = entry;
+                const sceneNum = scene.scene_id ?? idx + 1;
+                const isSelected = scene.id === selectedSceneId;
 
-            {sceneLayout.map(({ scene, idx, offset, width }) => {
-              const sceneNum = scene.scene_id ?? idx + 1;
-              const isSelected = scene.id === selectedSceneId;
-              const isLast = idx === scenes.length - 1;
-              const currentTransition = transitions[sceneNum] || "fade";
-
-              return (
-                <React.Fragment key={scene.id}>
-                  {/* Scene clip block */}
+                return (
                   <button
+                    key={`scene-${scene.id}`}
                     type="button"
                     onClick={() => onSelectScene(scene.id)}
                     className={cn(
-                      "absolute top-1 bottom-1 rounded-md overflow-hidden border transition-all group",
+                      "absolute top-1 bottom-1 rounded-md overflow-hidden border transition-all group cursor-pointer",
                       isSelected
                         ? "border-amber-500 ring-1 ring-amber-500/30 z-10"
                         : "border-slate-700 hover:border-slate-500"
@@ -267,32 +338,24 @@ export function EditorTimeline({
                       width: Math.max(width - 2, 24),
                     }}
                   >
-                    {/* Background with beat color */}
-                    <div
-                      className={cn(
-                        "absolute inset-0 opacity-30",
-                        BEAT_COLORS[scene.beat]
-                      )}
-                    />
+                    {/* Amber tint when selected */}
+                    {isSelected && (
+                      <div className="absolute inset-0 bg-amber-500/20 z-[1]" />
+                    )}
 
-                    {/* Thumbnail */}
-                    {(scene.keyframe_url || scene.clip_url) && (
-                      <div className="absolute left-0 top-0 bottom-0 w-12 overflow-hidden">
-                        {scene.keyframe_url ? (
-                          <img
-                            src={scene.keyframe_url}
-                            alt=""
-                            className="w-full h-full object-cover opacity-60"
-                          />
-                        ) : scene.clip_url ? (
-                          <video
-                            src={clipUrl(scene.clip_url)}
-                            className="w-full h-full object-cover opacity-60"
-                            muted
-                            preload="metadata"
-                          />
-                        ) : null}
+                    {/* Filmstrip thumbnail or beat color fallback */}
+                    {scene.clip_url ? (
+                      <FilmstripThumbnail
+                        src={clipUrl(scene.clip_url)}
+                        clipWidth={Math.max(width - 2, 24)}
+                        clipHeight={TRACK_HEIGHT - 8}
+                      />
+                    ) : (scene.keyframe_path || scene.keyframe_url) ? (
+                      <div className="absolute inset-0 overflow-hidden opacity-50">
+                        <img src={scene.keyframe_path ? clipUrl(`/files/${scene.keyframe_path}`) : scene.keyframe_url!} alt="" className="w-full h-full object-cover" />
                       </div>
+                    ) : (
+                      <div className={cn("absolute inset-0 opacity-30", BEAT_COLORS[scene.beat])} />
                     )}
 
                     {/* Label */}
@@ -301,96 +364,86 @@ export function EditorTimeline({
                         {sceneNum}
                       </span>
 
-                      {width > 100 && (
+                      {width > 50 && (
                         <span className="text-[9px] text-white/40 font-mono ml-auto">
-                          {formatDuration(scene.duration)}
+                          {formatDuration(effectiveDuration(scene))}
                         </span>
                       )}
                     </div>
+
+                    {/* Speed badge */}
+                    {scene.speed && scene.speed !== 1.0 && (
+                      <div className="absolute top-0.5 right-1 text-[8px] font-mono text-cyan-400 bg-cyan-500/20 rounded px-0.5">
+                        {scene.speed}x
+                      </div>
+                    )}
 
                     {/* Clip status indicator */}
                     {scene.clip_url && (
                       <div className="absolute bottom-0.5 right-1 w-1.5 h-1.5 rounded-full bg-emerald-400" />
                     )}
-                    {!scene.clip_url && scene.keyframe_url && (
+                    {!scene.clip_url && (scene.keyframe_path || scene.keyframe_url) && (
                       <div className="absolute bottom-0.5 right-1 w-1.5 h-1.5 rounded-full bg-amber-400" />
                     )}
                   </button>
+                );
+              } else {
+                // Transition segment
+                const { transition, offset, width } = entry;
+                const transKey = `${transition.from_scene_id}_${transition.to_scene_id}`;
+                const hasClip = !!transition.clip_path;
+                const isTransSelected =
+                  selectedTransition?.fromSceneId === transition.from_scene_id &&
+                  selectedTransition?.toSceneId === transition.to_scene_id;
 
-                  {/* Transition indicator between clips */}
-                  {!isLast && (
-                    <div
-                      className="absolute top-1 bottom-1 flex items-center justify-center z-20"
-                      style={{
-                        left: offset + width + TIMELINE_PAD - TRANSITION_WIDTH / 2,
-                        width: TRANSITION_WIDTH,
-                      }}
-                    >
-                      <button
-                        type="button"
-                        ref={(el) => { chipRefs.current[sceneNum] = el; }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenTransitionPicker(
-                            openTransitionPicker === sceneNum ? null : sceneNum
-                          );
-                        }}
-                        className={cn(
-                          "w-4 h-4 rounded-sm rotate-45 border transition-colors",
-                          openTransitionPicker === sceneNum
-                            ? "border-amber-500 bg-amber-500/30"
-                            : "border-slate-500 bg-slate-700 hover:bg-slate-600"
-                        )}
-                        title={`Transition: ${PILL_LABEL_MAP[currentTransition] || currentTransition}`}
+                return (
+                  <button
+                    key={`trans-${transKey}`}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectTransition?.(transition.from_scene_id, transition.to_scene_id);
+                    }}
+                    className={cn(
+                      "absolute top-1 bottom-1 rounded-md border-2 transition-all flex items-center justify-center overflow-hidden cursor-pointer",
+                      isTransSelected
+                        ? "border-amber-400 bg-gradient-to-b from-amber-500/30 to-amber-600/20 ring-1 ring-amber-500/30 z-20"
+                        : hasClip
+                        ? "border-emerald-500/50 bg-gradient-to-b from-emerald-500/20 to-emerald-600/10 z-10 hover:border-emerald-400"
+                        : "border-dashed border-slate-500 bg-slate-700/40 z-10 hover:border-slate-400 hover:bg-slate-600/40"
+                    )}
+                    style={{
+                      left: offset + TIMELINE_PAD,
+                      width: Math.max(width - 2, 24),
+                    }}
+                    title={`Transition: Scene ${transition.from_scene_id} → ${transition.to_scene_id}`}
+                  >
+                    {hasClip ? (
+                      <FilmstripThumbnail
+                        src={clipUrl(`/files/${transition.clip_path}`)}
+                        clipWidth={Math.max(width - 2, 24)}
+                        clipHeight={TRACK_HEIGHT - 8}
                       />
+                    ) : (
+                      <Sparkles className="w-3 h-3 text-slate-500" />
+                    )}
 
-                      {/* Transition picker popover */}
-                      {openTransitionPicker === sceneNum && (() => {
-                        const rect = chipRefs.current[sceneNum]?.getBoundingClientRect();
-                        const style = rect
-                          ? {
-                              position: "fixed" as const,
-                              left: Math.max(8, rect.left - 120),
-                              bottom: window.innerHeight - rect.top + 8,
-                              zIndex: 9999,
-                            }
-                          : {};
-                        return (
-                          <div
-                            ref={pickerRef}
-                            className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl p-2 w-[260px]"
-                            style={style}
-                          >
-                            <p className="text-[10px] text-slate-400 mb-1.5 px-1">
-                              Scene {sceneNum} → {sceneNum + 1}
-                            </p>
-                            <div className="flex flex-wrap gap-1">
-                              {TRANSITION_PILLS.map(({ key, label }) => (
-                                <button
-                                  key={key}
-                                  type="button"
-                                  onClick={() => {
-                                    onTransitionChange(sceneNum, key);
-                                    setOpenTransitionPicker(null);
-                                  }}
-                                  className={cn(
-                                    "px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors",
-                                    currentTransition === key
-                                      ? "border-amber-500 bg-amber-500/20 text-amber-300"
-                                      : "border-slate-600 bg-slate-700/50 text-slate-300 hover:border-slate-500"
-                                  )}
-                                >
-                                  {label}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  )}
-                </React.Fragment>
-              );
+                    {/* Duration label */}
+                    {width > 40 && (
+                      <span className="absolute bottom-0.5 right-1 text-[8px] text-white/40 font-mono">
+                        {formatDuration(effectiveDuration(transition))}
+                      </span>
+                    )}
+
+                    {/* Speed badge */}
+                    {transition.speed !== 1.0 && (
+                      <div className="absolute top-0.5 right-1 text-[8px] font-mono text-cyan-400 bg-cyan-500/20 rounded px-0.5">
+                        {transition.speed}x
+                      </div>
+                    )}
+                  </button>
+                );
+              }
             })}
           </div>
 

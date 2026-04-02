@@ -9,6 +9,8 @@ import {
   Film,
   Palette,
   ScrollText,
+  FolderOpen,
+  ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUniverseStore } from "@/stores/universe-store";
@@ -20,20 +22,20 @@ export function Sidebar() {
   const { activeUniverseId, universes, fetchUniverses } = useUniverseStore();
   const [vibePresets, setVibePresets] = useState<Record<string, VibePreset>>({});
 
-  // Hide sidebar entirely on project editor pages (full-screen editor)
-  const isProjectEditor =
-    /^\/universe\/[^/]+\/projects\/[^/]+$/.test(pathname) &&
-    !pathname.endsWith("/generate");
-  if (isProjectEditor) return null;
-
-  const activeUniverse = universes.find((u) => u.id === activeUniverseId);
-  const studioPrefix = `/universe/${activeUniverseId}`;
-
   useEffect(() => {
     getVibePresets()
       .then((data) => setVibePresets(data.presets))
       .catch(() => {});
   }, []);
+
+  // Hide sidebar entirely on project editor pages (full-screen editor)
+  const isProjectEditor =
+    /^\/app\/universe\/[^/]+\/projects\/[^/]+$/.test(pathname) &&
+    !pathname.endsWith("/generate");
+  if (isProjectEditor) return null;
+
+  const activeUniverse = universes.find((u) => u.id === activeUniverseId);
+  const studioPrefix = `/app/universe/${activeUniverseId}`;
 
   const handleVibeChange = async (presetKey: string) => {
     if (!activeUniverse) return;
@@ -49,10 +51,20 @@ export function Sidebar() {
     { href: `${studioPrefix}/characters`, label: "Characters", icon: Users },
     { href: `${studioPrefix}/scripts`, label: "Scripts", icon: ScrollText },
     { href: `${studioPrefix}/environments`, label: "Environments", icon: Palette },
+    { href: `${studioPrefix}/assets`, label: "Assets", icon: FolderOpen },
   ];
 
   return (
     <aside className="flex h-full w-60 flex-col border-r border-slate-800 bg-slate-900">
+      {/* Back to universes */}
+      <Link
+        href="/app/universe"
+        className="flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-slate-950 bg-amber-500 hover:bg-amber-400 transition-colors"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Universe
+      </Link>
+
       {/* Universe name + vibe */}
       <div className="px-4 py-4 border-b border-slate-800 space-y-2.5">
         <div className="flex items-center gap-2.5">

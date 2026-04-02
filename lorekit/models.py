@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SFXCue(BaseModel):
@@ -71,7 +71,7 @@ Philosopher = Character
 class Scene(BaseModel):
     scene_id: int
     beat: str
-    duration: float
+    duration: float  # actual clip length (3-15s, sent to Kling API)
     visual_description: str
     camera: str
     text_overlay: str | None = None
@@ -79,6 +79,49 @@ class Scene(BaseModel):
     audio: AudioSpec
     character_present: bool = False  # True when the character physically appears
     cta_scene: bool = False  # True if this scene contains the {{CTA}} placeholder
+    speed: float = 1.0  # playback speed multiplier (0.25x–4.0x)
+
+    @field_validator("duration")
+    @classmethod
+    def clamp_duration(cls, v: float) -> float:
+        return max(3.0, min(15.0, v))
+
+    @field_validator("speed")
+    @classmethod
+    def clamp_speed(cls, v: float) -> float:
+        if v <= 0:
+            return 1.0
+        return max(0.25, min(4.0, v))
+
+    @property
+    def effective_duration(self) -> float:
+        """Timeline duration = clip length / speed."""
+        return self.duration / self.speed
+
+
+class Transition(BaseModel):
+    from_scene_id: int
+    to_scene_id: int
+    prompt: str  # AI transition description, e.g. "Camera slowly pushes through fog..."
+    duration: float = 3.0  # actual clip length (3-15s, sent to Kling API)
+    speed: float = 1.5  # playback speed multiplier (0.25x–4.0x)
+
+    @field_validator("duration")
+    @classmethod
+    def clamp_duration(cls, v: float) -> float:
+        return max(3.0, min(15.0, v))
+
+    @field_validator("speed")
+    @classmethod
+    def clamp_speed(cls, v: float) -> float:
+        if v <= 0:
+            return 1.5
+        return max(0.25, min(4.0, v))
+
+    @property
+    def effective_duration(self) -> float:
+        """Timeline duration = clip length / speed."""
+        return self.duration / self.speed
 
 
 class StoryBreakdown(BaseModel):
@@ -89,6 +132,7 @@ class StoryBreakdown(BaseModel):
     hook_quote: SourceItem
     truth_quote: SourceItem
     scenes: list[Scene]
+    transitions: list[Transition] = []  # AI transition prompts between scenes
     total_duration: float
     music_theme: str
 

@@ -228,22 +228,39 @@ _THEMED_ENVIRONMENTS: dict[str, dict[str, str]] = {
 def get_character_description(
     character_id: str,
     theme: str | None = None,
+    db_descriptions_json: str | None = None,
+    db_base_description: str | None = None,
 ) -> str:
     """Get a character description for a character, optionally themed.
 
     Resolution order:
-    1. Theme-specific override (``_THEMED_CHARACTERS[theme][character_id]``)
-    2. Character JSON source file (``character_descriptions[theme]`` then ``character_description``)
-    3. Default character (``_DEFAULT_CHARACTERS[character_id]``)
-    4. Generic fallback
+    1. DB character_descriptions_json[theme] (user-edited, authoritative)
+    2. Hardcoded _THEMED_CHARACTERS[theme] (legacy fallback)
+    3. DB character_description (base)
+    4. Character JSON source file
+    5. In-memory defaults
+    6. Generic fallback
     """
-    # 1. Check in-memory themed overrides first
+    # 1. Check DB themed descriptions first (user-editable, authoritative)
+    if theme and db_descriptions_json:
+        try:
+            db_descs = json.loads(db_descriptions_json) if isinstance(db_descriptions_json, str) else db_descriptions_json
+            if theme in db_descs and db_descs[theme]:
+                return db_descs[theme]
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # 2. Check in-memory themed overrides (legacy — will be removed once all data is in DB)
     if theme and theme in _THEMED_CHARACTERS:
         themed = _THEMED_CHARACTERS[theme]
         if character_id in themed:
             return themed[character_id]
 
-    # 2. Try loading from source JSON (supports both base & themed)
+    # 3. DB base description
+    if db_base_description:
+        return db_base_description
+
+    # 4. Try loading from source JSON (supports both base & themed)
     sources_dir = Path(__file__).parent.parent / "sources" / "data"
     json_path = sources_dir / f"{character_id}.json"
 
@@ -266,7 +283,7 @@ def get_character_description(
                 "Failed to load character from %s: %s", json_path, exc
             )
 
-    # 3. Fall back to in-memory defaults
+    # 5. Fall back to in-memory defaults
     if character_id in _DEFAULT_CHARACTERS:
         return _DEFAULT_CHARACTERS[character_id]
 

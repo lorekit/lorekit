@@ -57,7 +57,7 @@ class ArcTemplate(BaseModel):
 _STORY_BEATS: list[BeatTemplate] = [
     {
         "beat": "hook",
-        "duration_range": [2, 4],
+        "duration_range": [3, 5],
         "purpose": "Stop the scroll. Most striking quote + powerful opening image.",
     },
     {
@@ -82,7 +82,7 @@ _STORY_BEATS: list[BeatTemplate] = [
     },
     {
         "beat": "loop",
-        "duration_range": [2, 4],
+        "duration_range": [3, 5],
         "purpose": "Return to opening image. Seamless loop point.",
     },
 ]
@@ -134,7 +134,7 @@ RULES:
 _MONTAGE_BEATS: list[BeatTemplate] = [
     {
         "beat": "impact",
-        "duration_range": [1, 2],
+        "duration_range": [3, 5],
         "purpose": (
             "A single intense image with ONE word or very short phrase "
             "(1-3 words max) as text overlay. Every cut should hit like a punch. "
@@ -153,11 +153,11 @@ RAPID_MONTAGE_ARC = ArcTemplate(
     ),
     beats=_MONTAGE_BEATS,
     optional_beats=[],
-    min_duration=8,
-    max_duration=18,
+    min_duration=18,
+    max_duration=45,
     min_scenes=6,
-    max_scenes=14,
-    max_scene_duration=2.5,
+    max_scenes=10,
+    max_scene_duration=5,
     system_prompt_fragment="""\
 FORMAT: RAPID MONTAGE — fast cuts of intense imagery with minimal text.
 
