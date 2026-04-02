@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React from "react";
 import {
   ScrollText,
   SlidersHorizontal,
@@ -8,9 +8,7 @@ import {
   Image as ImageIcon,
   Upload,
   Volume2,
-  Copy,
-  Check,
-  ChevronDown,
+  Play,
   Trash2,
 } from "lucide-react";
 import type { Scene, Transition } from "@/lib/api";
@@ -37,6 +35,11 @@ interface LeftPanelProps {
   scenes: Scene[];
   selectedSceneId: string | null;
   onSelectScene: (id: string) => void;
+
+  // Full video
+  isFullVideoSelected?: boolean;
+  onSelectFullVideo?: () => void;
+  totalDuration?: number;
 
   // Transitions
   selectedTransition?: Transition | null;
@@ -72,6 +75,9 @@ export function LeftPanel({
   scenes,
   selectedSceneId,
   onSelectScene,
+  isFullVideoSelected,
+  onSelectFullVideo,
+  totalDuration,
   characters,
   onDeleteScene,
   onDeleteTransition,
@@ -120,6 +126,9 @@ export function LeftPanel({
             onViewProperties={onViewProperties}
             characters={characters}
             transitionClips={transitionClips}
+            isFullVideoSelected={isFullVideoSelected}
+            onSelectFullVideo={onSelectFullVideo}
+            totalDuration={totalDuration}
           />
         )}
 
@@ -155,6 +164,9 @@ function ScriptTab({
   onViewProperties,
   characters,
   transitionClips,
+  isFullVideoSelected,
+  onSelectFullVideo,
+  totalDuration,
 }: {
   scenes: Scene[];
   selectedSceneId: string | null;
@@ -166,44 +178,12 @@ function ScriptTab({
   onViewProperties?: () => void;
   characters?: Array<{ name: string; imageUrl: string | null }>;
   transitionClips?: Record<string, { clip_path?: string; prompt?: string }>;
+  isFullVideoSelected?: boolean;
+  onSelectFullVideo?: () => void;
+  totalDuration?: number;
 }) {
-  const [copiedAll, setCopiedAll] = React.useState(false);
-  const [copiedId, setCopiedId] = React.useState<string | null>(null);
-  const [expandedIds, setExpandedIds] = React.useState<Set<string>>(new Set());
-
-  const toggleExpand = useCallback((id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
-  const copyToClipboard = useCallback(async (text: string, id?: string) => {
-    await navigator.clipboard.writeText(text);
-    if (id) {
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 1500);
-    } else {
-      setCopiedAll(true);
-      setTimeout(() => setCopiedAll(false), 1500);
-    }
-  }, []);
-
   // Only show beat badges when scenes have varied beats (not all IMPACT, etc.)
   const showBeats = new Set(scenes.map(s => s.beat).filter(Boolean)).size > 1;
-
-  const fullScript = scenes
-    .map((s, idx) => {
-      const num = s.scene_id ?? idx + 1;
-      const parts = [`Scene ${num} (${formatDuration(s.duration)})`];
-      if (s.text_overlay) parts.push(`Text: "${s.text_overlay}"`);
-      if (s.visual_description) parts.push(`Visual: ${s.visual_description}`);
-      if (s.camera) parts.push(`Camera: ${s.camera}`);
-      return parts.join("\n");
-    })
-    .join("\n\n");
 
   if (scenes.length === 0) {
     return (
@@ -234,33 +214,39 @@ function ScriptTab({
         </div>
       )}
 
-      {/* Copy All button */}
-      <button
-        type="button"
-        onClick={() => copyToClipboard(fullScript)}
-        className="w-full flex items-center justify-center gap-2 mb-3 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 transition-colors"
-      >
-        {copiedAll ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-        {copiedAll ? "Copied!" : "Copy Full Script"}
-      </button>
+      {/* Full Video row */}
+      {onSelectFullVideo && (
+        <div
+          onClick={onSelectFullVideo}
+          className={cn(
+            "rounded-lg border transition-all border-l-2 cursor-pointer mb-2",
+            isFullVideoSelected
+              ? "border-amber-500/70 bg-amber-500/10 border-l-amber-500"
+              : "border-slate-700/50 bg-slate-900 hover:border-slate-600 border-l-amber-500/60"
+          )}
+        >
+          <div className="flex items-center px-2.5 py-2 gap-2">
+            <Play className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="text-[11px] font-semibold text-slate-300 flex-1">Full Video</span>
+            {totalDuration != null && totalDuration > 0 && (
+              <span className="text-[10px] text-slate-500 shrink-0">
+                {formatDuration(totalDuration)}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
-      <div className="space-y-1.5">
+      {/* Scenes & transitions (nested under Full Video) */}
+      <div className="space-y-1 ml-3">
         {scenes.map((scene, idx) => {
           const sceneNum = scene.scene_id ?? idx + 1;
-          const isExpanded = expandedIds.has(scene.id);
-          const sceneText = [
-            `Scene ${sceneNum} (${formatDuration(scene.duration)})`,
-            scene.text_overlay ? `Text: "${scene.text_overlay}"` : "",
-            scene.visual_description ? `Visual: ${scene.visual_description}` : "",
-            scene.camera ? `Camera: ${scene.camera}` : "",
-          ].filter(Boolean).join("\n");
-
-          const isSelected = scene.id === selectedSceneId;
+          const isSelected = scene.id === selectedSceneId && !isFullVideoSelected;
 
           return (
             <React.Fragment key={scene.id}>
             <div
-              onClick={() => { onSelectScene(scene.id); toggleExpand(scene.id); }}
+              onClick={() => onSelectScene(scene.id)}
               className={cn(
                 "rounded-lg border transition-all border-l-2 cursor-pointer",
                 isSelected
@@ -268,19 +254,7 @@ function ScriptTab({
                   : "border-slate-700/50 bg-slate-900 hover:border-slate-600 border-l-amber-500/60"
               )}
             >
-              {/* Header row */}
-              <div className="flex items-center p-2.5 gap-2 group/scene">
-                {/* Keyframe thumbnail */}
-                {scene.keyframe_url ? (
-                  <img
-                    src={clipUrl(scene.keyframe_url)}
-                    alt=""
-                    className="w-8 h-12 rounded object-cover border border-slate-700 shrink-0"
-                  />
-                ) : (
-                  <div className="w-8 h-12 rounded bg-slate-800 border border-slate-700 shrink-0" />
-                )}
-
+              <div className="flex items-center px-2.5 py-1.5 gap-2 group/scene">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-semibold text-slate-300">
@@ -294,28 +268,22 @@ function ScriptTab({
                         {scene.beat}
                       </span>
                     )}
-                    {/* Clip status dot */}
                     <span className={cn("w-1.5 h-1.5 rounded-full", scene.clip_url ? "bg-emerald-500" : "bg-slate-600")} title={scene.clip_url ? "Clip generated" : "No clip yet"} />
                     <span className="ml-auto text-[10px] text-slate-500 shrink-0">
                       {formatDuration(scene.duration)}
                     </span>
-                    <ChevronDown className={cn(
-                      "w-3 h-3 text-slate-500 transition-transform shrink-0",
-                      isExpanded && "rotate-180"
-                    )} />
                   </div>
                   {onViewProperties && (
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); onViewProperties(); }}
-                      className="flex items-center gap-1 text-[10px] text-amber-400/60 hover:text-amber-400 transition-colors mt-1"
+                      onClick={(e) => { e.stopPropagation(); onSelectScene(scene.id); onViewProperties(); }}
+                      className="flex items-center gap-1 text-[10px] text-amber-400/60 hover:text-amber-400 transition-colors mt-0.5"
                     >
                       <SlidersHorizontal className="w-3 h-3" /> View Properties
                     </button>
                   )}
                 </div>
 
-                {/* Delete button — hover only */}
                 {onDeleteScene && scenes.length > 2 && (
                   <button
                     type="button"
@@ -330,57 +298,6 @@ function ScriptTab({
                   </button>
                 )}
               </div>
-
-              {/* Expanded content */}
-              {isExpanded && (
-                <div className="px-2.5 pb-2.5 space-y-2">
-                  {scene.text_overlay && (
-                    <div>
-                      <p className="text-[10px] text-slate-500 mb-0.5">Text Overlay</p>
-                      <p className="text-xs text-amber-300/80 italic leading-relaxed">
-                        &ldquo;{scene.text_overlay}&rdquo;
-                      </p>
-                    </div>
-                  )}
-                  {scene.visual_description && (
-                    <div>
-                      <p className="text-[10px] text-slate-500 mb-0.5">Visual</p>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
-                        {scene.visual_description}
-                      </p>
-                    </div>
-                  )}
-                  {scene.camera && (
-                    <div>
-                      <p className="text-[10px] text-slate-500 mb-0.5">Camera</p>
-                      <p className="text-[11px] text-slate-400">{scene.camera}</p>
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      copyToClipboard(sceneText, scene.id);
-                    }}
-                    className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
-                  >
-                    {copiedId === scene.id ? (
-                      <><Check className="w-3 h-3 text-green-400" /> Copied</>
-                    ) : (
-                      <><Copy className="w-3 h-3" /> Copy</>
-                    )}
-                  </button>
-                  {onViewProperties && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); onViewProperties(); }}
-                      className="flex items-center gap-1 text-[10px] text-amber-400/70 hover:text-amber-400 transition-colors"
-                    >
-                      <SlidersHorizontal className="w-3 h-3" /> View Properties
-                    </button>
-                  )}
-                </div>
-              )}
             </div>
 
             {/* Transition row between scenes */}
@@ -392,13 +309,13 @@ function ScriptTab({
               const hasClip = !!transClip?.clip_path;
               const bothClipsExist = !!scene.clip_url && !!nextScene.clip_url;
 
-              const isTransSelected = selectedTransition?.from_scene_id === sceneNum && selectedTransition?.to_scene_id === nextSceneNum;
+              const isTransSelected = !isFullVideoSelected && selectedTransition?.from_scene_id === sceneNum && selectedTransition?.to_scene_id === nextSceneNum;
 
               return (
                 <div
                   onClick={() => bothClipsExist && onSelectTransition?.(sceneNum, nextSceneNum)}
                   className={cn(
-                    "group/trans rounded-lg border px-2.5 py-2 flex items-center justify-between ml-4 my-1 border-l-2",
+                    "group/trans rounded-lg border px-2.5 py-1.5 flex items-center justify-between ml-3 my-0.5 border-l-2",
                     bothClipsExist && "cursor-pointer",
                     isTransSelected
                       ? "border-amber-500/70 bg-amber-500/10 border-l-amber-500"

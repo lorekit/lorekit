@@ -7,8 +7,13 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return m > 0 ? `${m}:${s.toString().padStart(2, "0")}` : `${s}s`;
+  const s = seconds % 60;
+  if (m > 0) {
+    return `${m}:${Math.round(s).toString().padStart(2, "0")}`;
+  }
+  // Show 1 decimal place, drop ".0" for clean integers
+  const rounded = Math.round(s * 10) / 10;
+  return rounded % 1 === 0 ? `${rounded}s` : `${rounded.toFixed(1)}s`;
 }
 
 // Beat colors

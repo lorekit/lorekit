@@ -88,6 +88,12 @@ interface EditorTimelineProps {
   onSelectTransition?: (fromSceneId: number, toSceneId: number) => void;
   audioMode?: string;
   audioFilename?: string;
+  /** Duration of uploaded audio in seconds */
+  audioDuration?: number;
+  /** External playback progress 0-1 fraction, null = not playing */
+  playbackProgress?: number | null;
+  /** Called when user clicks/drags the ruler (fraction 0-1) */
+  onPlayheadSeek?: (fraction: number) => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -122,9 +128,13 @@ export function EditorTimeline({
   onSelectTransition,
   audioMode,
   audioFilename,
+  audioDuration: audioDurationProp,
+  playbackProgress,
+  onPlayheadSeek,
 }: EditorTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [playheadPos, setPlayheadPos] = useState(0);
+  const playheadPosRef = useRef(0);
   const [isDraggingPlayhead, setIsDraggingPlayhead] = useState(false);
   const [containerWidth, setContainerWidth] = useState(800);
 
@@ -141,8 +151,9 @@ export function EditorTimeline({
   const totalDuration = useMemo(() => {
     const sceneDur = scenes.reduce((sum, s) => sum + effectiveDuration(s), 0);
     const transDur = transitions.reduce((sum, t) => sum + effectiveDuration(t), 0);
-    return sceneDur + transDur;
-  }, [scenes, transitions]);
+    const videoDur = sceneDur + transDur;
+    return Math.max(videoDur, audioDurationProp ?? 0);
+  }, [scenes, transitions, audioDurationProp]);
 
   // Dynamic scale: fit ~30s in view
   const pixelsPerSecond = useMemo(() => {
@@ -184,14 +195,22 @@ export function EditorTimeline({
     [segmentLayout]
   );
 
+  // Sync playhead from external playback progress (0-1 fraction)
+  useEffect(() => {
+    if (playbackProgress != null && !isDraggingPlayhead) {
+      setPlayheadPos(Math.max(0, Math.min(playbackProgress * totalWidth, totalWidth)));
+    }
+  }, [playbackProgress, totalWidth, isDraggingPlayhead]);
+
   // Time ruler ticks
   const ticks = useMemo(() => {
+    const lastTick = Math.floor(totalDuration);
     const result: Array<{ time: number; x: number; major: boolean }> = [];
-    for (let t = 0; t <= totalDuration; t += 1) {
+    for (let t = 0; t <= lastTick; t += 1) {
       result.push({
         time: t,
         x: t * pixelsPerSecond,
-        major: t % 5 === 0,
+        major: t % 5 === 0 || t === lastTick, // label every 5s and the last tick
       });
     }
     return result;
@@ -204,10 +223,13 @@ export function EditorTimeline({
       const rect = scrollRef.current.getBoundingClientRect();
       const scrollLeft = scrollRef.current.scrollLeft;
       const x = e.clientX - rect.left + scrollLeft - TIMELINE_PAD;
-      setPlayheadPos(Math.max(0, Math.min(x, totalWidth)));
+      const pos = Math.max(0, Math.min(x, totalWidth));
+      playheadPosRef.current = pos;
+      setPlayheadPos(pos);
       setIsDraggingPlayhead(true);
+      queueMicrotask(() => onPlayheadSeek?.(totalWidth > 0 ? pos / totalWidth : 0));
     },
-    [totalWidth]
+    [totalWidth, onPlayheadSeek]
   );
 
   useEffect(() => {
@@ -216,10 +238,16 @@ export function EditorTimeline({
       if (!scrollRef.current) return;
       const rect = scrollRef.current.getBoundingClientRect();
       const scrollLeft = scrollRef.current.scrollLeft;
-      const x = e.clientX - rect.left + scrollLeft - TIMELINE_PAD;
-      setPlayheadPos(Math.max(0, Math.min(x, totalWidth)));
+      const pos = Math.max(0, Math.min(e.clientX - rect.left + scrollLeft - TIMELINE_PAD, totalWidth));
+      playheadPosRef.current = pos;
+      setPlayheadPos(pos);
     };
-    const handleUp = () => setIsDraggingPlayhead(false);
+    const handleUp = () => {
+      setIsDraggingPlayhead(false);
+      if (totalWidth > 0) {
+        queueMicrotask(() => onPlayheadSeek?.(playheadPosRef.current / totalWidth));
+      }
+    };
     window.addEventListener("mousemove", handleMove);
     window.addEventListener("mouseup", handleUp);
     return () => {
@@ -242,7 +270,7 @@ export function EditorTimeline({
     });
   }, [selectedSceneId, sceneLayout]);
 
-  const playheadTime = totalWidth > 0 ? (playheadPos / totalWidth) * totalDuration : 0;
+  const displayPlayheadTime = totalWidth > 0 ? (playheadPos / totalWidth) * totalDuration : 0;
 
   if (scenes.length === 0) {
     return (
@@ -263,7 +291,7 @@ export function EditorTimeline({
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs font-mono text-amber-400">
-            {formatDuration(playheadTime)}
+            {formatDuration(displayPlayheadTime)}
           </span>
           <span className="text-xs text-slate-600">/</span>
           <span className="text-xs font-mono text-slate-400">
@@ -455,7 +483,7 @@ export function EditorTimeline({
             {(audioMode === "uploaded" || audioMode === "upload") && audioFilename ? (
               <div
                 className="absolute top-1 bottom-1 rounded bg-indigo-500/20 border border-indigo-500/30 flex items-center px-2 gap-1.5"
-                style={{ left: TIMELINE_PAD, width: totalWidth }}
+                style={{ left: TIMELINE_PAD, width: (audioDurationProp ?? totalDuration) * pixelsPerSecond }}
               >
                 <Volume2 className="w-3 h-3 text-indigo-400 flex-shrink-0" />
                 <span className="text-[10px] text-indigo-300 truncate">

@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScenePreview, type PreviewMode } from "@/components/editor/ScenePreview";
-import { VideoPreview } from "@/components/editor/VideoPreview";
+import { VideoPreview, type VideoPreviewHandle } from "@/components/editor/VideoPreview";
 import { QuotePicker } from "@/components/editor/QuotePicker";
 
 import { EditorLayout } from "@/components/editor/EditorLayout";
@@ -305,7 +305,6 @@ export default function ProjectEditorPage({
   const [clipJobs, setClipJobs] = useState<Record<string, ClipJobState>>({});
   const [generatingCharacter, setGeneratingCharacter] = useState(false);
   const [renderMenuOpen, setRenderMenuOpen] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
   const [renderOpts, setRenderOpts] = useState<RenderOptions>({
     text_overlays: false,
     color_grade: true,
@@ -320,6 +319,9 @@ export default function ProjectEditorPage({
   const [startKeyframePicker, setStartKeyframePicker] = useState(false);
   const [refImagePicker, setRefImagePicker] = useState(false);
   const videoTimeRef = useRef(0);
+  const videoPreviewRef = useRef<VideoPreviewHandle>(null);
+  const [playbackProgress, setPlaybackProgress] = useState<number | null>(null);
+  const [audioDuration, setAudioDuration] = useState(0);
   const [characterRefUrls, setCharacterRefUrls] = useState<string[]>([]);
 
   // All available keyframe images for pickers (current + history + extracted frames)
@@ -371,6 +373,13 @@ export default function ProjectEditorPage({
   const selectedScene = selectedSceneFn();
   const selectedTransition = selectedTransitionFn();
   const totalDuration = totalDurationFn();
+
+  // Memoize parsed transition clips to avoid new object reference on every render
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const parsedTransitionClips: Record<string, any> | undefined = useMemo(
+    () => project?.transition_clips_json ? JSON.parse(project.transition_clips_json) : undefined,
+    [project?.transition_clips_json]
+  );
 
   // Count clips that exist
   const clipsGenerated = scenes.filter((s) => s.clip_url).length;
@@ -425,6 +434,14 @@ export default function ProjectEditorPage({
       .then((data) => setCharacterRefUrls(data.urls))
       .catch(() => {});
   }, [project?.character_id]);
+
+  // Load audio duration for timeline
+  useEffect(() => {
+    if (!project?.uploaded_audio_path) { setAudioDuration(0); return; }
+    const audio = new Audio(clipUrl(`/files/${project.uploaded_audio_path}`));
+    audio.onloadedmetadata = () => setAudioDuration(audio.duration);
+    audio.onerror = () => setAudioDuration(0);
+  }, [project?.uploaded_audio_path]);
 
   // ---------- Refresh helper ----------
   const refreshProject = useCallback(async () => {
@@ -829,12 +846,12 @@ export default function ProjectEditorPage({
                 </span>
               )}
 
-              {/* Preview */}
+              {/* Preview — selects Full Video in script panel */}
               {scenes.some((s) => s.clip_url) && (
                 <Button
                   variant="ghost"
                   size="xs"
-                  onClick={() => setShowPreview(true)}
+                  onClick={() => { selectElement({ type: "full-video" }); setActiveLeftTab("script"); }}
                   className="gap-1.5"
                 >
                   <Play className="w-3 h-3" />
@@ -950,6 +967,9 @@ export default function ProjectEditorPage({
             scenes={scenes}
             selectedSceneId={selectedSceneId}
             onSelectScene={handleSelectSceneFromList}
+            isFullVideoSelected={selectedElement?.type === "full-video"}
+            onSelectFullVideo={() => selectElement({ type: "full-video" })}
+            totalDuration={totalDuration}
             characters={project ? [{
               name: project.character_name || project.name?.split("—")[0]?.trim() || project.character_id || "Character",
               imageUrl: project.character_image_url ? clipUrl(project.character_image_url) : null,
@@ -958,7 +978,7 @@ export default function ProjectEditorPage({
             onDeleteTransition={handleDeleteTransition}
             selectedTransition={selectedTransition}
             onSelectTransition={handleSelectTransition}
-            transitionClips={project?.transition_clips_json ? JSON.parse(project.transition_clips_json) : undefined}
+            transitionClips={parsedTransitionClips}
             audioFilename={project.uploaded_audio_path}
             characterPortraitUrl={project.character_image_url}
             activeTab={activeLeftTab}
@@ -975,12 +995,22 @@ export default function ProjectEditorPage({
             {/* Preview area — centered, fills available space */}
             <div className="flex-1 flex items-center justify-center p-4 min-h-0">
               <div className="w-full flex justify-center">
-                {selectedElement?.type === "transition" ? (
+                {selectedElement?.type === "full-video" ? (
+                  <div className="w-[min(60vh*9/16,400px)]">
+                    <VideoPreview
+                      ref={videoPreviewRef}
+                      scenes={scenes}
+                      transitionClips={parsedTransitionClips}
+                      audioUrl={project?.uploaded_audio_path ? `/files/${project.uploaded_audio_path}` : null}
+                      onProgressUpdate={setPlaybackProgress}
+                    />
+                  </div>
+                ) : selectedElement?.type === "transition" ? (
                   <div className="w-[min(60vh*9/16,400px)]">
                     <TransitionPreview
                       fromSceneId={selectedElement.fromSceneId}
                       toSceneId={selectedElement.toSceneId}
-                      transitionClips={project?.transition_clips_json ? JSON.parse(project.transition_clips_json) : {}}
+                      transitionClips={parsedTransitionClips ?? {}}
                       speed={selectedTransition?.speed ?? 1.0}
                     />
                   </div>
@@ -1011,8 +1041,8 @@ export default function ProjectEditorPage({
               </div>
             </div>
 
-            {/* Prev / Next navigation — scenes + transitions interleaved */}
-            {selectedElement && (
+            {/* Prev / Next navigation — scenes + transitions interleaved (hidden for full-video) */}
+            {selectedElement && selectedElement.type !== "full-video" && (
               <div className="flex-shrink-0 py-3 flex items-center justify-center gap-4 border-t border-slate-800/50">
                 {(() => {
                   // Build ordered segment list: scene, transition, scene, transition, ...
@@ -1075,26 +1105,6 @@ export default function ProjectEditorPage({
                 })()}
               </div>
             )}
-
-            {/* Video preview modal overlay */}
-            {showPreview && (
-              <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center">
-                <div className="relative w-full max-w-lg mx-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowPreview(false)}
-                    className="absolute -top-10 right-0 text-slate-400 hover:text-white transition-colors"
-                  >
-                    <X className="w-6 h-6" />
-                  </button>
-                  <VideoPreview
-                    scenes={scenes}
-                    transitionClips={project?.transition_clips_json ? JSON.parse(project.transition_clips_json) : undefined}
-                    audioUrl={project?.uploaded_audio_path ? `/files/${project.uploaded_audio_path}` : null}
-                  />
-                </div>
-              </div>
-            )}
           </div>
         }
 
@@ -1102,6 +1112,13 @@ export default function ProjectEditorPage({
         /*  RIGHT PANEL — Clip / Keyframe / Properties                   */
         /* ============================================================ */
         rightPanel={
+          selectedElement?.type === "full-video" ? (
+            <div className="flex flex-col h-full items-center justify-center p-6 text-center">
+              <Play className="w-8 h-8 text-slate-600 mb-3" />
+              <p className="text-sm text-slate-400 font-medium">Full Video Preview</p>
+              <p className="text-xs text-slate-500 mt-1">Select a scene to edit its properties</p>
+            </div>
+          ) : (
           <div className="flex flex-col h-full">
             {/* Tab bar */}
             <div className="flex border-b border-slate-800/50 flex-shrink-0">
@@ -1142,7 +1159,7 @@ export default function ProjectEditorPage({
                   </p>
                   {(() => {
                     const tKey = `${selectedElement.fromSceneId}_${selectedElement.toSceneId}`;
-                    const tClips = project?.transition_clips_json ? JSON.parse(project.transition_clips_json) : {};
+                    const tClips = parsedTransitionClips ?? {};
                     const tClip = tClips[tKey];
                     return tClip?.clip_path ? (
                       <>
@@ -1596,6 +1613,7 @@ export default function ProjectEditorPage({
               )}
             </div>
           </div>
+          )
         }
 
         /* ============================================================ */
@@ -1611,6 +1629,9 @@ export default function ProjectEditorPage({
             onSelectTransition={handleSelectTransition}
             audioMode={project.audio_mode}
             audioFilename={project.uploaded_audio_path}
+            audioDuration={audioDuration}
+            playbackProgress={playbackProgress}
+            onPlayheadSeek={selectedElement?.type === "full-video" ? (fraction) => videoPreviewRef.current?.seekToFraction(fraction) : undefined}
           />
         }
       />

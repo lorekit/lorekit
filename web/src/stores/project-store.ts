@@ -5,6 +5,7 @@ import { effectiveDuration } from "@/lib/api";
 export type SelectedElement =
   | { type: "scene"; id: string }
   | { type: "transition"; fromSceneId: number; toSceneId: number }
+  | { type: "full-video" }
   | null;
 
 interface ProjectState {
