@@ -73,13 +73,27 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       scenes: state.scenes.map((s) => (s.id === sceneId ? { ...s, ...updates } : s)),
     })),
   updateTransition: (fromSceneId, toSceneId, updates) =>
-    set((state) => ({
-      transitions: state.transitions.map((t) =>
-        t.from_scene_id === fromSceneId && t.to_scene_id === toSceneId
-          ? { ...t, ...updates }
-          : t
-      ),
-    })),
+    set((state) => {
+      const exists = state.transitions.some(
+        (t) => t.from_scene_id === fromSceneId && t.to_scene_id === toSceneId
+      );
+      if (exists) {
+        return {
+          transitions: state.transitions.map((t) =>
+            t.from_scene_id === fromSceneId && t.to_scene_id === toSceneId
+              ? { ...t, ...updates }
+              : t
+          ),
+        };
+      }
+      // Create new transition entry in store
+      return {
+        transitions: [
+          ...state.transitions,
+          { from_scene_id: fromSceneId, to_scene_id: toSceneId, type: "ai_morph", prompt: "", duration: 3.0, speed: 1.5, ...updates },
+        ],
+      };
+    }),
   setLoading: (isLoading) => set({ isLoading }),
   setGenerating: (isGenerating) => set({ isGenerating }),
   reset: () => set({ project: null, scenes: [], transitions: [], selectedSceneId: null, selectedElement: null, isLoading: false, isGenerating: false }),

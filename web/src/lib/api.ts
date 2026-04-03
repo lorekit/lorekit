@@ -66,11 +66,12 @@ export interface Scene {
 export interface Transition {
   from_scene_id: number;
   to_scene_id: number;
+  type: string;               // "ai_morph", "hard_cut", "fade", "dissolve", etc.
   prompt: string;
-  duration: number;           // clip length (3-15s, sent to Kling API)
+  duration: number;           // AI morph: clip length (3-15s). ffmpeg: xfade overlap
   speed: number;              // playback speed multiplier (default 1.5)
-  clip_path?: string | null;  // generated clip file path
-  clip_url?: string | null;   // generated clip URL
+  clip_path?: string | null;  // generated clip file path (ai_morph only)
+  clip_url?: string | null;   // generated clip URL (ai_morph only)
 }
 
 /** Compute effective timeline duration: clip length / speed */
@@ -103,6 +104,20 @@ export interface Project {
   uploaded_audio_path?: string;
   narration_json?: string;
   transition_clips_json?: string;
+}
+
+export interface ProjectEffect {
+  id: string;
+  project_id: string;
+  effect_type: string;
+  name: string;
+  start_time: number;
+  end_time: number | null;
+  sort_order: number;
+  settings_json: string;
+  enabled: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Universe {
@@ -555,6 +570,43 @@ export const deleteCharacterReferenceImage = (characterId: string, url: string) 
     method: "DELETE",
     body: JSON.stringify({ url }),
   });
+
+// Project Effects
+export const getProjectEffects = (projectId: string) =>
+  fetchAPI<ProjectEffect[]>(`/api/projects/${projectId}/effects`);
+export const createProjectEffect = (projectId: string, data: {
+  effect_type?: string;
+  name?: string;
+  settings_json?: string;
+  start_time?: number;
+  end_time?: number | null;
+  sort_order?: number;
+}) =>
+  fetchAPI<ProjectEffect>(`/api/projects/${projectId}/effects`, { method: "POST", body: JSON.stringify(data) });
+export const updateProjectEffect = (projectId: string, effectId: string, data: Partial<{
+  name: string;
+  settings_json: string;
+  start_time: number;
+  end_time: number | null;
+  sort_order: number;
+  enabled: number;
+}>) =>
+  fetchAPI<ProjectEffect>(`/api/projects/${projectId}/effects/${effectId}`, { method: "PATCH", body: JSON.stringify(data) });
+export const deleteProjectEffect = (projectId: string, effectId: string) =>
+  fetchAPI<{ deleted: string }>(`/api/projects/${projectId}/effects/${effectId}`, { method: "DELETE" });
+
+// Render History
+export interface RenderRecord {
+  id: string;
+  output_path: string | null;
+  history_path: string | null;
+  timestamp: string | null;
+  created_at: string;
+}
+export const getProjectRenders = (projectId: string) =>
+  fetchAPI<{ renders: RenderRecord[] }>(`/api/projects/${projectId}/renders`);
+export const deleteProjectRender = (projectId: string, jobId: string) =>
+  fetchAPI<{ deleted: string }>(`/api/projects/${projectId}/renders/${jobId}`, { method: "DELETE" });
 
 // Download
 export interface ProjectAsset {

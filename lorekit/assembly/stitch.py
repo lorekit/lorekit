@@ -21,10 +21,8 @@ async def stitch_video(
     output_path: str,
     civilization: str,
     total_duration: float,
-    transitions: list[str] | None = None,
+    transitions: list[Transition] | None = None,
     aspect_ratio: str = "9:16",
-    transition_clips: dict[str, str] | None = None,
-    transition_data: list[Transition] | None = None,
     color_grade_override: dict | None = None,
     color_grade: bool = True,
 ) -> str:
@@ -33,7 +31,7 @@ async def stitch_video(
     Steps:
     1. Trim each clip to its generation duration, apply per-segment speed
     2. Interleave AI transition clips as their own segments
-    3. Concatenate all clips
+    3. Concatenate all clips (with ffmpeg xfade for standard transitions)
     4. Apply civilization color grade
     5. Overlay the mixed audio
     6. Export as intermediate (for text overlay step)
@@ -47,19 +45,17 @@ async def stitch_video(
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-    # Build a lookup for transition metadata
-    trans_data_map: dict[str, Transition] = {}
-    if transition_data:
-        for t in transition_data:
-            trans_data_map[f"{t.from_scene_id}_{t.to_scene_id}"] = t
+    # Build transition lookup
+    trans_map: dict[str, Transition] = {}
+    if transitions:
+        for t in transitions:
+            trans_map[f"{t.from_scene_id}_{t.to_scene_id}"] = t
 
-    # Interleave AI morph transition clips between scene clips
-    # Each segment (scene or transition) has: clip path, duration (clip length), speed
+    # Interleave AI morph clips and determine ffmpeg transition types
     expanded_clips: list[str] = []
     expanded_gen_durations: list[float] = []
     expanded_speeds: list[float] = []
     expanded_transitions: list[str] = []
-    trans_list = transitions or []
 
     for i, (clip, scene) in enumerate(zip(clips, scenes)):
         expanded_clips.append(clip)
@@ -67,30 +63,26 @@ async def stitch_video(
         expanded_speeds.append(scene.speed)
 
         if i < len(scenes) - 1:
-            scene_num = scene.scene_id
-            next_scene_num = scenes[i + 1].scene_id
-            trans_type = trans_list[i] if i < len(trans_list) else "fade"
-            trans_key = f"{scene_num}_{next_scene_num}"
+            trans_key = f"{scene.scene_id}_{scenes[i + 1].scene_id}"
+            t = trans_map.get(trans_key)
 
-            if trans_type == "ai_morph" and transition_clips and trans_key in transition_clips:
+            if t and t.type == "ai_morph" and t.clip_path:
+                # AI morph: interleave the generated clip with hard cuts on both sides
                 expanded_transitions.append("hard_cut")
-
-                # Use per-transition speed/duration if available, else legacy defaults
-                td = trans_data_map.get(trans_key)
-                t_duration = td.duration if td else 3.0
-                t_speed = td.speed if td else 1.5
-
-                expanded_clips.append(transition_clips[trans_key])
-                expanded_gen_durations.append(t_duration)
-                expanded_speeds.append(t_speed)
+                expanded_clips.append(t.clip_path)
+                expanded_gen_durations.append(t.duration)
+                expanded_speeds.append(t.speed)
                 expanded_transitions.append("hard_cut")
+            elif t and t.type not in ("none", "hard_cut", "ai_morph"):
+                # Standard ffmpeg transition (fade, dissolve, wipe, etc.)
+                expanded_transitions.append(t.type)
             else:
-                expanded_transitions.append(trans_type)
+                # Hard cut (default)
+                expanded_transitions.append("hard_cut")
 
     # Use expanded lists for the rest of the pipeline
     clips = expanded_clips
-    if expanded_transitions:
-        transitions = expanded_transitions
+    ffmpeg_transitions = expanded_transitions
 
     # Build the complete filter graph
     filter_parts: list[str] = []

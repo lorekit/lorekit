@@ -1130,18 +1130,31 @@ async def _render_task(
         civilization = char_row["group_name"] if char_row else "roman"
         universe_id = char_row["universe_id"] if char_row else None
 
-        # Load color grade from DB environment (matching by name + universe)
+        # Load color grade: prefer project_effects, fall back to environment
         color_grade_override: dict | None = None
-        if color_grade and universe_id:
-            env_row = await pool.fetchrow(
-                "SELECT color_grade_json FROM environments WHERE universe_id = $1 AND LOWER(name) = LOWER($2)",
-                universe_id, civilization,
+        if color_grade:
+            # First try project-specific color grade effect
+            effect_row = await pool.fetchrow(
+                "SELECT settings_json FROM project_effects WHERE project_id = $1 AND effect_type = 'color_grade' AND enabled = 1 ORDER BY sort_order LIMIT 1",
+                project_id,
             )
-            if env_row and env_row["color_grade_json"]:
+            if effect_row and effect_row["settings_json"]:
                 try:
-                    color_grade_override = json.loads(env_row["color_grade_json"])
+                    color_grade_override = json.loads(effect_row["settings_json"])
                 except (json.JSONDecodeError, TypeError):
                     pass
+
+            # Fall back to environment if no project effect
+            if not color_grade_override and universe_id:
+                env_row = await pool.fetchrow(
+                    "SELECT color_grade_json FROM environments WHERE universe_id = $1 AND LOWER(name) = LOWER($2)",
+                    universe_id, civilization,
+                )
+                if env_row and env_row["color_grade_json"]:
+                    try:
+                        color_grade_override = json.loads(env_row["color_grade_json"])
+                    except (json.JSONDecodeError, TypeError):
+                        pass
 
         ar = project.get("aspect_ratio", "9:16")
 
@@ -1257,42 +1270,18 @@ async def _render_task(
 
             from lorekit.assembly.stitch import stitch_video
 
-            # Parse per-scene transitions from project
-            render_transitions: list[str] | None = None
-            transitions_raw = project.get("transitions_json")
-            if transitions_raw:
-                try:
-                    t_data = json.loads(transitions_raw)
-                    # t_data is a list of {scene_id: int, transition: str}
-                    # Build ordered transition list matching scene boundaries
-                    t_map = {item["scene_id"]: item["transition"] for item in t_data}
-                    render_transitions = []
-                    for idx in range(len(ordered_scenes) - 1):
-                        sid = ordered_scenes[idx].scene_id
-                        render_transitions.append(t_map.get(sid, "fade"))
-                except (json.JSONDecodeError, KeyError, TypeError):
-                    logger.warning("Invalid transitions_json, using defaults")
-
             stitched_path = _abs_path(project_render_path(project_id, "stitched.mp4"))
-            # Load AI transition clips if available
-            import json as _json
-            ai_trans_clips: dict[str, str] = {}
-            if project.get("transition_clips_json"):
-                try:
-                    raw_tc = _json.loads(project["transition_clips_json"])
-                    for key, val in raw_tc.items():
-                        if val.get("clip_path"):
-                            ai_trans_clips[key] = _abs_path(val["clip_path"])
-                except (json.JSONDecodeError, KeyError):
-                    pass
+
+            # Resolve absolute paths for AI morph transition clips
+            for t in story.transitions:
+                if t.type == "ai_morph" and t.clip_path:
+                    t.clip_path = _abs_path(t.clip_path)
 
             await stitch_video(
                 ordered_clips, ordered_scenes, audio_path,
                 stitched_path, civilization, total_duration,
-                transitions=render_transitions,
+                transitions=story.transitions if story.transitions else None,
                 aspect_ratio=ar,
-                transition_clips=ai_trans_clips if ai_trans_clips else None,
-                transition_data=story.transitions if story.transitions else None,
                 color_grade_override=color_grade_override,
                 color_grade=color_grade,
             )
@@ -1318,6 +1307,21 @@ async def _render_task(
         else:
             storage_final_path = final_path
 
+        # Save timestamped copy for render history
+        from datetime import datetime, timezone
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        ext = Path(final_path).suffix or ".mp4"
+        history_filename = f"render_{timestamp}{ext}"
+        history_path = _abs_path(project_render_path(project_id, history_filename))
+        import shutil
+        try:
+            shutil.copy2(final_path, history_path)
+        except Exception:
+            logger.warning("Failed to save render history copy")
+        history_storage_path = history_path
+        if hasattr(store, "base_dir") and history_path.startswith(str(store.base_dir)):
+            history_storage_path = history_path[len(str(store.base_dir)) + 1:]
+
         await db.update_project(
             project_id,
             status="rendered",
@@ -1328,7 +1332,11 @@ async def _render_task(
             status="completed",
             progress=100,
             message="Video rendered",
-            result_json=json.dumps({"output_path": storage_final_path}),
+            result_json=json.dumps({
+                "output_path": storage_final_path,
+                "history_path": history_storage_path,
+                "timestamp": timestamp,
+            }),
         )
 
     except Exception as exc:

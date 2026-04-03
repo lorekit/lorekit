@@ -74,16 +74,17 @@ def get_color_grade_filter(
         angle = cg.vignette * 3.14159
         filters.append(f"vignette=PI/{3.14159 / angle:.1f}" if angle > 0 else "")
 
-    # Extended grading
-    extras = _GRADE_EXTRAS.get(civilization, {})
-    if curves := extras.get("curves"):
-        filters.append(curves)
-    if shadows := extras.get("shadows"):
-        filters.append(shadows)
+    # Extended grading — only when using civilization presets, not custom overrides
+    if not color_grade_override:
+        extras = _GRADE_EXTRAS.get(civilization, {})
+        if curves := extras.get("curves"):
+            filters.append(curves)
+        if shadows := extras.get("shadows"):
+            filters.append(shadows)
 
-    # Japanese-specific: film grain
-    if civilization == "japanese":
-        filters.append("noise=alls=8:allf=t")
+        # Japanese-specific: film grain
+        if civilization == "japanese":
+            filters.append("noise=alls=8:allf=t")
 
     # Remove empty strings
     filters = [f for f in filters if f]

@@ -464,6 +464,12 @@ async def update_job(
     )
 
 
+async def delete_job(job_id: str) -> None:
+    """Delete a job by ID."""
+    pool = await get_pool()
+    await pool.execute("DELETE FROM jobs WHERE id = $1", job_id)
+
+
 # --- Universe CRUD ---
 
 
@@ -1289,3 +1295,64 @@ async def backfill_project_themes() -> None:
                 )
         except (json.JSONDecodeError, TypeError):
             pass
+
+
+# ---------------------------------------------------------------------------
+# Project Effects
+# ---------------------------------------------------------------------------
+
+async def get_project_effects(project_id: str, *, org_id: str | None = None) -> list[dict[str, Any]]:
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT * FROM project_effects WHERE project_id = $1 ORDER BY sort_order, created_at",
+        project_id,
+    )
+    return [dict(r) for r in rows]
+
+
+async def get_project_effect(effect_id: str, *, org_id: str | None = None) -> dict[str, Any] | None:
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM project_effects WHERE id = $1", effect_id)
+    return dict(row) if row else None
+
+
+async def create_project_effect(
+    project_id: str,
+    effect_type: str = "color_grade",
+    name: str = "",
+    settings_json: str = "{}",
+    start_time: float = 0,
+    end_time: float | None = None,
+    sort_order: int = 0,
+    *,
+    org_id: str | None = None,
+) -> dict[str, Any]:
+    pool = await get_pool()
+    eid = uuid.uuid4().hex[:12]
+    now = _now()
+    await pool.execute(
+        """INSERT INTO project_effects
+           (id, project_id, effect_type, name, start_time, end_time, sort_order, settings_json, enabled, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,1,$9,$9)""",
+        eid, project_id, effect_type, name, start_time, end_time, sort_order, settings_json, now,
+    )
+    return {"id": eid, "project_id": project_id, "effect_type": effect_type, "name": name,
+            "start_time": start_time, "end_time": end_time, "sort_order": sort_order,
+            "settings_json": settings_json, "enabled": 1, "created_at": now, "updated_at": now}
+
+
+async def update_project_effect(effect_id: str, *, org_id: str | None = None, **kwargs: Any) -> None:
+    pool = await get_pool()
+    allowed = {"name", "start_time", "end_time", "sort_order", "settings_json", "enabled"}
+    updates = {k: v for k, v in kwargs.items() if k in allowed}
+    if not updates:
+        return
+    updates["updated_at"] = _now()
+    sets = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(updates))
+    vals = list(updates.values())
+    await pool.execute(f"UPDATE project_effects SET {sets} WHERE id = $1", effect_id, *vals)
+
+
+async def delete_project_effect(effect_id: str, *, org_id: str | None = None) -> None:
+    pool = await get_pool()
+    await pool.execute("DELETE FROM project_effects WHERE id = $1", effect_id)

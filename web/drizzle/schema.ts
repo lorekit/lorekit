@@ -277,6 +277,25 @@ export const costs = pgTable("costs", {
   pgPolicy("costs_insert", { for: "insert", to: authenticatedRole, withCheck: sql`video_id IN (SELECT id FROM universe_projects WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY(${userOrgIds})))` }),
 ]);
 
+export const projectEffects = pgTable("project_effects", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id").notNull(),
+  effectType: text("effect_type").notNull().default("color_grade"),
+  name: text("name").notNull().default(""),
+  startTime: real("start_time").notNull().default(0),
+  endTime: real("end_time"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  settingsJson: text("settings_json").notNull().default("{}"),
+  enabled: integer("enabled").notNull().default(1),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, () => [
+  pgPolicy("project_effects_select", { for: "select", to: authenticatedRole, using: projectInUserOrgs }),
+  pgPolicy("project_effects_insert", { for: "insert", to: authenticatedRole, withCheck: projectInUserOrgs }),
+  pgPolicy("project_effects_update", { for: "update", to: authenticatedRole, using: projectInUserOrgs }),
+  pgPolicy("project_effects_delete", { for: "delete", to: authenticatedRole, using: projectInUserOrgs }),
+]);
+
 export const projectAudioAssets = pgTable("project_audio_assets", {
   id: text("id").primaryKey(),
   projectId: text("project_id").notNull(),

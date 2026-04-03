@@ -10,8 +10,10 @@ import {
   Volume2,
   Play,
   Trash2,
+  Clapperboard,
+  Download,
 } from "lucide-react";
-import type { Scene, Transition } from "@/lib/api";
+import type { Scene, Transition, RenderRecord } from "@/lib/api";
 import { clipUrl, API_BASE } from "@/lib/api";
 import { cn, BEAT_TEXT_COLORS, formatDuration } from "@/lib/utils";
 
@@ -19,12 +21,13 @@ import { cn, BEAT_TEXT_COLORS, formatDuration } from "@/lib/utils";
 /*  Tab types                                                          */
 /* ------------------------------------------------------------------ */
 
-export type LeftPanelTab = "script" | "audio" | "media";
+export type LeftPanelTab = "script" | "audio" | "media" | "renders";
 
 const TABS: Array<{ key: LeftPanelTab; label: string; icon: React.ElementType }> = [
   { key: "script", label: "Script", icon: ScrollText },
   { key: "audio", label: "Audio", icon: Music },
   { key: "media", label: "Media", icon: ImageIcon },
+  { key: "renders", label: "Renders", icon: Clapperboard },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -65,6 +68,11 @@ interface LeftPanelProps {
 
   // View properties callback (switches to right panel)
   onViewProperties?: () => void;
+
+  // Render history
+  renders?: RenderRecord[];
+  onDownloadRender?: (path: string) => void;
+  onDeleteRender?: (jobId: string) => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -89,6 +97,9 @@ export function LeftPanel({
   activeTab,
   onTabChange,
   onViewProperties,
+  renders,
+  onDownloadRender,
+  onDeleteRender,
 }: LeftPanelProps) {
   return (
     <div className="flex flex-col h-full">
@@ -142,6 +153,14 @@ export function LeftPanel({
           <MediaTab
             scenes={scenes}
             characterPortraitUrl={characterPortraitUrl}
+          />
+        )}
+
+        {activeTab === "renders" && (
+          <RendersTab
+            renders={renders}
+            onDownload={onDownloadRender}
+            onDelete={onDeleteRender}
           />
         )}
       </div>
@@ -535,6 +554,92 @@ function MediaTab({
       )}
 
       {/* Character source ref photos excluded — they skew keyframe generation */}
+    </div>
+  );
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  Renders Tab                                                        */
+/* ------------------------------------------------------------------ */
+
+function RendersTab({
+  renders,
+  onDownload,
+  onDelete,
+}: {
+  renders?: RenderRecord[];
+  onDownload?: (path: string) => void;
+  onDelete?: (jobId: string) => void;
+}) {
+  if (!renders || renders.length === 0) {
+    return (
+      <div className="p-4 text-center">
+        <Clapperboard className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+        <p className="text-sm text-slate-500">No renders yet</p>
+        <p className="text-xs text-slate-600 mt-1">Render your video to see it here</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-3 space-y-2">
+      <p className="text-[10px] text-slate-500 uppercase tracking-wider font-medium px-1">
+        Render History ({renders.length})
+      </p>
+      {renders.map((render) => {
+        const date = render.created_at ? new Date(render.created_at) : null;
+        const displayPath = render.history_path || render.output_path;
+        return (
+          <div
+            key={render.id}
+            className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-3 space-y-2"
+          >
+            {/* Preview thumbnail */}
+            {displayPath && (
+              <div className="relative bg-black rounded overflow-hidden" style={{ aspectRatio: "16/9" }}>
+                <video
+                  src={clipUrl(`/files/${displayPath}`)}
+                  className="w-full h-full object-cover"
+                  preload="metadata"
+                  muted
+                  crossOrigin="anonymous"
+                />
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-300">
+                  {date ? date.toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Render"}
+                </p>
+                {render.timestamp && (
+                  <p className="text-[10px] text-slate-500">{render.timestamp}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {displayPath && onDownload && (
+                  <button
+                    type="button"
+                    onClick={() => onDownload(displayPath)}
+                    className="flex items-center gap-1 text-[10px] text-amber-400 hover:text-amber-300 transition-colors"
+                  >
+                    <Download className="w-3 h-3" />
+                  </button>
+                )}
+                {onDelete && (
+                  <button
+                    type="button"
+                    onClick={() => onDelete(render.id)}
+                    className="flex items-center gap-1 text-[10px] text-red-400 hover:text-red-300 transition-colors"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

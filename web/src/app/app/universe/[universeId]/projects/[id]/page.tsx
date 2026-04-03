@@ -17,6 +17,9 @@ import {
   Plus,
   X,
   Scissors,
+  Palette,
+  Type,
+  Volume2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScenePreview, type PreviewMode } from "@/components/editor/ScenePreview";
@@ -28,6 +31,7 @@ import { LeftPanel, type LeftPanelTab } from "@/components/editor/LeftPanel";
 import { EditorTimeline } from "@/components/editor/EditorTimeline";
 import { SceneDetail } from "@/components/editor/SceneDetail";
 import { TransitionDetail } from "@/components/editor/TransitionDetail";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useProjectStore } from "@/stores/project-store";
 import {
   getProject,
@@ -54,8 +58,11 @@ import {
   setEndKeyframe,
   setReferenceImages,
 } from "@/lib/api";
-import type { Scene, Transition, SourceItem, RenderOptions } from "@/lib/api";
+import type { Scene, Transition, SourceItem, RenderOptions, Environment } from "@/lib/api";
+import { getUniverseEnvironments, updateEnvironment, getProjectEffects, createProjectEffect, updateProjectEffect, getProjectRenders, deleteProjectRender } from "@/lib/api";
+import type { RenderRecord } from "@/lib/api";
 import { cn, formatDuration } from "@/lib/utils";
+import { Slider } from "@/components/ui/slider";
 
 // ---------------------------------------------------------------------------
 // Status configuration
@@ -304,6 +311,8 @@ export default function ProjectEditorPage({
   const [allClipsProgress, setAllClipsProgress] = useState<string | null>(null);
   const [clipJobs, setClipJobs] = useState<Record<string, ClipJobState>>({});
   const [generatingCharacter, setGeneratingCharacter] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ sceneId: string; sceneNum: number } | null>(null);
+  const [transitionDeleteConfirm, setTransitionDeleteConfirm] = useState<{ from: number; to: number } | null>(null);
   const [renderMenuOpen, setRenderMenuOpen] = useState(false);
   const [renderOpts, setRenderOpts] = useState<RenderOptions>({
     text_overlays: false,
@@ -322,7 +331,13 @@ export default function ProjectEditorPage({
   const videoPreviewRef = useRef<VideoPreviewHandle>(null);
   const [playbackProgress, setPlaybackProgress] = useState<number | null>(null);
   const [audioDuration, setAudioDuration] = useState(0);
+  const [actualSegments, setActualSegments] = useState<import("@/components/editor/VideoPreview").SegmentTiming[]>();
+  const [actualTotalDuration, setActualTotalDuration] = useState<number>();
   const [characterRefUrls, setCharacterRefUrls] = useState<string[]>([]);
+  const [fullVideoTab, setFullVideoTab] = useState<"output" | "color" | "text" | "audio">("output");
+  const [colorGrade, setColorGrade] = useState({ temperature: 6500, saturation: 1.05, contrast: 1.1, vignette: 0.3 });
+  const [audioVolume, setAudioVolume] = useState(100);
+  const [renders, setRenders] = useState<RenderRecord[]>([]);
 
   // All available keyframe images for pickers (current + history + extracted frames)
   const pickerImages = useMemo(() => {
@@ -435,6 +450,47 @@ export default function ProjectEditorPage({
       .catch(() => {});
   }, [project?.character_id]);
 
+  // Load color grade effect for this project
+  const [colorGradeEffectId, setColorGradeEffectId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!id) return;
+    getProjectEffects(id)
+      .then(async (effects) => {
+        const existing = effects.find((e) => e.effect_type === "color_grade");
+        if (!existing) {
+          // Create default color grade effect, using environment defaults if available
+          let defaults = { temperature: 6500, saturation: 1.05, contrast: 1.1, vignette: 0.3 };
+          if (universeId) {
+            try {
+              const envs = await getUniverseEnvironments(universeId);
+              if (envs.length > 0 && envs[0].color_grade_json) {
+                defaults = { ...defaults, ...JSON.parse(envs[0].color_grade_json) };
+              }
+            } catch { /* */ }
+          }
+          const created = await createProjectEffect(id, {
+            effect_type: "color_grade",
+            name: "Color Grade",
+            settings_json: JSON.stringify(defaults),
+          });
+          setColorGrade(defaults);
+          setColorGradeEffectId(created.id);
+        } else {
+          try {
+            setColorGrade((prev) => ({ ...prev, ...JSON.parse(existing.settings_json) }));
+          } catch { /* */ }
+          setColorGradeEffectId(existing.id);
+        }
+      })
+      .catch(() => {});
+  }, [id, universeId]);
+
+  // Fetch render history
+  useEffect(() => {
+    if (!id) return;
+    getProjectRenders(id).then((data) => setRenders(data.renders)).catch(() => {});
+  }, [id]);
+
   // Load audio duration for timeline
   useEffect(() => {
     if (!project?.uploaded_audio_path) { setAudioDuration(0); return; }
@@ -444,6 +500,16 @@ export default function ProjectEditorPage({
   }, [project?.uploaded_audio_path]);
 
   // ---------- Refresh helper ----------
+  const handleColorGradeChange = useCallback((key: string, value: number) => {
+    setColorGrade((prev) => {
+      const next = { ...prev, [key]: value };
+      if (colorGradeEffectId) {
+        updateProjectEffect(id, colorGradeEffectId, { settings_json: JSON.stringify(next) }).catch(() => {});
+      }
+      return next;
+    });
+  }, [colorGradeEffectId, id]);
+
   const refreshProject = useCallback(async () => {
     try {
       const [proj, scenesData] = await Promise.all([
@@ -617,8 +683,16 @@ export default function ProjectEditorPage({
   );
 
   const handleDeleteScene = useCallback(
-    async (sceneId: string, sceneNum: number) => {
-      if (!confirm(`Delete Scene ${sceneNum}? This cannot be undone.`)) return;
+    (sceneId: string, sceneNum: number) => {
+      setDeleteConfirm({ sceneId, sceneNum });
+    },
+    []
+  );
+
+  const confirmDeleteScene = useCallback(
+    async () => {
+      if (!deleteConfirm) return;
+      const { sceneId, sceneNum } = deleteConfirm;
       try {
         await deleteScene(id, sceneNum);
         if (selectedScene?.id === sceneId) {
@@ -629,20 +703,27 @@ export default function ProjectEditorPage({
         console.error("Failed to delete scene:", err);
       }
     },
-    [id, selectedScene, selectScene, refreshProject]
+    [id, deleteConfirm, selectedScene, selectScene, refreshProject]
   );
 
   const handleDeleteTransition = useCallback(
-    async (fromSceneId: number, toSceneId: number) => {
-      if (!confirm(`Remove transition ${fromSceneId} → ${toSceneId}?`)) return;
+    (fromSceneId: number, toSceneId: number) => {
+      setTransitionDeleteConfirm({ from: fromSceneId, to: toSceneId });
+    },
+    []
+  );
+
+  const confirmDeleteTransition = useCallback(
+    async () => {
+      if (!transitionDeleteConfirm) return;
       try {
-        await deleteTransition(id, fromSceneId, toSceneId);
+        await deleteTransition(id, transitionDeleteConfirm.from, transitionDeleteConfirm.to);
         await refreshProject();
       } catch (err) {
         console.error("Failed to delete transition:", err);
       }
     },
-    [id, refreshProject]
+    [id, transitionDeleteConfirm, refreshProject]
   );
 
   const handleGenerateAllClips = useCallback(async () => {
@@ -704,6 +785,8 @@ export default function ProjectEditorPage({
       });
 
       await refreshProject();
+      // Refresh render history
+      getProjectRenders(id).then((data) => setRenders(data.renders)).catch(() => {});
     } catch (err) {
       console.error("Render failed:", err);
     } finally {
@@ -969,7 +1052,7 @@ export default function ProjectEditorPage({
             onSelectScene={handleSelectSceneFromList}
             isFullVideoSelected={selectedElement?.type === "full-video"}
             onSelectFullVideo={() => selectElement({ type: "full-video" })}
-            totalDuration={totalDuration}
+            totalDuration={actualTotalDuration ?? totalDuration}
             characters={project ? [{
               name: project.character_name || project.name?.split("—")[0]?.trim() || project.character_id || "Character",
               imageUrl: project.character_image_url ? clipUrl(project.character_image_url) : null,
@@ -984,6 +1067,29 @@ export default function ProjectEditorPage({
             activeTab={activeLeftTab}
             onTabChange={setActiveLeftTab}
             onViewProperties={() => setActiveRightTab("clip")}
+            renders={renders}
+            onDownloadRender={async (path) => {
+              try {
+                const url = clipUrl(`/files/${path}`);
+                const res = await fetch(url);
+                const blob = await res.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = blobUrl;
+                a.download = path.split("/").pop() || "render.mp4";
+                a.click();
+                URL.revokeObjectURL(blobUrl);
+              } catch {
+                // Fallback: open in new tab
+                window.open(clipUrl(`/files/${path}`), "_blank");
+              }
+            }}
+            onDeleteRender={async (jobId) => {
+              try {
+                await deleteProjectRender(id, jobId);
+                setRenders((prev) => prev.filter((r) => r.id !== jobId));
+              } catch { /* */ }
+            }}
           />
         }
 
@@ -995,17 +1101,20 @@ export default function ProjectEditorPage({
             {/* Preview area — centered, fills available space */}
             <div className="flex-1 flex items-center justify-center p-4 min-h-0">
               <div className="w-full flex justify-center">
-                {selectedElement?.type === "full-video" ? (
-                  <div className="w-[min(60vh*9/16,400px)]">
-                    <VideoPreview
-                      ref={videoPreviewRef}
-                      scenes={scenes}
-                      transitionClips={parsedTransitionClips}
-                      audioUrl={project?.uploaded_audio_path ? `/files/${project.uploaded_audio_path}` : null}
-                      onProgressUpdate={setPlaybackProgress}
-                    />
-                  </div>
-                ) : selectedElement?.type === "transition" ? (
+                {/* VideoPreview always mounted (hidden when not active) so it measures clip durations for the timeline */}
+                <div className={selectedElement?.type === "full-video" ? "w-[min(60vh*9/16,400px)]" : "hidden"}>
+                  <VideoPreview
+                    ref={videoPreviewRef}
+                    scenes={scenes}
+                    transitionClips={parsedTransitionClips}
+                    audioUrl={project?.uploaded_audio_path ? `/files/${project.uploaded_audio_path}` : null}
+                    onProgressUpdate={setPlaybackProgress}
+                    onSegmentsReady={(segs, dur) => { setActualSegments(segs); setActualTotalDuration(dur); }}
+                    colorGrade={(renderOpts.color_grade ?? true) ? colorGrade : null}
+                    audioDuration={audioDuration}
+                  />
+                </div>
+                {selectedElement?.type === "full-video" ? null : selectedElement?.type === "transition" ? (
                   <div className="w-[min(60vh*9/16,400px)]">
                     <TransitionPreview
                       fromSceneId={selectedElement.fromSceneId}
@@ -1113,10 +1222,257 @@ export default function ProjectEditorPage({
         /* ============================================================ */
         rightPanel={
           selectedElement?.type === "full-video" ? (
-            <div className="flex flex-col h-full items-center justify-center p-6 text-center">
-              <Play className="w-8 h-8 text-slate-600 mb-3" />
-              <p className="text-sm text-slate-400 font-medium">Full Video Preview</p>
-              <p className="text-xs text-slate-500 mt-1">Select a scene to edit its properties</p>
+            <div className="flex flex-col h-full">
+              {/* Tab bar */}
+              <div className="flex border-b border-slate-800/50 flex-shrink-0">
+                {([
+                  { key: "output" as const, label: "Output", icon: Clapperboard },
+                  { key: "color" as const, label: "Color", icon: Palette },
+                  { key: "text" as const, label: "Text", icon: Type },
+                  { key: "audio" as const, label: "Audio", icon: Volume2 },
+                ] as const).map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setFullVideoTab(tab.key)}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-1 px-2 py-2 text-[11px] font-medium transition-colors whitespace-nowrap border-b-2",
+                      fullVideoTab === tab.key
+                        ? "text-amber-400 border-amber-500 bg-amber-500/5"
+                        : "text-slate-400 border-transparent hover:text-slate-300 hover:bg-slate-900/50"
+                    )}
+                  >
+                    <tab.icon className="w-3 h-3" />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab content */}
+              <div className="flex-1 overflow-y-auto p-4">
+                {fullVideoTab === "output" && (
+                  <div className="space-y-5">
+                    <div className="space-y-3">
+                      <p className="text-[10px] text-slate-500 uppercase tracking-wider font-medium">Render Options</p>
+
+                      {([
+                        { key: "text_overlays", label: "Text Overlays" },
+                        { key: "color_grade", label: "Color Grading" },
+                        { key: "audio", label: "Audio" },
+                      ] as const).map((opt) => (
+                        <label key={opt.key} className="flex items-center justify-between cursor-pointer">
+                          <span className="text-sm text-slate-300">{opt.label}</span>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={renderOpts[opt.key] ?? true}
+                            onClick={() => setRenderOpts((o) => ({ ...o, [opt.key]: !(o[opt.key] ?? true) }))}
+                            className={cn(
+                              "relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0",
+                              (renderOpts[opt.key] ?? true) ? "bg-amber-500" : "bg-slate-700"
+                            )}
+                          >
+                            <span className={cn(
+                              "inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform",
+                              (renderOpts[opt.key] ?? true) ? "translate-x-4" : "translate-x-1"
+                            )} />
+                          </button>
+                        </label>
+                      ))}
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-slate-800/50">
+                      <Button
+                        size="sm"
+                        onClick={handleRender}
+                        disabled={isRendering || scenes.length === 0}
+                        className="gap-2 w-full"
+                      >
+                        {isRendering ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Clapperboard className="w-4 h-4" />
+                        )}
+                        {isRendering ? "Rendering..." : "Render Video"}
+                      </Button>
+
+                      {project.output_path && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleDownload}
+                          disabled={isPublishing}
+                          className="gap-2 w-full"
+                        >
+                          <Download className="w-4 h-4" />
+                          {isPublishing ? "Downloading..." : "Download"}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {fullVideoTab === "color" && (
+                  <div className="space-y-5">
+                    <div className="flex items-center gap-2">
+                      <Palette className="w-4 h-4 text-amber-500" />
+                      <span className="text-sm font-medium text-slate-300">Color Grading</span>
+                    </div>
+
+                    {/* Presets */}
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] text-slate-500 uppercase tracking-wider font-medium">Presets</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {([
+                          { label: "Neutral", values: { temperature: 6500, saturation: 1.0, contrast: 1.0, vignette: 0 } },
+                          { label: "Roman", values: { temperature: 6500, saturation: 1.05, contrast: 1.1, vignette: 0.3 } },
+                          { label: "Greek", values: { temperature: 6000, saturation: 1.0, contrast: 1.15, vignette: 0.15 } },
+                          { label: "Chinese", values: { temperature: 5500, saturation: 0.85, contrast: 1.0, vignette: 0.2 } },
+                          { label: "Japanese", values: { temperature: 5800, saturation: 0.8, contrast: 0.95, vignette: 0.1 } },
+                        ] as const).map((preset) => {
+                          const isActive = colorGrade.temperature === preset.values.temperature
+                            && colorGrade.saturation === preset.values.saturation
+                            && colorGrade.contrast === preset.values.contrast
+                            && colorGrade.vignette === preset.values.vignette;
+                          return (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => {
+                                setColorGrade(preset.values);
+                                if (colorGradeEffectId) {
+                                  updateProjectEffect(id, colorGradeEffectId, { settings_json: JSON.stringify(preset.values) }).catch(() => {});
+                                }
+                              }}
+                              className={cn(
+                                "px-2.5 py-1 text-[10px] font-medium rounded-md border transition-colors",
+                                isActive
+                                  ? "bg-amber-500/20 border-amber-500/50 text-amber-400"
+                                  : "bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-300"
+                              )}
+                            >
+                              {preset.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      {/* Temperature */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-slate-400">Temperature</span>
+                          <span className="text-xs font-mono text-amber-400">{colorGrade.temperature}K</span>
+                        </div>
+                        <Slider
+                          min={3000}
+                          max={9000}
+                          step={100}
+                          value={colorGrade.temperature}
+                          onChange={(v) => handleColorGradeChange("temperature", v)}
+                        />
+                        <div className="flex justify-between text-[10px] text-slate-600">
+                          <span>3000K</span>
+                          <span>9000K</span>
+                        </div>
+                      </div>
+
+                      {/* Saturation */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-slate-400">Saturation</span>
+                          <span className="text-xs font-mono text-amber-400">{colorGrade.saturation.toFixed(2)}</span>
+                        </div>
+                        <Slider
+                          min={0}
+                          max={2}
+                          step={0.05}
+                          value={colorGrade.saturation}
+                          onChange={(v) => handleColorGradeChange("saturation", v)}
+                        />
+                        <div className="flex justify-between text-[10px] text-slate-600">
+                          <span>0</span>
+                          <span>2.0</span>
+                        </div>
+                      </div>
+
+                      {/* Contrast */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-slate-400">Contrast</span>
+                          <span className="text-xs font-mono text-amber-400">{colorGrade.contrast.toFixed(2)}</span>
+                        </div>
+                        <Slider
+                          min={0}
+                          max={2}
+                          step={0.05}
+                          value={colorGrade.contrast}
+                          onChange={(v) => handleColorGradeChange("contrast", v)}
+                        />
+                        <div className="flex justify-between text-[10px] text-slate-600">
+                          <span>0</span>
+                          <span>2.0</span>
+                        </div>
+                      </div>
+
+                      {/* Vignette */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-slate-400">Vignette</span>
+                          <span className="text-xs font-mono text-amber-400">{colorGrade.vignette.toFixed(2)}</span>
+                        </div>
+                        <Slider
+                          min={0}
+                          max={1}
+                          step={0.05}
+                          value={colorGrade.vignette}
+                          onChange={(v) => handleColorGradeChange("vignette", v)}
+                        />
+                        <div className="flex justify-between text-[10px] text-slate-600">
+                          <span>0</span>
+                          <span>1.0</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {fullVideoTab === "text" && (
+                  <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                    <Type className="w-8 h-8 text-slate-600 mb-3" />
+                    <p className="text-sm text-slate-400 font-medium">Text Overlays</p>
+                    <p className="text-xs text-slate-500 mt-1">Coming Soon</p>
+                  </div>
+                )}
+
+                {fullVideoTab === "audio" && (
+                  <div className="space-y-5">
+                    <div className="flex items-center gap-2">
+                      <Volume2 className="w-4 h-4 text-amber-500" />
+                      <span className="text-sm font-medium text-slate-300">Audio</span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-slate-400">Volume</span>
+                        <span className="text-xs font-mono text-amber-400">{audioVolume}%</span>
+                      </div>
+                      <Slider
+                        min={0}
+                        max={200}
+                        step={5}
+                        value={audioVolume}
+                        onChange={setAudioVolume}
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-600">
+                        <span>0%</span>
+                        <span>200%</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
           <div className="flex flex-col h-full">
@@ -1211,7 +1567,14 @@ export default function ProjectEditorPage({
                   {/* Properties inline */}
                   <div className="mt-4 pt-4 border-t border-slate-800/50">
                     <TransitionDetail
-                      transition={selectedTransition}
+                      transition={selectedTransition ?? {
+                        from_scene_id: selectedElement.fromSceneId,
+                        to_scene_id: selectedElement.toSceneId,
+                        type: "ai_morph",
+                        prompt: "",
+                        duration: 3.0,
+                        speed: 1.5,
+                      }}
                       onUpdate={handleUpdateTransition}
                     />
                   </div>
@@ -1632,6 +1995,11 @@ export default function ProjectEditorPage({
             audioDuration={audioDuration}
             playbackProgress={playbackProgress}
             onPlayheadSeek={selectedElement?.type === "full-video" ? (fraction) => videoPreviewRef.current?.seekToFraction(fraction) : undefined}
+            actualSegments={actualSegments}
+            actualTotalDuration={actualTotalDuration}
+            onUpdateScene={handleUpdateScene}
+            onUpdateTransition={handleUpdateTransition}
+            colorGradeEnabled={renderOpts.color_grade ?? true}
           />
         }
       />
@@ -1644,6 +2012,26 @@ export default function ProjectEditorPage({
         onOpenChange={setQuotePickerOpen}
         characterId={project.character_id}
         onSelectQuote={handleSelectQuote}
+      />
+
+      <ConfirmDialog
+        open={deleteConfirm !== null}
+        onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}
+        title={`Delete Scene ${deleteConfirm?.sceneNum ?? ""}?`}
+        description="This cannot be undone. The scene and its generated clips will be removed."
+        confirmLabel="Delete Scene"
+        variant="danger"
+        onConfirm={confirmDeleteScene}
+      />
+
+      <ConfirmDialog
+        open={transitionDeleteConfirm !== null}
+        onOpenChange={(open) => { if (!open) setTransitionDeleteConfirm(null); }}
+        title={`Remove Transition ${transitionDeleteConfirm?.from ?? ""} → ${transitionDeleteConfirm?.to ?? ""}?`}
+        description="The transition between these scenes will be removed."
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={confirmDeleteTransition}
       />
     </>
   );

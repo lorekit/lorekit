@@ -102,14 +102,17 @@ class Scene(BaseModel):
 class Transition(BaseModel):
     from_scene_id: int
     to_scene_id: int
-    prompt: str  # AI transition description, e.g. "Camera slowly pushes through fog..."
-    duration: float = 3.0  # actual clip length (3-15s, sent to Kling API)
-    speed: float = 1.5  # playback speed multiplier (0.25x–4.0x)
+    type: str = "ai_morph"  # "ai_morph", "hard_cut", "fade", "dissolve", "wipe_left", "wipe_right", etc.
+    prompt: str = ""  # AI transition description (ai_morph only)
+    duration: float = 3.0  # AI morph: clip length (3-15s). ffmpeg: xfade overlap (0.1-1.0s)
+    speed: float = 1.5  # playback speed multiplier (ai_morph only)
+    clip_path: str | None = None  # generated clip file path (ai_morph only)
+    clip_url: str | None = None  # generated clip URL (ai_morph only)
 
     @field_validator("duration")
     @classmethod
     def clamp_duration(cls, v: float) -> float:
-        return max(3.0, min(15.0, v))
+        return max(0.01, min(15.0, v))
 
     @field_validator("speed")
     @classmethod
@@ -120,7 +123,9 @@ class Transition(BaseModel):
 
     @property
     def effective_duration(self) -> float:
-        """Timeline duration = clip length / speed."""
+        """Timeline duration. AI morph adds time, ffmpeg transitions overlap."""
+        if self.type != "ai_morph":
+            return 0.0
         return self.duration / self.speed
 
 

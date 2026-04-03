@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from lorekit import db
 from lorekit.auth.user import get_current_user, CurrentUser
-from lorekit.models import StoryBreakdown
+from lorekit.models import StoryBreakdown, Transition
 
 router = APIRouter(prefix="/api/scenes", tags=["scenes"])
 
@@ -25,9 +25,12 @@ class SceneUpdate(BaseModel):
 
 
 class TransitionUpdate(BaseModel):
+    type: str | None = None  # "ai_morph", "hard_cut", "fade", "dissolve", etc.
     prompt: str | None = None
-    duration: float | None = None  # clip length (3-15s)
-    speed: float | None = None  # playback speed (0.25-4.0x)
+    duration: float | None = None
+    speed: float | None = None
+    clip_path: str | None = None
+    clip_url: str | None = None
 
 
 class CopyKeyframeRequest(BaseModel):
@@ -68,30 +71,42 @@ async def get_scenes(project_id: str, user: CurrentUser = Depends(get_current_us
     extracted_frames_map = {c["scene_id"]: c.get("extracted_frames") for c in clips if c.get("extracted_frames")}
     reference_images_map = {c["scene_id"]: c.get("reference_images") for c in clips if c.get("reference_images")}
 
-    # Backfill transitions from transition_clips_json if story.transitions is empty
-    if not story.transitions and project.get("transition_clips_json"):
-        from lorekit.models import Transition
-        try:
-            tc = json.loads(project["transition_clips_json"])
-            for key, val in tc.items():
-                parts = key.split("_")
-                if len(parts) == 2:
-                    story.transitions.append(Transition(
-                        from_scene_id=int(parts[0]),
-                        to_scene_id=int(parts[1]),
-                        prompt=val.get("prompt", ""),
-                    ))
-            story.transitions.sort(key=lambda t: t.from_scene_id)
-            story.total_duration = (
-                sum(s.effective_duration for s in story.scenes)
-                + sum(t.effective_duration for t in story.transitions)
-            )
-            await db.update_project(project_id, org_id=user.org_id, story_json=story.model_dump_json())
-        except (json.JSONDecodeError, ValueError):
-            pass
-
-    # Merge transition clip info
+    # Backfill: merge transition_clips_json data into story.transitions
     tc_raw = json.loads(project.get("transition_clips_json") or "{}")
+    needs_save = False
+
+    if not story.transitions and tc_raw:
+        # No transitions in story but have clip data — create them
+        for key, val in tc_raw.items():
+            parts = key.split("_")
+            if len(parts) == 2:
+                story.transitions.append(Transition(
+                    from_scene_id=int(parts[0]),
+                    to_scene_id=int(parts[1]),
+                    type="ai_morph",
+                    prompt=val.get("prompt", ""),
+                    clip_path=val.get("clip_path"),
+                    clip_url=val.get("clip_url"),
+                ))
+        story.transitions.sort(key=lambda t: t.from_scene_id)
+        needs_save = True
+
+    # Backfill clip_path/clip_url from transition_clips_json into existing transitions
+    for t in story.transitions:
+        tc_key = f"{t.from_scene_id}_{t.to_scene_id}"
+        tc_entry = tc_raw.get(tc_key, {})
+        if tc_entry.get("clip_path") and not t.clip_path:
+            t.clip_path = tc_entry["clip_path"]
+            t.clip_url = tc_entry.get("clip_url")
+            t.type = "ai_morph"
+            needs_save = True
+
+    if needs_save:
+        story.total_duration = (
+            sum(s.effective_duration for s in story.scenes)
+            + sum(t.effective_duration for t in story.transitions)
+        )
+        await db.update_project(project_id, org_id=user.org_id, story_json=story.model_dump_json())
 
     scenes = []
     for scene in story.scenes:
@@ -105,14 +120,7 @@ async def get_scenes(project_id: str, user: CurrentUser = Depends(get_current_us
         s["reference_images"] = reference_images_map.get(scene.scene_id)
         scenes.append(s)
 
-    transitions = []
-    for t in story.transitions:
-        td = t.model_dump()
-        tc_key = f"{t.from_scene_id}_{t.to_scene_id}"
-        tc_entry = tc_raw.get(tc_key, {})
-        td["clip_path"] = tc_entry.get("clip_path")
-        td["clip_url"] = tc_entry.get("clip_url")
-        transitions.append(td)
+    transitions = [t.model_dump() for t in story.transitions]
 
     return {"scenes": scenes, "transitions": transitions, "total_duration": story.total_duration}
 
@@ -429,7 +437,9 @@ async def update_transition(
         None,
     )
     if not transition:
-        raise HTTPException(status_code=404, detail=f"Transition {from_id}→{to_id} not found")
+        # Create new transition if it doesn't exist
+        transition = Transition(from_scene_id=from_id, to_scene_id=to_id, prompt="")
+        story.transitions.append(transition)
 
     updates = body.model_dump(exclude_none=True)
     if "speed" in updates and not (0.25 <= updates["speed"] <= 4.0):

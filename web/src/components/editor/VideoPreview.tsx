@@ -5,6 +5,7 @@ import { Play, Pause, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Scene } from "@/lib/api";
 import { clipUrl } from "@/lib/api";
+import { useColorGradeGL } from "./useColorGradeGL";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -16,12 +17,33 @@ interface TransitionClip {
   clip_path: string;
 }
 
+/** Segment timing info shared with the timeline */
+export interface SegmentTiming {
+  type: "scene" | "transition";
+  sceneIdx?: number;
+  wallStart: number;
+  wallEnd: number;
+}
+
+export interface ColorGradeSettings {
+  temperature: number;
+  saturation: number;
+  contrast: number;
+  vignette: number;
+}
+
 interface VideoPreviewProps {
   scenes: Scene[];
   transitionClips?: Record<string, TransitionClip>;
   audioUrl?: string | null;
   /** Called with 0-1 progress during playback, null when stopped */
   onProgressUpdate?: (progress: number | null) => void;
+  /** Called when segments are built with actual measured durations */
+  onSegmentsReady?: (segments: SegmentTiming[], totalDuration: number) => void;
+  /** Live color grading preview via CSS filters */
+  colorGrade?: ColorGradeSettings | null;
+  /** Pre-measured audio duration (single source of truth, avoids double-measurement) */
+  audioDuration?: number;
 }
 
 export interface VideoPreviewHandle {
@@ -69,7 +91,7 @@ function waitForMetadata(video: HTMLVideoElement): Promise<void> {
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
-export const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(function VideoPreview({ scenes, transitionClips, audioUrl, onProgressUpdate }, ref) {
+export const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(function VideoPreview({ scenes, transitionClips, audioUrl, onProgressUpdate, onSegmentsReady, colorGrade, audioDuration: audioDurationProp }, ref) {
   const [playState, setPlayState] = useState<PlayState>("idle");
   const [progress, setProgress] = useState(0);
   const [currentSceneIdx, setCurrentSceneIdx] = useState(0);
@@ -86,6 +108,8 @@ export const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(fu
   // Stable ref for onProgressUpdate to avoid re-creating callbacks
   const onProgressRef = useRef(onProgressUpdate);
   onProgressRef.current = onProgressUpdate;
+  const onSegmentsReadyRef = useRef(onSegmentsReady);
+  onSegmentsReadyRef.current = onSegmentsReady;
 
   const playableScenes = useMemo(() => scenes.filter((s) => s.clip_url), [scenes]);
   const hasClips = playableScenes.length > 0;
@@ -105,7 +129,10 @@ export const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(fu
         if (cancelled) return;
         const scene = playableScenes[i];
         const speed = scene.speed ?? 1.0;
-        const wallDur = scene.duration / speed;
+        // Measure actual clip file duration instead of trusting configured value
+        const actualClipDur = await getVideoDuration(clipUrl(scene.clip_url!));
+        const videoDuration = Math.min(actualClipDur, scene.duration); // don't exceed configured
+        const wallDur = videoDuration / speed;
 
         segs.push({
           type: "scene",
@@ -113,7 +140,7 @@ export const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(fu
           src: clipUrl(scene.clip_url!),
           speed,
           videoStartOffset: 0,
-          videoDuration: scene.duration,
+          videoDuration,
           wallStart: wallOffset,
           wallEnd: wallOffset + wallDur,
         });
@@ -146,12 +173,8 @@ export const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(fu
         }
       }
 
-      // Check audio duration
-      let audioDur = 0;
-      if (audioUrl) {
-        try { audioDur = await getVideoDuration(clipUrl(audioUrl)); } catch { /* */ }
-      }
-
+      // Use pre-measured audio duration from parent (single source of truth)
+      const audioDur = audioDurationProp ?? 0;
       const total = Math.max(wallOffset, audioDur);
 
       if (!cancelled) {
@@ -159,6 +182,12 @@ export const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(fu
         totalDurRef.current = total;
         setSegments(segs);
         setTotalDuration(total);
+
+        // Share actual measured timings with the timeline
+        onSegmentsReadyRef.current?.(
+          segs.map((s) => ({ type: s.type, sceneIdx: s.sceneIdx, wallStart: s.wallStart, wallEnd: s.wallEnd })),
+          total
+        );
 
         // Preload first frame so it's not a black screen
         if (segs.length > 0 && videoRef.current) {
@@ -183,7 +212,7 @@ export const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(fu
     buildSegments();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scenes, transitionClips, audioUrl]);
+  }, [scenes, transitionClips, audioUrl, audioDurationProp]);
 
   /* ---------------------------------------------------------------- */
   /*  Load a segment into the video element                            */
@@ -431,6 +460,20 @@ export const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(fu
   }, [segments, totalDuration]);
 
   /* ---------------------------------------------------------------- */
+  /*  WebGL color grading (matches ffmpeg render pipeline)              */
+  /* ---------------------------------------------------------------- */
+
+  const glCanvasRef = useRef<HTMLCanvasElement>(null);
+  const hasColorGrade = !!colorGrade;
+
+  useColorGradeGL({
+    videoRef,
+    canvasRef: glCanvasRef,
+    colorGrade: colorGrade ?? null,
+    enabled: hasColorGrade,
+  });
+
+  /* ---------------------------------------------------------------- */
   /*  Render                                                           */
   /* ---------------------------------------------------------------- */
 
@@ -445,10 +488,18 @@ export const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(fu
       >
         <video
           ref={videoRef}
-          className="absolute inset-0 w-full h-full object-contain"
+          className={`absolute inset-0 w-full h-full object-contain ${hasColorGrade ? "invisible" : ""}`}
+          crossOrigin="anonymous"
           playsInline
           preload="metadata"
         />
+        {/* WebGL color-graded canvas overlay */}
+        {hasColorGrade && (
+          <canvas
+            ref={glCanvasRef}
+            className="absolute inset-0 w-full h-full object-contain"
+          />
+        )}
         {audioUrl && <audio ref={audioRef} src={clipUrl(audioUrl)} preload="auto" />}
 
         {/* Play overlay when idle or done */}

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -32,6 +33,7 @@ from lorekit.api.documents import router as documents_router
 from lorekit.api.scripts import router as scripts_router
 from lorekit.api.voices import router as voices_router
 from lorekit.api.audio import router as audio_router
+from lorekit.api.effects import router as effects_router
 
 
 def _init_cloud_if_present() -> None:
@@ -117,6 +119,7 @@ app.include_router(documents_router)
 app.include_router(scripts_router)
 app.include_router(voices_router)
 app.include_router(audio_router)
+app.include_router(effects_router)
 
 
 @app.get("/api/health")
@@ -310,6 +313,70 @@ async def download_project_file(
 
     url = await store.get_url(path)
     return {"url": url}
+
+
+@app.get("/api/projects/{project_id}/renders")
+async def list_project_renders(
+    project_id: str,
+    user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """List render history for a project from completed render jobs."""
+    project = await db.get_project(project_id, org_id=user.org_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    pool = await db.get_pool()
+    rows = await pool.fetch(
+        """SELECT id, result_json, created_at, updated_at
+           FROM jobs WHERE project_id = $1 AND type = 'render' AND status = 'completed'
+           ORDER BY created_at DESC""",
+        project_id,
+    )
+    renders = []
+    for row in rows:
+        try:
+            result = json.loads(row["result_json"]) if row["result_json"] else {}
+        except (json.JSONDecodeError, TypeError):
+            result = {}
+        renders.append({
+            "id": row["id"],
+            "output_path": result.get("output_path") or result.get("history_path"),
+            "history_path": result.get("history_path"),
+            "timestamp": result.get("timestamp"),
+            "created_at": row["created_at"],
+        })
+    return {"renders": renders}
+
+
+@app.delete("/api/projects/{project_id}/renders/{job_id}")
+async def delete_project_render(
+    project_id: str,
+    job_id: str,
+    user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """Delete a render: removes the file and the job record."""
+    project = await db.get_project(project_id, org_id=user.org_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    job = await db.get_job(job_id)
+    if not job or job.get("project_id") != project_id or job.get("type") != "render":
+        raise HTTPException(status_code=404, detail="Render not found")
+
+    # Delete files from storage
+    from lorekit.storage import get_file_store
+    store = get_file_store()
+    try:
+        result = json.loads(job.get("result_json", "{}")) if job.get("result_json") else {}
+        for key in ("history_path", "output_path"):
+            path = result.get(key)
+            if path:
+                await store.delete(path)
+    except Exception:
+        pass  # Best-effort file cleanup
+
+    await db.delete_job(job_id)
+    return {"deleted": job_id}
 
 
 @app.get("/api/projects/{project_id}/assets")
