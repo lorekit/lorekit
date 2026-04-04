@@ -26,7 +26,7 @@ const cinzelDeco = Cinzel_Decorative({
 
 export const metadata: Metadata = {
   title: "LoreKit",
-  description: "LoreKit — Universe-based AI video creation studio",
+  description: "LoreKit - Open-Source AI Video Creation Studio",
   icons: {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",

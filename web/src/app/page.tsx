@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Globe, Film, Mic, Code, ArrowRight, ScrollText, Sparkles } from "lucide-react";
+import { Globe, Film, Mic, Code, ArrowRight, ScrollText, Sparkles, Rocket } from "lucide-react";
 import { PublicHeader } from "@/components/layout/PublicHeader";
 import { PublicFooter } from "@/components/layout/PublicFooter";
 
@@ -61,20 +61,20 @@ export default function LandingPage() {
         <div className="relative z-10">
           <h1 className="text-3xl sm:text-5xl md:text-6xl font-logo font-bold tracking-wide max-w-4xl leading-tight">
             <span className="text-white" style={{ textShadow: "0 0 30px rgba(255,255,255,0.1)" }}>
-              Every person has a story.{" "}
+              Turn your brand into{" "}
             </span>
             <span className="text-amber-400" style={{ textShadow: "0 0 20px rgba(251,191,36,0.3), 0 0 40px rgba(251,191,36,0.1)" }}>
-              Our mission
+              video.
             </span>
             <span className="text-white" style={{ textShadow: "0 0 30px rgba(255,255,255,0.1)" }}>
-              {" "}is to help you{" "}
+              {" "}At{" "}
             </span>
             <span className="text-cyan-400" style={{ textShadow: "0 0 20px rgba(34,211,238,0.3), 0 0 40px rgba(34,211,238,0.1)" }}>
-              tell yours.
+              scale.
             </span>
           </h1>
           <p className="mt-4 sm:mt-6 text-base sm:text-xl text-slate-400 max-w-2xl mx-auto px-2">
-            Storytelling is the oldest form of education. Turn your story into universes filled with characters, environments, and visual styles.
+            Build your brand universe once: characters, visual style, voice. Then generate ads, stories, and content that stay on-brand every time. AI-powered. Open source.
           </p>
           <div className="mt-8 sm:mt-10 flex items-center gap-4 justify-center">
             <Link
@@ -123,7 +123,7 @@ export default function LandingPage() {
             />
           ))}
         </div>
-        <div className="max-w-5xl mx-auto relative z-10">
+        <div className="max-w-6xl mx-auto relative z-10">
           <h2 className="text-2xl sm:text-3xl font-logo font-bold text-white text-center mb-10 sm:mb-16 tracking-wide" style={{ textShadow: "0 0 20px rgba(255,255,255,0.08)" }}>
             How it works
           </h2>
@@ -134,26 +134,26 @@ export default function LandingPage() {
             {[
               {
                 step: "1",
-                title: "Build your universe",
+                title: "Build your brand universe",
                 description:
-                  "Create a world with characters, environments, and visual styles. Define who lives in your story.",
+                  "Characters, visual identity, and source content. Define it once, use it everywhere. Every video stays on-brand automatically.",
                 icon: Globe,
                 glow: "rgba(245,158,11,0.15)",
               },
               {
                 step: "2",
-                title: "Write your story",
+                title: "Script your scenes",
                 description:
-                  "Describe your scenes or let AI break them down for you. Scripts, beats, and narration all in one place.",
+                  "Write it yourself or let AI break it down. Choose a structure: story arc, ad sequence, or viral hook. Refine scene by scene.",
                 icon: ScrollText,
                 glow: "rgba(34,211,238,0.12)",
               },
               {
                 step: "3",
-                title: "Watch it come to life",
+                title: "Generate, test, publish",
                 description:
-                  "AI generates keyframes, video clips, voiceover, and music. Export a finished video ready to share.",
-                icon: Film,
+                  "AI produces keyframes, video, voiceover, and music. Create hook variants, compare side by side, and ship what works.",
+                icon: Rocket,
                 glow: "rgba(245,158,11,0.15)",
               },
             ].map((item) => (
@@ -178,13 +178,13 @@ export default function LandingPage() {
 
       {/* Features */}
       <section className="border-t border-slate-800/50 py-16 sm:py-24 px-4 sm:px-6 relative starfield">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           <h2 className="text-2xl sm:text-3xl font-logo font-bold text-white text-center mb-10 sm:mb-16 tracking-wide" style={{ textShadow: "0 0 20px rgba(255,255,255,0.08)" }}>
             Everything you need
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
 
-            {/* Universe Builder — mini character cards */}
+            {/* Brand Studio — mini character cards */}
             <div className="group rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden hover:border-amber-500/30 transition-colors duration-300">
               <div className="h-36 sm:h-44 relative bg-gradient-to-br from-slate-800/80 to-slate-900 p-4 sm:p-5 overflow-hidden">
                 {/* Mini character cards */}
@@ -215,9 +215,9 @@ export default function LandingPage() {
               <div className="p-6">
                 <div className="flex items-center gap-2.5 mb-2">
                   <Globe className="h-4 w-4 text-amber-400" />
-                  <h3 className="text-base font-semibold text-white">Universe Builder</h3>
+                  <h3 className="text-base font-semibold text-white">Brand Studio</h3>
                 </div>
-                <p className="text-sm text-slate-400 leading-relaxed">Characters with portraits and voices. Environments, visual presets, and source material for your world.</p>
+                <p className="text-sm text-slate-400 leading-relaxed">Characters, brand assets, visual styles, and content libraries. Build a universe for your brand and generate consistent content from it.</p>
               </div>
             </div>
 
@@ -249,7 +249,7 @@ export default function LandingPage() {
                   <Film className="h-4 w-4 text-cyan-400" />
                   <h3 className="text-base font-semibold text-white">AI Video Generation</h3>
                 </div>
-                <p className="text-sm text-slate-400 leading-relaxed">Scene-by-scene keyframes rendered into video clips with transitions, camera moves, and visual storytelling.</p>
+                <p className="text-sm text-slate-400 leading-relaxed">Scene-by-scene video from script to screen. Keyframes, clips, transitions, and camera moves. All generated, all editable.</p>
               </div>
             </div>
 
@@ -289,7 +289,7 @@ export default function LandingPage() {
                   <Mic className="h-4 w-4 text-purple-400" />
                   <h3 className="text-base font-semibold text-white">Voice & Audio</h3>
                 </div>
-                <p className="text-sm text-slate-400 leading-relaxed">AI narration with character voices, music beds, and sound effects. Automatically mixed into a polished soundtrack.</p>
+                <p className="text-sm text-slate-400 leading-relaxed">AI narration with character voices, music beds, and sound design. Clone a voice or pick from presets. Auto-mixed and ready to publish.</p>
               </div>
             </div>
 
@@ -318,7 +318,7 @@ export default function LandingPage() {
                   <Code className="h-4 w-4 text-green-400" />
                   <h3 className="text-base font-semibold text-white">Open Source</h3>
                 </div>
-                <p className="text-sm text-slate-400 leading-relaxed">MIT licensed. Self-host it, bring your own API keys, own your data. No vendor lock-in, full creative control.</p>
+                <p className="text-sm text-slate-400 leading-relaxed">MIT licensed. Self-host it, bring your own API keys, own your data. No vendor lock-in. The only open-source AI video studio.</p>
               </div>
             </div>
 
@@ -369,10 +369,10 @@ export default function LandingPage() {
         />
         <div className="relative z-10 flex flex-col items-center text-center">
           <h2 className="text-2xl sm:text-3xl font-logo font-bold text-white mb-4 tracking-wide" style={{ textShadow: "0 0 20px rgba(255,255,255,0.08)" }}>
-            Start telling your story
+            Start creating
           </h2>
           <p className="text-sm sm:text-base text-slate-400 mb-8 max-w-lg px-2">
-            Create your first universe and generate a video in minutes.
+            Build your brand universe and generate your first video in minutes. Free and open source.
           </p>
           <Link
             href="/app"
