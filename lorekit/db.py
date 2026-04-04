@@ -374,13 +374,12 @@ async def update_project(
     """
     pool = await get_pool()
     allowed = {
-        "name", "status", "story_json", "clips_json", "output_path",
+        "name", "status", "timeline_json", "output_path",
         "youtube_id", "youtube_title", "cost_usd",
         "hook_quote_id", "truth_quote_id",
         "character_image_url", "character_image_path",
         "source_type", "script_id", "character_ids_json",
-        "audio_mode", "uploaded_audio_path", "narration_json",
-        "transitions_json", "transition_clips_json", "aspect_ratio",
+        "audio_mode", "uploaded_audio_path", "aspect_ratio",
     }
     sets = ["updated_at = $1"]
     params: list[Any] = [_now()]
@@ -1274,27 +1273,6 @@ async def seed_builtin_video_styles() -> None:
                 now,
             )
 
-
-async def backfill_project_themes() -> None:
-    """Backfill theme column on existing projects from story_json.
-
-    Idempotent — only updates rows where theme IS NULL.
-    """
-    pool = await get_pool()
-    rows = await pool.fetch(
-        "SELECT id, story_json FROM universe_projects WHERE theme IS NULL AND story_json IS NOT NULL"
-    )
-    for row in rows:
-        try:
-            story = json.loads(row["story_json"])
-            theme = story.get("theme")
-            if theme:
-                await pool.execute(
-                    "UPDATE universe_projects SET theme = $1 WHERE id = $2",
-                    theme, row["id"],
-                )
-        except (json.JSONDecodeError, TypeError):
-            pass
 
 
 # ---------------------------------------------------------------------------

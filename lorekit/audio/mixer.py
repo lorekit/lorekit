@@ -8,7 +8,7 @@ import shlex
 from pathlib import Path
 
 from lorekit.audio.library import get_music_for_mood, get_sfx, scan_audio_assets
-from lorekit.models import Scene
+from lorekit.models import SceneItem as Scene
 
 logger = logging.getLogger(__name__)
 

@@ -90,7 +90,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return {
         transitions: [
           ...state.transitions,
-          { from_scene_id: fromSceneId, to_scene_id: toSceneId, type: "ai_morph", prompt: "", duration: 3.0, speed: 1.5, ...updates },
+          { id: "", from_scene_id: fromSceneId, to_scene_id: toSceneId, transition_type: "ai_morph", type: "ai_morph", prompt: "", duration: 3.0, from_frame: 0, duration_frames: 90, speed: 1.5, in_offset: 0, out_offset: 0, ...updates },
         ],
       };
     }),

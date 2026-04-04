@@ -44,34 +44,46 @@ export type Quote = SourceItem;
 
 export interface Scene {
   id: string;
-  scene_id?: number;
+  scene_id: number;
   beat: string;
-  duration: number;           // clip length (3-15s, sent to Kling API)
+  duration: number;           // seconds (duration_frames / fps)
+  from_frame: number;
+  duration_frames: number;
   visual_description: string;
   text_overlay: string;
   camera: string;
+  clip_path: string | null;
   clip_url: string | null;
   keyframe_url: string | null;
   keyframe_path?: string | null;
-  keyframe_history?: Array<{ url: string; path: string }> | null;
+  keyframe_history?: Array<{ url: string | null; path: string | null }> | null;
   end_keyframe_url?: string | null;
-  extracted_frames?: Array<{ url: string; path: string; timestamp: number }> | null;
+  extracted_frames?: Array<{ url: string | null; path: string | null }> | null;
   reference_images?: string[] | null;
   quote_id: string | null;
-  cta_scene?: boolean;
   character_present?: boolean;
   speed?: number;              // playback speed multiplier (default 1.0)
+  enabled?: boolean;
+  source_start_frame?: number;
+  source_duration_frames?: number;
 }
 
 export interface Transition {
-  from_scene_id: number;
-  to_scene_id: number;
-  type: string;               // "ai_morph", "hard_cut", "fade", "dissolve", etc.
+  id: string;
+  from_scene_id: number;      // computed from neighboring scenes
+  to_scene_id: number;        // computed from neighboring scenes
+  transition_type: string;    // "ai_morph", "hard_cut", "fade", "dissolve", etc.
+  type: string;               // alias for transition_type (compat)
   prompt: string;
-  duration: number;           // AI morph: clip length (3-15s). ffmpeg: xfade overlap
+  duration: number;           // seconds
+  from_frame: number;
+  duration_frames: number;
   speed: number;              // playback speed multiplier (default 1.5)
+  in_offset: number;
+  out_offset: number;
   clip_path?: string | null;  // generated clip file path (ai_morph only)
   clip_url?: string | null;   // generated clip URL (ai_morph only)
+  enabled?: boolean;
 }
 
 /** Compute effective timeline duration: clip length / speed */
@@ -102,8 +114,7 @@ export interface Project {
   character_image_path: string | null;
   audio_mode?: string;
   uploaded_audio_path?: string;
-  narration_json?: string;
-  transition_clips_json?: string;
+  timeline?: Record<string, unknown>;
 }
 
 export interface ProjectEffect {

@@ -21,7 +21,7 @@ import time
 import httpx
 
 from lorekit.config import get_settings
-from lorekit.models import Character, Scene
+from lorekit.models import Character, SceneItem as Scene
 from lorekit.storage import get_file_store, project_clip_path
 from lorekit.video.prompt_builder import build_video_prompt
 

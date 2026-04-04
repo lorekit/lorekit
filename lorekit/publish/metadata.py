@@ -9,7 +9,7 @@ import anthropic
 import openai
 
 from lorekit.config import get_settings
-from lorekit.models import Character, SourceItem, StoryBreakdown
+from lorekit.models import Character, SourceItem, Timeline
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ async def generate_metadata(
     character: Character,
     hook_quote: SourceItem,
     truth_quote: SourceItem,
-    story: StoryBreakdown,
+    story: object,  # Timeline or legacy StoryBreakdown
 ) -> dict:
     """Generate YouTube-optimized metadata using the configured LLM.
 
@@ -145,7 +145,7 @@ def _fallback_metadata(
     character: Character,
     hook_quote: SourceItem,
     truth_quote: SourceItem,
-    story: StoryBreakdown,
+    story: object,  # Timeline or legacy StoryBreakdown
 ) -> dict:
     """Generate fallback metadata when Claude API fails."""
     character_tag = character.name.lower().replace(" ", "")

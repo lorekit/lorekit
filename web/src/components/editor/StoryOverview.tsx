@@ -149,7 +149,7 @@ export function StoryOverview({ scenes, totalDuration }: StoryOverviewProps) {
                           >
                             {scene.beat}
                           </span>
-                          {scene.cta_scene && (
+                          {scene.text_overlay?.includes("{{CTA}}") && (
                             <span className="text-[9px] px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-400 border border-pink-500/30">
                               CTA
                             </span>

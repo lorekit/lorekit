@@ -60,7 +60,6 @@ async def _lorekit_lifespan(app: FastAPI):
     settings.ensure_dirs()
     await db.init_pool()
     await db.seed_builtin_video_styles()
-    await db.backfill_project_themes()
     from lorekit.auth.user import _user_provider
     if _user_provider is None:
         logger.warning(

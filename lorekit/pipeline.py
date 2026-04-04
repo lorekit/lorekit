@@ -10,7 +10,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from lorekit import db
 from lorekit.config import CIVILIZATIONS, get_settings
-from lorekit.models import VideoProject, StoryBreakdown
+from lorekit.models import Timeline
 
 console = Console()
 

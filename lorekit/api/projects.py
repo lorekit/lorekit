@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -28,16 +27,8 @@ class ProjectUpdate(BaseModel):
 
 
 def _deserialize_project(row: dict) -> dict:
-    """Parse JSON fields in a project row."""
-    if row.get("story_json"):
-        row["story"] = json.loads(row["story_json"])
-    else:
-        row["story"] = None
-    if row.get("clips_json"):
-        row["clips"] = json.loads(row["clips_json"])
-    else:
-        row["clips"] = []
-    # Fall back to character image if project doesn't have one
+    """Parse project row. Timeline is stored as JSONB (already a dict from asyncpg)."""
+    row["timeline"] = row.get("timeline_json")
     return row
 
 
@@ -125,7 +116,7 @@ async def update_project(project_id: str, body: ProjectUpdate, user: CurrentUser
     if not updates:
         return _deserialize_project(existing)
 
-    row = await db.update_project(project_id, **updates)
+    row = await db.update_project(project_id, org_id=user.org_id, **updates)
     if not row:
         raise HTTPException(status_code=404, detail="Project not found")
     return _deserialize_project(row)

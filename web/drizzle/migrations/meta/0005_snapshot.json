@@ -1,0 +1,1952 @@
+{
+  "id": "1338e46a-bf03-4a40-ad1a-144049f950fd",
+  "prevId": "a5d6af88-2e9f-4472-9d5f-71e85e2ab3ea",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.character_documents": {
+      "name": "character_documents",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "character_id": {
+          "name": "character_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "universe_id": {
+          "name": "universe_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "doc_type": {
+          "name": "doc_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'text'"
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_path": {
+          "name": "file_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_size_bytes": {
+          "name": "file_size_bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "chunk_count": {
+          "name": "chunk_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "metadata_json": {
+          "name": "metadata_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "character_documents_character_id_characters_id_fk": {
+          "name": "character_documents_character_id_characters_id_fk",
+          "tableFrom": "character_documents",
+          "tableTo": "characters",
+          "columnsFrom": [
+            "character_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "character_documents_universe_id_universes_id_fk": {
+          "name": "character_documents_universe_id_universes_id_fk",
+          "tableFrom": "character_documents",
+          "tableTo": "universes",
+          "columnsFrom": [
+            "universe_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "character_documents_select": {
+          "name": "character_documents_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "character_documents_insert": {
+          "name": "character_documents_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "character_documents_update": {
+          "name": "character_documents_update",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "character_documents_delete": {
+          "name": "character_documents_delete",
+          "as": "PERMISSIVE",
+          "for": "DELETE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.character_voices": {
+      "name": "character_voices",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "character_id": {
+          "name": "character_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tts_model": {
+          "name": "tts_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'fal-ai/minimax/speech-2.6-turbo'"
+        },
+        "voice_id": {
+          "name": "voice_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "voice_name": {
+          "name": "voice_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Default'"
+        },
+        "reference_audio_path": {
+          "name": "reference_audio_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "settings_json": {
+          "name": "settings_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "character_voices_character_id_characters_id_fk": {
+          "name": "character_voices_character_id_characters_id_fk",
+          "tableFrom": "character_voices",
+          "tableTo": "characters",
+          "columnsFrom": [
+            "character_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "voices_select": {
+          "name": "voices_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "character_id IN (SELECT id FROM characters WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        },
+        "voices_insert": {
+          "name": "voices_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "character_id IN (SELECT id FROM characters WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        },
+        "voices_update": {
+          "name": "voices_update",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "character_id IN (SELECT id FROM characters WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        },
+        "voices_delete": {
+          "name": "voices_delete",
+          "as": "PERMISSIVE",
+          "for": "DELETE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "character_id IN (SELECT id FROM characters WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.characters": {
+      "name": "characters",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "universe_id": {
+          "name": "universe_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "group_name": {
+          "name": "group_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "era": {
+          "name": "era",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "character_description": {
+          "name": "character_description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "character_image_url": {
+          "name": "character_image_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "character_ref_urls": {
+          "name": "character_ref_urls",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "character_styles_json": {
+          "name": "character_styles_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "characters_universe_id_universes_id_fk": {
+          "name": "characters_universe_id_universes_id_fk",
+          "tableFrom": "characters",
+          "tableTo": "universes",
+          "columnsFrom": [
+            "universe_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "characters_select": {
+          "name": "characters_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "characters_insert": {
+          "name": "characters_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "characters_update": {
+          "name": "characters_update",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "characters_delete": {
+          "name": "characters_delete",
+          "as": "PERMISSIVE",
+          "for": "DELETE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.costs": {
+      "name": "costs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "video_id": {
+          "name": "video_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "component": {
+          "name": "component",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_usd": {
+          "name": "amount_usd",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "costs_select": {
+          "name": "costs_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "video_id IN (SELECT id FROM universe_projects WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        },
+        "costs_insert": {
+          "name": "costs_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "video_id IN (SELECT id FROM universe_projects WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.document_chunks": {
+      "name": "document_chunks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "document_id": {
+          "name": "document_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "character_id": {
+          "name": "character_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "chunk_index": {
+          "name": "chunk_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_count": {
+          "name": "token_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "embedding": {
+          "name": "embedding",
+          "type": "vector(1536)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "embedding_cosine_idx": {
+          "name": "embedding_cosine_idx",
+          "columns": [
+            {
+              "expression": "embedding",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "vector_cosine_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "hnsw",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "document_chunks_document_id_character_documents_id_fk": {
+          "name": "document_chunks_document_id_character_documents_id_fk",
+          "tableFrom": "document_chunks",
+          "tableTo": "character_documents",
+          "columnsFrom": [
+            "document_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "document_chunks_character_id_characters_id_fk": {
+          "name": "document_chunks_character_id_characters_id_fk",
+          "tableFrom": "document_chunks",
+          "tableTo": "characters",
+          "columnsFrom": [
+            "character_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "chunks_select": {
+          "name": "chunks_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "character_id IN (SELECT id FROM characters WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        },
+        "chunks_insert": {
+          "name": "chunks_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "character_id IN (SELECT id FROM characters WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        },
+        "chunks_update": {
+          "name": "chunks_update",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "character_id IN (SELECT id FROM characters WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        },
+        "chunks_delete": {
+          "name": "chunks_delete",
+          "as": "PERMISSIVE",
+          "for": "DELETE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "character_id IN (SELECT id FROM characters WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.environments": {
+      "name": "environments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "universe_id": {
+          "name": "universe_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "color_grade_json": {
+          "name": "color_grade_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "font": {
+          "name": "font",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Cinzel'"
+        },
+        "text_color": {
+          "name": "text_color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'#FFFFFF'"
+        },
+        "text_shadow": {
+          "name": "text_shadow",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'warm'"
+        },
+        "environment_description": {
+          "name": "environment_description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "themed_descriptions_json": {
+          "name": "themed_descriptions_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "environments_universe_id_universes_id_fk": {
+          "name": "environments_universe_id_universes_id_fk",
+          "tableFrom": "environments",
+          "tableTo": "universes",
+          "columnsFrom": [
+            "universe_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "environments_select": {
+          "name": "environments_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "environments_insert": {
+          "name": "environments_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "environments_update": {
+          "name": "environments_update",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "environments_delete": {
+          "name": "environments_delete",
+          "as": "PERMISSIVE",
+          "for": "DELETE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.jobs": {
+      "name": "jobs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "progress": {
+          "name": "progress",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "result_json": {
+          "name": "result_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "jobs_select": {
+          "name": "jobs_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "project_id IN (SELECT id FROM universe_projects WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        },
+        "jobs_insert": {
+          "name": "jobs_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "project_id IN (SELECT id FROM universe_projects WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        },
+        "jobs_update": {
+          "name": "jobs_update",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "project_id IN (SELECT id FROM universe_projects WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        },
+        "jobs_delete": {
+          "name": "jobs_delete",
+          "as": "PERMISSIVE",
+          "for": "DELETE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "project_id IN (SELECT id FROM universe_projects WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_audio_assets": {
+      "name": "project_audio_assets",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "asset_type": {
+          "name": "asset_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'music'"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "file_path": {
+          "name": "file_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "duration_seconds": {
+          "name": "duration_seconds",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata_json": {
+          "name": "metadata_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "audio_assets_select": {
+          "name": "audio_assets_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "project_id IN (SELECT id FROM universe_projects WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        },
+        "audio_assets_insert": {
+          "name": "audio_assets_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "project_id IN (SELECT id FROM universe_projects WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        },
+        "audio_assets_update": {
+          "name": "audio_assets_update",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "project_id IN (SELECT id FROM universe_projects WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        },
+        "audio_assets_delete": {
+          "name": "audio_assets_delete",
+          "as": "PERMISSIVE",
+          "for": "DELETE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "project_id IN (SELECT id FROM universe_projects WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_effects": {
+      "name": "project_effects",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effect_type": {
+          "name": "effect_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'color_grade'"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "start_time": {
+          "name": "start_time",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "end_time": {
+          "name": "end_time",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "settings_json": {
+          "name": "settings_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "project_effects_select": {
+          "name": "project_effects_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "project_id IN (SELECT id FROM universe_projects WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        },
+        "project_effects_insert": {
+          "name": "project_effects_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "project_id IN (SELECT id FROM universe_projects WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        },
+        "project_effects_update": {
+          "name": "project_effects_update",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "project_id IN (SELECT id FROM universe_projects WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        },
+        "project_effects_delete": {
+          "name": "project_effects_delete",
+          "as": "PERMISSIVE",
+          "for": "DELETE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "project_id IN (SELECT id FROM universe_projects WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.scene_templates": {
+      "name": "scene_templates",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "universe_id": {
+          "name": "universe_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "beats_json": {
+          "name": "beats_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "min_duration": {
+          "name": "min_duration",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 30
+        },
+        "max_duration": {
+          "name": "max_duration",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 50
+        },
+        "min_scenes": {
+          "name": "min_scenes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 5
+        },
+        "max_scenes": {
+          "name": "max_scenes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 8
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "scene_templates_universe_id_universes_id_fk": {
+          "name": "scene_templates_universe_id_universes_id_fk",
+          "tableFrom": "scene_templates",
+          "tableTo": "universes",
+          "columnsFrom": [
+            "universe_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "scene_templates_select": {
+          "name": "scene_templates_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "scene_templates_insert": {
+          "name": "scene_templates_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "scene_templates_update": {
+          "name": "scene_templates_update",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "scene_templates_delete": {
+          "name": "scene_templates_delete",
+          "as": "PERMISSIVE",
+          "for": "DELETE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.scripts": {
+      "name": "scripts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "universe_id": {
+          "name": "universe_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "script_type": {
+          "name": "script_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'idea'"
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "character_ids_json": {
+          "name": "character_ids_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_duration_seconds": {
+          "name": "target_duration_seconds",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scene_count": {
+          "name": "scene_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "metadata_json": {
+          "name": "metadata_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "scripts_universe_id_universes_id_fk": {
+          "name": "scripts_universe_id_universes_id_fk",
+          "tableFrom": "scripts",
+          "tableTo": "universes",
+          "columnsFrom": [
+            "universe_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "scripts_select": {
+          "name": "scripts_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "scripts_insert": {
+          "name": "scripts_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "scripts_update": {
+          "name": "scripts_update",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "scripts_delete": {
+          "name": "scripts_delete",
+          "as": "PERMISSIVE",
+          "for": "DELETE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.source_items": {
+      "name": "source_items",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "universe_id": {
+          "name": "universe_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "character_id": {
+          "name": "character_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "short_version": {
+          "name": "short_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "theme": {
+          "name": "theme",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "emotional_function": {
+          "name": "emotional_function",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "word_count": {
+          "name": "word_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "read_time_seconds": {
+          "name": "read_time_seconds",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "pair_with_visual": {
+          "name": "pair_with_visual",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "used_count": {
+          "name": "used_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "source_items_universe_id_universes_id_fk": {
+          "name": "source_items_universe_id_universes_id_fk",
+          "tableFrom": "source_items",
+          "tableTo": "universes",
+          "columnsFrom": [
+            "universe_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "source_items_character_id_characters_id_fk": {
+          "name": "source_items_character_id_characters_id_fk",
+          "tableFrom": "source_items",
+          "tableTo": "characters",
+          "columnsFrom": [
+            "character_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "source_items_select": {
+          "name": "source_items_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "source_items_insert": {
+          "name": "source_items_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "source_items_update": {
+          "name": "source_items_update",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "source_items_delete": {
+          "name": "source_items_delete",
+          "as": "PERMISSIVE",
+          "for": "DELETE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.universe_projects": {
+      "name": "universe_projects",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "universe_id": {
+          "name": "universe_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "character_id": {
+          "name": "character_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hook_quote_id": {
+          "name": "hook_quote_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "truth_quote_id": {
+          "name": "truth_quote_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "story_json": {
+          "name": "story_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "clips_json": {
+          "name": "clips_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "output_path": {
+          "name": "output_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "youtube_id": {
+          "name": "youtube_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "youtube_title": {
+          "name": "youtube_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cost_usd": {
+          "name": "cost_usd",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "character_image_url": {
+          "name": "character_image_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "character_image_path": {
+          "name": "character_image_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "aspect_ratio": {
+          "name": "aspect_ratio",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'9:16'"
+        },
+        "source_type": {
+          "name": "source_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'quote'"
+        },
+        "script_id": {
+          "name": "script_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "character_ids_json": {
+          "name": "character_ids_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "theme": {
+          "name": "theme",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "audio_mode": {
+          "name": "audio_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'auto'"
+        },
+        "uploaded_audio_path": {
+          "name": "uploaded_audio_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "narration_json": {
+          "name": "narration_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "transitions_json": {
+          "name": "transitions_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "transition_clips_json": {
+          "name": "transition_clips_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "timeline_json": {
+          "name": "timeline_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "universe_projects_universe_id_universes_id_fk": {
+          "name": "universe_projects_universe_id_universes_id_fk",
+          "tableFrom": "universe_projects",
+          "tableTo": "universes",
+          "columnsFrom": [
+            "universe_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "universe_projects_character_id_characters_id_fk": {
+          "name": "universe_projects_character_id_characters_id_fk",
+          "tableFrom": "universe_projects",
+          "tableTo": "characters",
+          "columnsFrom": [
+            "character_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "projects_select": {
+          "name": "projects_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "projects_insert": {
+          "name": "projects_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "projects_update": {
+          "name": "projects_update",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        },
+        "projects_delete": {
+          "name": "projects_delete",
+          "as": "PERMISSIVE",
+          "for": "DELETE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "universe_id IN (SELECT id FROM universes WHERE organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.universes": {
+      "name": "universes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "icon": {
+          "name": "icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "video_vibe_preset": {
+          "name": "video_vibe_preset",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'mobile_game'"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'local'"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'local'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "universes_select": {
+          "name": "universes_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))"
+        },
+        "universes_insert": {
+          "name": "universes_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))"
+        },
+        "universes_update": {
+          "name": "universes_update",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))"
+        },
+        "universes_delete": {
+          "name": "universes_delete",
+          "as": "PERMISSIVE",
+          "for": "DELETE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))) AND EXISTS (SELECT 1 FROM organization_members WHERE organization_id = universes.organization_id AND user_id = auth.uid() AND role IN ('owner', 'admin'))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.video_styles": {
+      "name": "video_styles",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "prompt": {
+          "name": "prompt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "character_prompt": {
+          "name": "character_prompt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "image_model": {
+          "name": "image_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'kontext'"
+        },
+        "is_builtin": {
+          "name": "is_builtin",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'local'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "video_styles_select": {
+          "name": "video_styles_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "is_builtin = 1 OR organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))"
+        },
+        "video_styles_insert": {
+          "name": "video_styles_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))"
+        },
+        "video_styles_update": {
+          "name": "video_styles_update",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "is_builtin = 0 AND organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))"
+        },
+        "video_styles_delete": {
+          "name": "video_styles_delete",
+          "as": "PERMISSIVE",
+          "for": "DELETE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "is_builtin = 0 AND organization_id = ANY((SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid())))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

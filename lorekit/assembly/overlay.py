@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 
 from lorekit.config import CIVILIZATIONS, CivilizationPreset
-from lorekit.models import Scene
+from lorekit.models import SceneItem as Scene
 
 logger = logging.getLogger(__name__)
 

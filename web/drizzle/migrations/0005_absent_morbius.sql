@@ -1,0 +1,1 @@
+ALTER TABLE "universe_projects" ADD COLUMN "timeline_json" jsonb;

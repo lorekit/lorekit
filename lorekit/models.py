@@ -5,27 +5,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, Field, field_validator
+from typing import Literal
 
-
-class SFXCue(BaseModel):
-    sound: str
-    time: float
-    volume: float = 0.8
-
-
-class AmbientSpec(BaseModel):
-    sound: str
-    volume: float = 0.2
-
-
-class AudioSpec(BaseModel):
-    music_bed: str
-    music_volume: float = 0.7
-    music_fade_in: float = 0.5
-    sfx: list[SFXCue] = []
-    ambient: AmbientSpec | None = None
-    text_reveal_sfx: SFXCue | None = None
+from pydantic import BaseModel, Field
 
 
 class SourceItem(BaseModel):
@@ -37,9 +19,6 @@ class SourceItem(BaseModel):
     read_time_seconds: float
     pair_with_visual: str
 
-
-# Backward compatibility alias
-Quote = SourceItem
 
 
 class Character(BaseModel):
@@ -63,99 +42,6 @@ class Character(BaseModel):
             return self.character_descriptions[theme]
         return self.character_description
 
-
-# Backward compatibility alias
-Philosopher = Character
-
-
-class Scene(BaseModel):
-    scene_id: int
-    beat: str
-    duration: float  # actual clip length (3-15s, sent to Kling API)
-    visual_description: str
-    camera: str
-    text_overlay: str | None = None
-    text_attribution: str | None = None
-    audio: AudioSpec
-    character_present: bool = False  # True when the character physically appears
-    cta_scene: bool = False  # True if this scene contains the {{CTA}} placeholder
-    speed: float = 1.0  # playback speed multiplier (0.25x–4.0x)
-
-    @field_validator("duration")
-    @classmethod
-    def clamp_duration(cls, v: float) -> float:
-        return max(3.0, min(15.0, v))
-
-    @field_validator("speed")
-    @classmethod
-    def clamp_speed(cls, v: float) -> float:
-        if v <= 0:
-            return 1.0
-        return max(0.25, min(4.0, v))
-
-    @property
-    def effective_duration(self) -> float:
-        """Timeline duration = clip length / speed."""
-        return self.duration / self.speed
-
-
-class Transition(BaseModel):
-    from_scene_id: int
-    to_scene_id: int
-    type: str = "ai_morph"  # "ai_morph", "hard_cut", "fade", "dissolve", "wipe_left", "wipe_right", etc.
-    prompt: str = ""  # AI transition description (ai_morph only)
-    duration: float = 3.0  # AI morph: clip length (3-15s). ffmpeg: xfade overlap (0.1-1.0s)
-    speed: float = 1.5  # playback speed multiplier (ai_morph only)
-    clip_path: str | None = None  # generated clip file path (ai_morph only)
-    clip_url: str | None = None  # generated clip URL (ai_morph only)
-
-    @field_validator("duration")
-    @classmethod
-    def clamp_duration(cls, v: float) -> float:
-        return max(0.01, min(15.0, v))
-
-    @field_validator("speed")
-    @classmethod
-    def clamp_speed(cls, v: float) -> float:
-        if v <= 0:
-            return 1.5
-        return max(0.25, min(4.0, v))
-
-    @property
-    def effective_duration(self) -> float:
-        """Timeline duration. AI morph adds time, ffmpeg transitions overlap."""
-        if self.type != "ai_morph":
-            return 0.0
-        return self.duration / self.speed
-
-
-class StoryBreakdown(BaseModel):
-    character_id: str
-    civilization: str
-    theme: str = ""  # vibe preset key (e.g. "dark_masculine", "mobile_game")
-    arc_template: str = "story"  # arc template ID (e.g. "story", "rapid_montage")
-    hook_quote: SourceItem
-    truth_quote: SourceItem
-    scenes: list[Scene]
-    transitions: list[Transition] = []  # AI transition prompts between scenes
-    total_duration: float
-    music_theme: str
-
-
-class VideoProject(BaseModel):
-    id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
-    character_id: str
-    universe_id: str = ""
-    civilization: str
-    theme: str = ""  # vibe preset key
-    arc_template: str = "story"  # arc template ID
-    story: StoryBreakdown
-    status: str = "queued"
-    clips: list[str] = []
-    output_path: str | None = None
-    youtube_id: str | None = None
-    cost_usd: float = 0.0
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class Universe(BaseModel):
@@ -187,3 +73,193 @@ class SceneTemplate(BaseModel):
     max_duration: float = 50
     min_scenes: int = 5
     max_scenes: int = 8
+
+
+# ============================================================
+# Timeline document models (track-based editor)
+#
+# Follows industry standard: Timeline > Track > Items
+# References: OpenTimelineIO, CapCut draft_content.json, FCPXML
+#
+# Key design decisions:
+#   - Transitions are siblings of clips on the video track (OTIO model)
+#   - Materials dict separates media refs from clip placement (CapCut model)
+#   - Story metadata lives on the project row, not the timeline
+#   - Frame-integer positioning (avoids float drift)
+# ============================================================
+
+
+class Material(BaseModel):
+    """A media asset referenced by timeline items (CapCut 'materials' pattern)."""
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
+    type: Literal["video", "image", "audio"] = "video"
+    path: str | None = None
+    url: str | None = None
+    name: str = ""
+    duration_frames: int = 0
+    width: int = 0
+    height: int = 0
+
+
+class BaseItem(BaseModel):
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
+    from_frame: int = 0
+    duration_frames: int = 0
+    locked: bool = False
+    enabled: bool = True
+
+
+class SceneItem(BaseItem):
+    """A video clip on the timeline. References materials by ID."""
+    type: Literal["scene"] = "scene"
+    scene_id: int
+    beat: str = ""
+    visual_description: str = ""
+    camera: str = ""
+    text_overlay: str = ""
+    text_attribution: str | None = None
+    character_present: bool = False
+    speed: float = 1.0
+    # Material references (IDs into Timeline.materials)
+    clip_material_id: str | None = None
+    keyframe_material_id: str | None = None
+    keyframe_history: list[str] = []  # material IDs of previous keyframes
+    end_keyframe_material_id: str | None = None
+    extracted_frame_ids: list[str] = []  # material IDs of extracted frames
+    reference_image_ids: list[str] = []  # material IDs of reference images
+    quote_id: str | None = None
+    # Source range: which portion of the source clip to use (enables trimming)
+    source_start_frame: int = 0
+    source_duration_frames: int = 0  # 0 = use full clip
+
+    @property
+    def duration(self) -> float:
+        """Duration in seconds (for compatibility with video generation APIs)."""
+        return self.duration_frames / 30.0
+
+    @property
+    def effective_duration(self) -> float:
+        """Timeline duration = clip length / speed."""
+        return self.duration / self.speed if self.speed > 0 else self.duration
+
+
+class TransitionItem(BaseItem):
+    """Sits between two SceneItems on the video track (OTIO model).
+
+    in_offset/out_offset define overlap with neighboring clips:
+    - in_offset: frames of overlap with the preceding clip
+    - out_offset: frames of overlap with the following clip
+    """
+    type: Literal["transition"] = "transition"
+    transition_type: str = "ai_morph"
+    prompt: str = ""
+    speed: float = 1.5
+    in_offset: int = 0   # frames overlapping with preceding clip
+    out_offset: int = 0  # frames overlapping with following clip
+    clip_material_id: str | None = None
+
+
+class TextItem(BaseItem):
+    type: Literal["text"] = "text"
+    text: str = ""
+    font_family: str = "Cinzel"
+    font_size: int = 48
+    color: str = "#FFFFFF"
+    position: dict = Field(default_factory=lambda: {"x": 0.5, "y": 0.5})
+    animation: dict | None = None
+
+
+class AudioItem(BaseItem):
+    type: Literal["audio"] = "audio"
+    audio_type: str = "music"
+    material_id: str | None = None
+    volume: float = 1.0
+    fade_in: float = 0.0
+    fade_out: float = 0.0
+    trim_start: float = 0.0
+    loop: bool = False
+
+
+class EffectItem(BaseItem):
+    type: Literal["effect"] = "effect"
+    effect_type: str = "color_grade"
+    name: str = ""
+    settings: dict = Field(default_factory=dict)
+
+
+class CaptionItem(BaseItem):
+    type: Literal["caption"] = "caption"
+    words: list[dict] = []
+    style: dict = Field(default_factory=lambda: {
+        "font_family": "Cinzel",
+        "font_size": 32,
+        "color": "#FFFFFF",
+        "position": "bottom",
+    })
+
+
+class StickerItem(BaseItem):
+    type: Literal["sticker"] = "sticker"
+    asset_path: str = ""
+    position: dict = Field(default_factory=lambda: {"x": 0.5, "y": 0.5})
+    scale: float = 1.0
+    rotation: float = 0.0
+
+
+TimelineItem = SceneItem | TransitionItem | TextItem | AudioItem | EffectItem | CaptionItem | StickerItem
+
+
+class Track(BaseModel):
+    id: str
+    name: str
+    type: Literal["video", "overlay", "text", "sticker", "audio", "effect"]
+    locked: bool = False
+    visible: bool = True
+    muted: bool = False
+    volume: float = 1.0
+    items: list[TimelineItem] = []
+
+
+class Timeline(BaseModel):
+    """Track-based timeline document stored as JSONB.
+
+    Story metadata (character_id, theme, etc.) lives on the project row,
+    not here. The timeline is purely about time and tracks.
+    """
+    version: int = 1
+    fps: int = 30
+    width: int = 1080
+    height: int = 1920
+    duration_frames: int = 0
+
+    # Materials dictionary — all media assets referenced by items
+    # Keyed by material ID (CapCut 'materials' pattern)
+    materials: dict[str, Material] = Field(default_factory=dict)
+
+    # Extensible metadata for anything that doesn't fit a typed field
+    metadata: dict = Field(default_factory=dict)
+
+    tracks: list[Track] = Field(default_factory=lambda: [
+        Track(id="video-main", name="Main Video", type="video"),
+        Track(id="text-overlay", name="Text", type="text"),
+        Track(id="audio-music", name="Music", type="audio"),
+        Track(id="audio-narration", name="Narration", type="audio"),
+        Track(id="effect-main", name="Effects", type="effect"),
+    ])
+
+    def get_track(self, track_id: str) -> Track | None:
+        for t in self.tracks:
+            if t.id == track_id:
+                return t
+        return None
+
+    def get_video_track(self) -> Track:
+        return self.get_track("video-main") or Track(id="video-main", name="Main Video", type="video")
+
+    def get_audio_track(self, track_id: str = "audio-music") -> Track:
+        return self.get_track(track_id) or Track(id=track_id, name="Audio", type="audio")
+
+    def add_material(self, material: Material) -> str:
+        """Add a material and return its ID."""
+        self.materials[material.id] = material
+        return material.id

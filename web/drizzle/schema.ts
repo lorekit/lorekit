@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, pgPolicy, text, real, integer, vector, index } from "drizzle-orm/pg-core";
+import { pgTable, pgPolicy, text, real, integer, vector, index, jsonb } from "drizzle-orm/pg-core";
 import { authenticatedRole } from "drizzle-orm/supabase";
 
 // ============================================================
@@ -162,9 +162,7 @@ export const universeProjects = pgTable("universe_projects", {
     .references(() => characters.id),
   hookQuoteId: text("hook_quote_id"),
   truthQuoteId: text("truth_quote_id"),
-  storyJson: text("story_json"),
   status: text("status").notNull().default("draft"),
-  clipsJson: text("clips_json"),
   outputPath: text("output_path"),
   youtubeId: text("youtube_id"),
   youtubeTitle: text("youtube_title"),
@@ -178,9 +176,7 @@ export const universeProjects = pgTable("universe_projects", {
   theme: text("theme"),  // video style key, defaults to universe's video_vibe_preset
   audioMode: text("audio_mode").notNull().default("auto"),
   uploadedAudioPath: text("uploaded_audio_path"),
-  narrationJson: text("narration_json"),
-  transitionsJson: text("transitions_json"),
-  transitionClipsJson: text("transition_clips_json"),
+  timelineJson: jsonb("timeline_json"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, () => orgPolicies("projects", universeInUserOrgs));

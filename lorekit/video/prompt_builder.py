@@ -15,7 +15,7 @@ base character description.
 
 from __future__ import annotations
 
-from lorekit.models import Character, Scene
+from lorekit.models import Character, SceneItem as Scene
 
 # ---------------------------------------------------------------------------
 # Per-theme prompt fragments injected into video prompts

@@ -465,10 +465,12 @@ function MediaTab({
   }
 
   const extractedFrames = scenes.flatMap((s) =>
-    (s.extracted_frames ?? []).map((f) => ({
-      url: f.url,
-      label: `Scene ${s.scene_id ?? "?"} @ ${f.timestamp.toFixed(1)}s`,
-    }))
+    (s.extracted_frames ?? [])
+      .filter((f) => f.url || f.path)
+      .map((f) => ({
+        url: f.path ? `/files/${f.path}` : f.url!,
+        label: `Scene ${s.scene_id ?? "?"} frame`,
+      }))
   );
 
   const hasAny = !!(characterPortraitUrl || allKeyframes.length || extractedFrames.length);

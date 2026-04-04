@@ -11,11 +11,11 @@ import openai
 
 from lorekit.config import get_settings
 from lorekit.models import (
-    AudioSpec,
     Character,
     SourceItem,
-    Scene,
-    StoryBreakdown,
+    SceneItem,
+    TransitionItem,
+    Timeline,
 )
 from lorekit.story.templates import (
     ArcTemplate,
@@ -29,7 +29,7 @@ from lorekit.story.prompts.chinese import CHINESE_STORY_CONTEXT
 from lorekit.story.prompts.japanese import JAPANESE_STORY_CONTEXT
 from lorekit.story.prompts.greek import GREEK_STORY_CONTEXT
 from lorekit.story.prompts.dark_masculine import DARK_MASCULINE_STORY_CONTEXT
-from lorekit.story.validator import validate_story
+from lorekit.story.validator import validate_scenes
 
 logger = logging.getLogger(__name__)
 
@@ -200,32 +200,31 @@ TRANSITION RULES:
 - These will be used to generate AI video transitions between clips"""
 
 
-def _parse_scene(raw: dict[str, Any], character_name: str) -> Scene:
-    """Parse a raw scene dict from Claude's response into a Scene model."""
-    audio_raw = raw.get("audio", {})
-    mood = audio_raw.get("mood", "ambient")
-    intensity = audio_raw.get("intensity", "medium")
+FPS = 30
 
-    audio = AudioSpec(
-        music_bed=f"{mood}_{intensity}",
-        music_volume={"low": 0.5, "medium": 0.7, "high": 0.9}.get(intensity, 0.7),
-    )
 
+def _seconds_to_frames(seconds: float) -> int:
+    return round(seconds * FPS)
+
+
+def _parse_scene(raw: dict[str, Any], character_name: str) -> SceneItem:
+    """Parse a raw scene dict from Claude's response into a SceneItem."""
     text_attr = raw.get("text_attribution")
     if text_attr is None and raw.get("text_overlay"):
         text_attr = f"\u2014 {character_name}"
 
-    return Scene(
+    duration_sec = float(raw["duration"])
+    duration_sec = max(3.0, min(15.0, duration_sec))
+
+    return SceneItem(
         scene_id=raw["scene_id"],
         beat=raw["beat"],
-        duration=float(raw["duration"]),
+        duration_frames=_seconds_to_frames(duration_sec),
         visual_description=raw["visual_description"],
         camera=raw["camera"],
-        text_overlay=raw.get("text_overlay"),
+        text_overlay=raw.get("text_overlay") or "",
         text_attribution=text_attr,
-        audio=audio,
         character_present=raw.get("character_present", False),
-        cta_scene=raw.get("cta_scene", False),
     )
 
 
@@ -289,11 +288,11 @@ async def generate_story(
     max_retries: int = 2,
     theme: str | None = None,
     arc_template: str | None = None,
-) -> StoryBreakdown:
+) -> Timeline:
     """Generate a full scene-by-scene breakdown using the configured LLM.
 
     Supports both Anthropic (Claude) and OpenAI providers.
-    Returns validated StoryBreakdown.
+    Returns a validated Timeline document.
 
     Args:
         theme: Vibe preset key (e.g. "dark_masculine"). When a theme-specific
@@ -333,45 +332,50 @@ async def generate_story(
             scenes = [
                 _parse_scene(s, character.name) for s in data["scenes"]
             ]
-            total_dur = sum(s.duration for s in scenes)
 
-            # Parse transitions (optional — older stories may not have them)
-            from lorekit.models import Transition
+            # Parse transition prompts from LLM
             raw_transitions = data.get("transitions", [])
-            transitions = []
+            trans_prompts: dict[tuple[int, int], str] = {}
             for t in raw_transitions:
                 try:
-                    transitions.append(Transition(
-                        from_scene_id=t["from_scene_id"],
-                        to_scene_id=t["to_scene_id"],
-                        prompt=t["prompt"],
-                    ))
+                    trans_prompts[(t["from_scene_id"], t["to_scene_id"])] = t["prompt"]
                 except (KeyError, TypeError):
                     continue
 
-            # Auto-generate default transitions if LLM didn't provide them
-            if not transitions and len(scenes) > 1:
-                for i in range(len(scenes) - 1):
-                    transitions.append(Transition(
-                        from_scene_id=scenes[i].scene_id,
-                        to_scene_id=scenes[i + 1].scene_id,
-                        prompt="Smooth cinematic transition with fluid camera motion",
-                    ))
-
-            story = StoryBreakdown(
-                character_id=character.id,
-                civilization=character.group,
-                theme=theme or "",
-                arc_template=arc.id,
-                hook_quote=hook_quote,
-                truth_quote=truth_quote,
-                scenes=scenes,
-                transitions=transitions,
-                total_duration=total_dur,
-                music_theme=data.get("music_theme", "cinematic orchestral"),
+            # Build Timeline with interleaved scenes + transitions on video track
+            timeline = Timeline(
+                metadata={
+                    "arc_template": arc.id,
+                    "music_theme": data.get("music_theme", "cinematic orchestral"),
+                },
             )
+            video_track = timeline.get_video_track()
 
-            issues = validate_story(story, arc=arc)
+            current_frame = 0
+            for i, scene in enumerate(scenes):
+                scene.from_frame = current_frame
+                video_track.items.append(scene)
+                current_frame += scene.duration_frames
+
+                # Insert transition between this scene and the next
+                if i < len(scenes) - 1:
+                    next_scene = scenes[i + 1]
+                    prompt = trans_prompts.get(
+                        (scene.scene_id, next_scene.scene_id),
+                        "Smooth cinematic transition with fluid camera motion",
+                    )
+                    trans_item = TransitionItem(
+                        prompt=prompt,
+                        from_frame=current_frame,
+                        duration_frames=_seconds_to_frames(3.0),
+                    )
+                    video_track.items.append(trans_item)
+                    current_frame += trans_item.duration_frames
+
+            timeline.duration_frames = current_frame
+
+            # SceneItem has .duration property — validate directly
+            issues = validate_scenes(scenes, arc=arc)
             if issues:
                 logger.warning(
                     "Story validation issues (attempt %d/%d): %s",
@@ -386,10 +390,9 @@ async def generate_story(
                     )
                     continue
                 else:
-                    # Last attempt — return imperfect story rather than crashing
-                    logger.warning("Returning story with validation issues after %d attempts", max_retries + 1)
+                    logger.warning("Returning timeline with validation issues after %d attempts", max_retries + 1)
 
-            return story
+            return timeline
 
         except (json.JSONDecodeError, KeyError, IndexError) as exc:
             last_error = exc

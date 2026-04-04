@@ -8,99 +8,108 @@ import shlex
 from pathlib import Path
 
 from lorekit.assembly.color_grade import get_color_grade_filter
-from lorekit.assembly.transitions import build_transition_filter
-from lorekit.models import Scene, Transition
+from lorekit.models import Timeline, SceneItem, TransitionItem
 
 logger = logging.getLogger(__name__)
 
 
 async def stitch_video(
-    clips: list[str],
-    scenes: list[Scene],
+    timeline: Timeline,
     audio_path: str,
     output_path: str,
     civilization: str,
     total_duration: float,
-    transitions: list[Transition] | None = None,
     aspect_ratio: str = "9:16",
     color_grade_override: dict | None = None,
     color_grade: bool = True,
+    resolve_path=None,
 ) -> str:
-    """Assemble the final video from clips + audio.
+    """Assemble the final video from timeline + audio.
 
-    Steps:
-    1. Trim each clip to its generation duration, apply per-segment speed
-    2. Interleave AI transition clips as their own segments
-    3. Concatenate all clips (with ffmpeg xfade for standard transitions)
-    4. Apply civilization color grade
-    5. Overlay the mixed audio
-    6. Export as intermediate (for text overlay step)
+    Args:
+        timeline: The Timeline document containing video track items and materials.
+        audio_path: Path to the mixed audio file.
+        output_path: Output file path.
+        civilization: Civilization key for color grading.
+        total_duration: Target duration in seconds.
+        aspect_ratio: "9:16" or "16:9".
+        color_grade_override: Optional color grade settings dict.
+        color_grade: Whether to apply color grading.
+        resolve_path: Callable to resolve storage paths to absolute paths.
+            Signature: (storage_path: str) -> str
 
     Returns path to intermediate video (no text yet).
     """
-    if len(clips) != len(scenes):
-        raise ValueError(
-            f"Clip count ({len(clips)}) doesn't match scene count ({len(scenes)})"
-        )
-
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-    # Build transition lookup
-    trans_map: dict[str, Transition] = {}
-    if transitions:
-        for t in transitions:
-            trans_map[f"{t.from_scene_id}_{t.to_scene_id}"] = t
+    video_track = timeline.get_video_track()
 
-    # Interleave AI morph clips and determine ffmpeg transition types
+    def _safe_resolve(mat_path: str) -> str:
+        """Resolve path with traversal guard."""
+        if ".." in mat_path or mat_path.startswith("/"):
+            raise ValueError(f"Unsafe material path rejected")
+        return resolve_path(mat_path) if resolve_path else mat_path
+
+    # Build ordered list of clips with durations and speeds
     expanded_clips: list[str] = []
     expanded_gen_durations: list[float] = []
     expanded_speeds: list[float] = []
     expanded_transitions: list[str] = []
 
-    for i, (clip, scene) in enumerate(zip(clips, scenes)):
-        expanded_clips.append(clip)
-        expanded_gen_durations.append(scene.duration)
-        expanded_speeds.append(scene.speed)
+    for i, item in enumerate(video_track.items):
+        if isinstance(item, SceneItem):
+            mat = timeline.materials.get(item.clip_material_id or "")
+            if not mat or not mat.path:
+                raise ValueError(f"Scene {item.scene_id} has no clip material")
+            clip_path = _safe_resolve(mat.path)
+            expanded_clips.append(clip_path)
+            expanded_gen_durations.append(item.duration)
+            expanded_speeds.append(item.speed)
 
-        if i < len(scenes) - 1:
-            trans_key = f"{scene.scene_id}_{scenes[i + 1].scene_id}"
-            t = trans_map.get(trans_key)
+            # Check if next item is NOT a transition → hard cut
+            if i < len(video_track.items) - 1:
+                next_item = video_track.items[i + 1]
+                if isinstance(next_item, TransitionItem):
+                    pass  # transition will handle it
+                elif isinstance(next_item, SceneItem):
+                    expanded_transitions.append("hard_cut")
 
-            if t and t.type == "ai_morph" and t.clip_path:
-                # AI morph: interleave the generated clip with hard cuts on both sides
-                expanded_transitions.append("hard_cut")
-                expanded_clips.append(t.clip_path)
-                expanded_gen_durations.append(t.duration)
-                expanded_speeds.append(t.speed)
-                expanded_transitions.append("hard_cut")
-            elif t and t.type not in ("none", "hard_cut", "ai_morph"):
-                # Standard ffmpeg transition (fade, dissolve, wipe, etc.)
-                expanded_transitions.append(t.type)
+        elif isinstance(item, TransitionItem):
+            if item.transition_type == "ai_morph" and item.clip_material_id:
+                mat = timeline.materials.get(item.clip_material_id)
+                if mat and mat.path:
+                    # AI morph: interleave the generated clip with hard cuts
+                    expanded_transitions.append("hard_cut")
+                    clip_path = _safe_resolve(mat.path)
+                    expanded_clips.append(clip_path)
+                    expanded_gen_durations.append(item.duration_frames / 30.0)
+                    expanded_speeds.append(item.speed)
+                    expanded_transitions.append("hard_cut")
+                else:
+                    expanded_transitions.append("hard_cut")
+            elif item.transition_type not in ("none", "hard_cut", "ai_morph"):
+                expanded_transitions.append(item.transition_type)
             else:
-                # Hard cut (default)
                 expanded_transitions.append("hard_cut")
 
-    # Use expanded lists for the rest of the pipeline
+    if not expanded_clips:
+        raise ValueError("No clips found in timeline video track")
+
     clips = expanded_clips
-    ffmpeg_transitions = expanded_transitions
 
     # Build the complete filter graph
     filter_parts: list[str] = []
     input_args: list[str] = []
 
-    # Add video inputs
-    for i, clip in enumerate(clips):
+    for clip in clips:
         input_args.extend(["-i", clip])
 
-    # Resolve output dimensions from aspect ratio
     if aspect_ratio == "16:9":
         out_w, out_h = 1920, 1080
     else:
         out_w, out_h = 1080, 1920
 
-    # Trim each clip to generation duration, apply speed, scale
     for i, (gen_dur, speed) in enumerate(zip(expanded_gen_durations, expanded_speeds)):
-        # Clamp speed to safe range to prevent division-by-zero or FFmpeg expression injection
         speed = max(0.25, min(4.0, float(speed)))
         gen_dur = max(0.1, min(30.0, float(gen_dur)))
         speed_filter = f"setpts=PTS/{speed}," if speed != 1.0 else ""
@@ -112,7 +121,6 @@ async def stitch_video(
             f"pad={out_w}:{out_h}:(ow-iw)/2:(oh-ih)/2[v{i}]"
         )
 
-    # Simple concat — AI transition clips are already interleaved
     if len(clips) > 1:
         concat_inputs = "".join(f"[v{i}]" for i in range(len(clips)))
         filter_parts.append(f"{concat_inputs}concat=n={len(clips)}:v=1:a=0[vout]")
@@ -120,7 +128,6 @@ async def stitch_video(
     else:
         video_label = "[v0]"
 
-    # Apply color grade (or passthrough if disabled)
     if color_grade:
         color_filter = get_color_grade_filter(civilization, color_grade_override=color_grade_override)
         filter_parts.append(f"{video_label}{color_filter}[graded]")
@@ -129,7 +136,6 @@ async def stitch_video(
 
     filter_graph = ";".join(filter_parts)
 
-    # Build full ffmpeg command
     cmd = [
         "ffmpeg", "-y",
         *input_args,

@@ -61,7 +61,7 @@ LoreKit
 
 ## Stack (unchanged)
 
-- **Backend:** Python 3.12+, FastAPI, aiosqlite, asyncio
+- **Backend:** Python 3.12+, FastAPI, asyncpg (PostgreSQL), asyncio
 - **Frontend:** Next.js 16, React 19, Tailwind v4, Zustand
 - **AI:** Claude/GPT for story generation, fal.ai (Veo 3) for video
 - **Assembly:** ffmpeg for audio mixing, overlays, color grading, stitching
@@ -144,11 +144,18 @@ class SceneTemplate(BaseModel):
     max_scenes: int = 10
 ```
 
-### Existing models (updated with universe_id)
+### Timeline Architecture (replaces old models)
 
-- `VideoProject` → adds `universe_id` field
-- `StoryBreakdown` → `philosopher_id` renamed to `character_id`
-- `Scene`, `AudioSpec`, `SFXCue`, `AmbientSpec` → unchanged
+> **Note (2026-04-03):** The old `VideoProject`, `StoryBreakdown`, `Scene`, `Transition`,
+> `AudioSpec`, `SFXCue`, and `AmbientSpec` models have been deleted. All project editor
+> data now lives in a single `timeline_json JSONB` column on `universe_projects`, using a
+> track-based timeline document (OTIO/CapCut/Premiere industry standard).
+>
+> New models in `lorekit/models.py`: `Timeline`, `Track`, `Material`, `SceneItem`,
+> `TransitionItem`, `TextItem`, `AudioItem`, `EffectItem`, `CaptionItem`, `StickerItem`.
+>
+> See `CLAUDE.md` for the full timeline data model and `docs/ROADMAP-timeline-refactor.md`
+> for the migration history.
 
 ---
 
@@ -383,8 +390,9 @@ On first startup with the new schema:
 **Backend tasks:**
 - [ ] Rename `philosophywise/` → `lorekit/` (Python package)
 - [ ] Update `pyproject.toml`: name, scripts (`pw` → `lk`), package find
-- [ ] Rename models: `Philosopher` → `Character`, `Quote` → `SourceItem`, `CivilizationPreset` → `EnvironmentPreset`
-- [ ] Rename fields: `philosopher_id` → `character_id`, `civilization` → `group` (in Character), keep `civilization` as environment concept
+- [x] Rename models: `Philosopher` → `Character`, `Quote` → `SourceItem`, `CivilizationPreset` → `EnvironmentPreset`
+- [x] Rename fields: `philosopher_id` → `character_id`, `civilization` → `group` (in Character), keep `civilization` as environment concept
+- [x] Timeline refactor: replaced `StoryBreakdown`/`Scene`/`Transition`/`VideoProject` with `Timeline`/`Track`/`SceneItem`/`TransitionItem` (see `docs/ROADMAP-timeline-refactor.md`)
 - [ ] Add `Universe` model and `universes` table
 - [ ] Add `environments` table (populated from CIVILIZATIONS)
 - [ ] Add `scene_templates` table (populated from existing arc templates)
@@ -404,7 +412,7 @@ On first startup with the new schema:
 - [ ] Update `package.json` name
 - [ ] Update `layout.tsx` metadata: title → "LoreKit"
 - [ ] Update `Sidebar.tsx`: rename branding, update nav items
-- [ ] Update `api.ts`: rename types (`Philosopher` → `Character`, `Quote` → `SourceItem`), update endpoints
+- [x] Update `api.ts`: rename types (`Philosopher` → `Character`, `Quote` → `SourceItem`), add `Timeline`/`Track`/`Item` types, update endpoints
 - [ ] Rename `/philosophers` routes → `/characters` (temporary, Phase 2 moves to `/studio/:uid/`)
 - [ ] Update all components referencing old types/names
 - [ ] Update dashboard page: branding, text

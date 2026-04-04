@@ -100,9 +100,8 @@ export function TransitionTimeline({
           scene_id: Number(sid),
           transition: t,
         }));
-        await updateProject(projectId, {
-          transitions_json: JSON.stringify(data),
-        } as never);
+        // TODO: Update transitions via /api/scenes/{projectId}/transition endpoint
+        console.warn("TransitionTimeline save not yet wired to timeline API");
         setDirty(false);
       } catch (err) {
         console.error("Failed to save transitions:", err);

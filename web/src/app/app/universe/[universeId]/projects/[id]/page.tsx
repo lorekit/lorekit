@@ -321,7 +321,7 @@ export default function ProjectEditorPage({
   });
   const [activeLeftTab, setActiveLeftTab] = useState<LeftPanelTab>("script");
   const [activeRightTab, setActiveRightTab] = useState<"clip" | "keyframe">("clip");
-  // Reference images are now per-scene (persisted in clips_json)
+  // Reference images are per-scene (stored as materials in timeline)
   const [previewMode, setPreviewMode] = useState<PreviewMode>("keyframe");
   const [extractingFrame, setExtractingFrame] = useState(false);
   const [endKeyframePicker, setEndKeyframePicker] = useState(false);
@@ -363,7 +363,7 @@ export default function ProjectEditorPage({
         const fUrl = f.path ? `/files/${f.path}` : f.url;
         if (fUrl && !seen.has(fUrl)) {
           seen.add(fUrl);
-          images.push({ url: fUrl, path: f.path ?? null, label: `S${s.scene_id} @ ${f.timestamp.toFixed(1)}s` });
+          images.push({ url: fUrl, path: f.path ?? null, label: `S${s.scene_id} frame` });
         }
       }
     }
@@ -389,15 +389,26 @@ export default function ProjectEditorPage({
   const selectedTransition = selectedTransitionFn();
   const totalDuration = totalDurationFn();
 
-  // Memoize parsed transition clips to avoid new object reference on every render
+  // Transition clips are inline in the transitions array (from timeline).
+  // Build a compat map keyed by "fromSceneId_toSceneId" for existing UI components.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const parsedTransitionClips: Record<string, any> | undefined = useMemo(
-    () => project?.transition_clips_json ? JSON.parse(project.transition_clips_json) : undefined,
-    [project?.transition_clips_json]
+    () => {
+      if (!transitions || transitions.length === 0) return undefined;
+      const map: Record<string, any> = {};
+      for (const t of transitions) {
+        if (t.clip_path) {
+          const key = `${t.from_scene_id}_${t.to_scene_id}`;
+          map[key] = { clip_path: t.clip_path, clip_url: t.clip_url };
+        }
+      }
+      return Object.keys(map).length > 0 ? map : undefined;
+    },
+    [transitions]
   );
 
   // Count clips that exist
-  const clipsGenerated = scenes.filter((s) => s.clip_url).length;
+  const clipsGenerated = scenes.filter((s) => s.clip_url || s.clip_path).length;
   const allClipsDone = scenes.length > 0 && clipsGenerated === scenes.length;
 
   // Parse transitions from project
@@ -1568,12 +1579,18 @@ export default function ProjectEditorPage({
                   <div className="mt-4 pt-4 border-t border-slate-800/50">
                     <TransitionDetail
                       transition={selectedTransition ?? {
+                        id: "",
                         from_scene_id: selectedElement.fromSceneId,
                         to_scene_id: selectedElement.toSceneId,
+                        transition_type: "ai_morph",
                         type: "ai_morph",
                         prompt: "",
                         duration: 3.0,
+                        from_frame: 0,
+                        duration_frames: 90,
                         speed: 1.5,
+                        in_offset: 0,
+                        out_offset: 0,
                       }}
                       onUpdate={handleUpdateTransition}
                     />

@@ -15,7 +15,7 @@ from pydantic import BaseModel, field_validator as pydantic_field_validator
 from lorekit import db
 from lorekit.auth.user import get_current_user, CurrentUser
 from lorekit.config import get_settings
-from lorekit.models import SourceItem, StoryBreakdown
+from lorekit.models import SourceItem, Timeline, SceneItem, TransitionItem, Material
 from lorekit.storage import get_file_store, project_render_path, project_audio_path
 from lorekit.tasks import get_task_runner
 
@@ -38,11 +38,71 @@ def _safe_error(exc: Exception) -> str:
 
 
 def _abs_path(storage_path: str) -> str:
-    """Resolve a storage-relative path to an absolute filesystem path for ffmpeg."""
+    """Resolve a storage-relative path to an absolute filesystem path for ffmpeg.
+
+    Validates the resolved path stays within the file store base directory
+    to prevent path traversal attacks via crafted material paths.
+    """
+    if ".." in storage_path or storage_path.startswith("/"):
+        raise ValueError("Invalid storage path")
     store = get_file_store()
     if hasattr(store, "base_dir"):
-        return str(store.base_dir / storage_path)
+        resolved = (store.base_dir / storage_path).resolve()
+        if not resolved.is_relative_to(store.base_dir.resolve()):
+            raise ValueError("Path escapes storage directory")
+        return str(resolved)
     return storage_path
+
+
+def _load_timeline(project: dict) -> Timeline:
+    """Load the Timeline document from a project row.
+
+    asyncpg returns JSONB as a dict, but handle str for safety.
+    """
+    tl = project.get("timeline_json")
+    if not tl:
+        raise ValueError("No timeline")
+    if isinstance(tl, str):
+        tl = json.loads(tl)
+    return Timeline.model_validate(tl)
+
+
+def _save_timeline(timeline: Timeline) -> str:
+    """Serialize a Timeline to a JSON string for DB storage."""
+    return json.dumps(timeline.model_dump())
+
+
+def _find_scene_item(timeline: Timeline, scene_id: int) -> SceneItem | None:
+    """Find a SceneItem by scene_id on the video track."""
+    track = timeline.get_video_track()
+    for item in track.items:
+        if isinstance(item, SceneItem) and item.scene_id == scene_id:
+            return item
+    return None
+
+
+def _find_transition_item(
+    timeline: Timeline, from_scene_id: int, to_scene_id: int,
+) -> TransitionItem | None:
+    """Find the TransitionItem between two scenes on the video track."""
+    track = timeline.get_video_track()
+    items = track.items
+    for i, item in enumerate(items):
+        if not isinstance(item, TransitionItem):
+            continue
+        # Check neighbours: preceding SceneItem has from_scene_id, following has to_scene_id
+        prev_scene = next(
+            (items[j] for j in range(i - 1, -1, -1) if isinstance(items[j], SceneItem)),
+            None,
+        )
+        next_scene = next(
+            (items[j] for j in range(i + 1, len(items)) if isinstance(items[j], SceneItem)),
+            None,
+        )
+        if (prev_scene and prev_scene.scene_id == from_scene_id
+                and next_scene and next_scene.scene_id == to_scene_id):
+            return item
+    return None
 
 
 import re
@@ -218,7 +278,7 @@ async def generate_story_endpoint(body: StoryRequest, user: CurrentUser = Depend
         except Exception:
             pass  # fallback to default duration
 
-    # Generate story via LLM
+    # Generate story via LLM — returns a Timeline
     story = await generate_story(
         character=character,
         hook_quote=hook_quote,
@@ -242,8 +302,9 @@ async def generate_story_endpoint(body: StoryRequest, user: CurrentUser = Depend
     )
     await db.update_project(
         project_id,
+        org_id=user.org_id,
         status="story_ready",
-        story_json=story.model_dump_json(),
+        timeline_json=_save_timeline(story),
         aspect_ratio=body.aspect_ratio,
         audio_mode=body.audio_mode,
         uploaded_audio_path=validated_audio_path,
@@ -251,7 +312,7 @@ async def generate_story_endpoint(body: StoryRequest, user: CurrentUser = Depend
 
     return {
         "project_id": project_id,
-        "story": story.model_dump(),
+        "timeline": story.model_dump(),
     }
 
 
@@ -264,15 +325,16 @@ async def _generate_clips_task(job_id: str, project_id: str, org_id: str | None 
     """
     try:
         project = await db.get_project(project_id, org_id=org_id)
-        if not project or not project.get("story_json"):
-            await db.update_job(job_id, status="failed", message="No story found")
+        if not project or not project.get("timeline_json"):
+            await db.update_job(job_id, status="failed", message="No timeline found")
             return
 
-        story = StoryBreakdown.model_validate_json(project["story_json"])
+        timeline = _load_timeline(project)
+        video_track = timeline.get_video_track()
         character_id = project.get("character_id", "")
 
-        # ---- THEME: extract from story, resolve vibe text from DB ----
-        theme = story.theme or None  # "" -> None
+        # ---- THEME: from project row, resolve vibe text from DB ----
+        theme = project.get("theme") or None
         style = await db.get_video_style(theme) if theme else None
         vibe_text = style["prompt"] if style and style.get("prompt") else None
 
@@ -295,7 +357,7 @@ async def _generate_clips_task(job_id: str, project_id: str, org_id: str | None 
 
         ar = project.get("aspect_ratio", "9:16")
 
-        await db.update_project(project_id, status="generating")
+        await db.update_project(project_id, org_id=org_id, status="generating")
         await db.update_job(job_id, status="running", message="Generating clips...")
 
         settings = get_settings()
@@ -314,23 +376,28 @@ async def _generate_clips_task(job_id: str, project_id: str, org_id: str | None 
         # Use resolved vibe text or fall back to settings default
         active_vibe = vibe_text or settings.video_vibe
 
-        # Load existing clips so we can skip scenes that already have one
-        existing_clips = json.loads(project.get("clips_json") or "[]")
-        existing_scene_ids = {c["scene_id"] for c in existing_clips if c.get("clip_path")}
-        clips: list[dict] = list(existing_clips)
+        # Collect all SceneItems from the video track
+        all_scene_items = [item for item in video_track.items if isinstance(item, SceneItem)]
 
-        all_scenes = story.scenes
-        scenes_to_generate = [s for s in all_scenes if s.scene_id not in existing_scene_ids]
-        total_gens = len(scenes_to_generate) + sum(1 for s in scenes_to_generate if s.cta_scene)
+        # Identify scenes that already have clips (material with a path)
+        existing_scene_ids: set[int] = set()
+        for si in all_scene_items:
+            if si.clip_material_id:
+                mat = timeline.materials.get(si.clip_material_id)
+                if mat and mat.path:
+                    existing_scene_ids.add(si.scene_id)
+
+        scenes_to_generate = [si for si in all_scene_items if si.scene_id not in existing_scene_ids]
+        total_gens = len(scenes_to_generate) + sum(1 for s in scenes_to_generate if s.beat == "cta")
 
         if total_gens == 0:
-            await db.update_project(project_id, status="clips_ready")
+            await db.update_project(project_id, org_id=org_id, status="clips_ready")
             await db.update_job(job_id, status="completed", progress=100, message="All clips already exist")
             return
 
         # --- Generate scene 1's keyframe for loop support ---
-        first_scene = all_scenes[0]
-        last_scene = all_scenes[-1] if len(all_scenes) > 1 else None
+        first_scene = all_scene_items[0]
+        last_scene = all_scene_items[-1] if len(all_scene_items) > 1 else None
         hook_keyframe_url: str | None = None
 
         # Only generate the hook keyframe if we need it (first or last scene being generated)
@@ -356,59 +423,61 @@ async def _generate_clips_task(job_id: str, project_id: str, org_id: str | None 
 
         gen_idx = 0
 
-        # Build map of per-scene end keyframes from clips_json, ensuring fal URLs
+        # Build map of per-scene end keyframes from materials, ensuring fal URLs
         from lorekit.storage.upload import ensure_fal_url
         end_keyframe_map: dict[int, str | None] = {}
-        for c in existing_clips:
-            ekf = c.get("end_keyframe_url")
-            if ekf:
-                end_keyframe_map[c["scene_id"]] = await ensure_fal_url(ekf)
+        for si in all_scene_items:
+            if si.end_keyframe_material_id:
+                mat = timeline.materials.get(si.end_keyframe_material_id)
+                if mat and (mat.url or mat.path):
+                    url = mat.url or mat.path
+                    end_keyframe_map[si.scene_id] = await ensure_fal_url(url)
 
-        for i, scene in enumerate(scenes_to_generate):
+        for i, scene_item in enumerate(scenes_to_generate):
             # Per-scene end keyframe takes priority; fall back to loop for last scene
-            is_last = last_scene and scene.scene_id == last_scene.scene_id
-            end_image_url = end_keyframe_map.get(scene.scene_id) or (hook_keyframe_url if is_last else None)
+            is_last = last_scene and scene_item.scene_id == last_scene.scene_id
+            end_image_url = end_keyframe_map.get(scene_item.scene_id) or (hook_keyframe_url if is_last else None)
 
             await db.update_job(
                 job_id,
                 progress=(gen_idx / total_gens) * 100,
-                message=f"Generating scene {scene.scene_id}/{len(all_scenes)}: {scene.beat}"
+                message=f"Generating scene {scene_item.scene_id}/{len(all_scene_items)}: {scene_item.beat}"
                         + (" (loop -> hook)" if is_last else "")
-                        + f" ({len(existing_scene_ids) + gen_idx + 1} of {len(all_scenes)} total)",
+                        + f" ({len(existing_scene_ids) + gen_idx + 1} of {len(all_scene_items)} total)",
             )
 
             # Generate the main clip (Subscribe variant if CTA scene)
-            gen_scene = scene
-            if scene.cta_scene:
-                gen_scene = scene.model_copy(
-                    update={"visual_description": scene.visual_description.replace("{{CTA}}", "Subscribe")}
+            gen_scene = scene_item
+            if scene_item.text_overlay and "{{CTA}}" in scene_item.text_overlay:
+                gen_scene = scene_item.model_copy(
+                    update={"visual_description": scene_item.visual_description.replace("{{CTA}}", "Subscribe")}
                 )
             clip_path = await generate_single_clip(
                 gen_scene, character, project_id,
                 character_image_url, end_image_url=end_image_url, theme=theme,
                 aspect_ratio=ar,
             )
-            clips.append({
-                "scene_id": scene.scene_id,
-                "clip_path": clip_path,
-                "variant": "subscribe" if scene.cta_scene else None,
-            })
+
+            # Create a Material for the generated clip and attach to scene
+            clip_mat = Material(type="video", path=clip_path, name=f"scene_{scene_item.scene_id}_clip")
+            timeline.add_material(clip_mat)
+            scene_item.clip_material_id = clip_mat.id
             gen_idx += 1
 
             # Save after each scene so progress is visible immediately
-            await db.update_project(project_id, clips_json=json.dumps(clips))
+            await db.update_project(project_id, org_id=org_id, timeline_json=_save_timeline(timeline))
 
             # Generate "Follow" variant for CTA scenes
-            if scene.cta_scene:
+            if scene_item.text_overlay and "{{CTA}}" in scene_item.text_overlay:
                 await db.update_job(
                     job_id,
                     progress=(gen_idx / total_gens) * 100,
-                    message=f"Generating Follow variant for scene {scene.scene_id}",
+                    message=f"Generating Follow variant for scene {scene_item.scene_id}",
                 )
-                follow_scene = scene.model_copy(
+                follow_scene = scene_item.model_copy(
                     update={
-                        "visual_description": scene.visual_description.replace("{{CTA}}", "Follow"),
-                        "scene_id": scene.scene_id + 1000,
+                        "visual_description": scene_item.visual_description.replace("{{CTA}}", "Follow"),
+                        "scene_id": scene_item.scene_id + 1000,
                     }
                 )
                 follow_path = await generate_single_clip(
@@ -416,29 +485,30 @@ async def _generate_clips_task(job_id: str, project_id: str, org_id: str | None 
                     character_image_url, end_image_url=end_image_url, theme=theme,
                     aspect_ratio=ar,
                 )
-                clips.append({
-                    "scene_id": scene.scene_id,
-                    "clip_path": follow_path,
-                    "variant": "follow",
-                })
+                follow_mat = Material(
+                    type="video", path=follow_path,
+                    name=f"scene_{scene_item.scene_id}_follow",
+                )
+                timeline.add_material(follow_mat)
                 gen_idx += 1
 
         await db.update_project(
             project_id,
+            org_id=org_id,
             status="clips_ready",
-            clips_json=json.dumps(clips),
+            timeline_json=_save_timeline(timeline),
         )
         await db.update_job(
             job_id,
             status="completed",
             progress=100,
             message="All clips generated" + (" (with loop)" if hook_keyframe_url else ""),
-            result_json=json.dumps(clips),
+            result_json=_save_timeline(timeline),
         )
     except Exception as exc:
         logger.exception("Clip generation failed for project %s", project_id)
         await db.update_job(job_id, status="failed", message=_safe_error(exc))
-        await db.update_project(project_id, status="story_ready")
+        await db.update_project(project_id, org_id=org_id, status="story_ready")
 
 
 @router.post("/clips")
@@ -447,7 +517,7 @@ async def generate_clips(body: ClipsRequest, user: CurrentUser = Depends(get_cur
     project = await db.get_project(body.project_id, org_id=user.org_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    if not project.get("story_json"):
+    if not project.get("timeline_json"):
         raise HTTPException(status_code=400, detail="No story generated yet")
 
     job_id = uuid.uuid4().hex[:12]
@@ -470,20 +540,20 @@ async def _generate_single_clip_task(
     """Background task: regenerate a single scene clip."""
     try:
         project = await db.get_project(project_id, org_id=org_id)
-        if not project or not project.get("story_json"):
-            await db.update_job(job_id, status="failed", message="No story found")
+        if not project or not project.get("timeline_json"):
+            await db.update_job(job_id, status="failed", message="No timeline found")
             return
 
-        story = StoryBreakdown.model_validate_json(project["story_json"])
-        scene = next((s for s in story.scenes if s.scene_id == scene_id), None)
-        if not scene:
+        timeline = _load_timeline(project)
+        scene_item = _find_scene_item(timeline, scene_id)
+        if not scene_item:
             await db.update_job(job_id, status="failed", message=f"Scene {scene_id} not found")
             return
 
         character_id = project.get("character_id", "")
 
-        # ---- THEME: extract from story ----
-        theme = story.theme or None
+        # ---- THEME: from project row ----
+        theme = project.get("theme") or None
 
         from lorekit.sources.database import get_character
         from lorekit.api.character import get_character_image_url
@@ -503,13 +573,20 @@ async def _generate_single_clip_task(
 
         from lorekit.video.generator import generate_single_clip as gen_clip
 
-        # Check for pre-generated keyframe in clips_json
-        existing_clips = json.loads(project.get("clips_json") or "[]")
-        existing_entry = next((c for c in existing_clips if c.get("scene_id") == scene_id), None)
-        existing_keyframe = existing_entry.get("keyframe_url") if existing_entry else None
+        # Check for pre-generated keyframe material
+        existing_keyframe: str | None = None
+        if scene_item.keyframe_material_id:
+            mat = timeline.materials.get(scene_item.keyframe_material_id)
+            if mat:
+                existing_keyframe = mat.url or mat.path
 
         ar = project.get("aspect_ratio", "9:16")
-        existing_end_keyframe = existing_entry.get("end_keyframe_url") if existing_entry else None
+
+        existing_end_keyframe: str | None = None
+        if scene_item.end_keyframe_material_id:
+            mat = timeline.materials.get(scene_item.end_keyframe_material_id)
+            if mat:
+                existing_end_keyframe = mat.url or mat.path
 
         # Ensure all image URLs are fal CDN accessible
         from lorekit.storage.upload import ensure_fal_url
@@ -517,27 +594,17 @@ async def _generate_single_clip_task(
         existing_end_keyframe = await ensure_fal_url(existing_end_keyframe)
 
         clip_path = await gen_clip(
-            scene, character, project_id, character_image_url,
+            scene_item, character, project_id, character_image_url,
             end_image_url=existing_end_keyframe,
             theme=theme, keyframe_url=existing_keyframe, aspect_ratio=ar,
         )
 
-        # Update clips list — preserve keyframe_url, end_keyframe_url, extracted_frames
-        existing_extracted = existing_entry.get("extracted_frames") if existing_entry else None
-        clips = [c for c in existing_clips if c.get("scene_id") != scene_id]
-        new_entry = {
-            "scene_id": scene_id,
-            "clip_path": clip_path,
-            "keyframe_url": existing_keyframe,
-        }
-        if existing_end_keyframe:
-            new_entry["end_keyframe_url"] = existing_end_keyframe
-        if existing_extracted:
-            new_entry["extracted_frames"] = existing_extracted
-        clips.append(new_entry)
-        clips.sort(key=lambda c: c["scene_id"])
+        # Create a Material for the new clip and update scene item
+        clip_mat = Material(type="video", path=clip_path, name=f"scene_{scene_id}_clip")
+        timeline.add_material(clip_mat)
+        scene_item.clip_material_id = clip_mat.id
 
-        await db.update_project(project_id, clips_json=json.dumps(clips))
+        await db.update_project(project_id, org_id=org_id, timeline_json=_save_timeline(timeline))
         await db.update_job(
             job_id,
             status="completed",
@@ -584,18 +651,18 @@ async def _generate_keyframe_task(
     """Background task: generate only the keyframe (still image) for one scene."""
     try:
         project = await db.get_project(project_id, org_id=org_id)
-        if not project or not project.get("story_json"):
-            await db.update_job(job_id, status="failed", message="No story found")
+        if not project or not project.get("timeline_json"):
+            await db.update_job(job_id, status="failed", message="No timeline found")
             return
 
-        story = StoryBreakdown.model_validate_json(project["story_json"])
-        scene = next((s for s in story.scenes if s.scene_id == scene_id), None)
-        if not scene:
+        timeline = _load_timeline(project)
+        scene_item = _find_scene_item(timeline, scene_id)
+        if not scene_item:
             await db.update_job(job_id, status="failed", message=f"Scene {scene_id} not found")
             return
 
         character_id = project.get("character_id", "")
-        theme = story.theme or None
+        theme = project.get("theme") or None
 
         from lorekit.sources.database import get_character
         from lorekit.api.character import get_character_image_url
@@ -660,17 +727,17 @@ async def _generate_keyframe_task(
             character_id, theme=theme,
             db_descriptions_json=json.dumps(character.character_descriptions) if character.character_descriptions else None,
             db_base_description=character.character_description,
-        ) if scene.character_present else None
+        ) if scene_item.character_present else None
 
         # Determine which image model to use from the style
         image_model = style.get("image_model", "kontext") if style else "kontext"
 
         # When using reference images with Nano Banana, skip character in prompt
         # (it goes in Image 1 label). For Kontext, include character in prompt.
-        has_refs = bool(ordered_refs) or (scene.character_present and bool(character_image_url))
+        has_refs = bool(ordered_refs) or (scene_item.character_present and bool(character_image_url))
         skip_char = has_refs and image_model == "nano_banana_2"
         prompt = build_video_prompt(
-            scene, character, civ_config.model_dump(), vibe_text, theme=theme,
+            scene_item, character, civ_config.model_dump(), vibe_text, theme=theme,
             skip_character=skip_char,
         )
 
@@ -686,7 +753,7 @@ async def _generate_keyframe_task(
                 keyframe_url = await _generate_keyframe_kontext(
                     prompt, settings.fal_key, ordered_refs, aspect_ratio=ar,
                 )
-        elif scene.character_present and character_image_url:
+        elif scene_item.character_present and character_image_url:
             if image_model == "nano_banana_2":
                 keyframe_url = await _generate_keyframe_with_refs(
                     prompt, settings.fal_key, [character_image_url], aspect_ratio=ar,
@@ -717,24 +784,17 @@ async def _generate_keyframe_task(
             await store.write(keyframe_path, resp.content)
         logger.info("Keyframe stored locally: %s", keyframe_path)
 
-        # Store in clips_json — preserve history
-        clips = json.loads(project.get("clips_json") or "[]")
-        existing = next((c for c in clips if c.get("scene_id") == scene_id), None)
-        if existing:
-            # Push old keyframe to history before overwriting
-            old_url = existing.get("keyframe_url")
-            old_path = existing.get("keyframe_path")
-            if old_path:
-                history = existing.get("keyframe_history") or []
-                history.append({"url": old_url, "path": old_path})
-                existing["keyframe_history"] = history
-            existing["keyframe_url"] = keyframe_url
-            existing["keyframe_path"] = keyframe_path
-        else:
-            clips.append({"scene_id": scene_id, "keyframe_url": keyframe_url, "keyframe_path": keyframe_path, "clip_path": None})
-            clips.sort(key=lambda c: c["scene_id"])
+        # Push old keyframe to history before overwriting
+        old_kf_id = scene_item.keyframe_material_id
+        if old_kf_id:
+            scene_item.keyframe_history.append(old_kf_id)
 
-        await db.update_project(project_id, clips_json=json.dumps(clips))
+        # Create a new Material for the keyframe
+        kf_mat = Material(type="image", path=keyframe_path, url=keyframe_url, name=f"scene_{scene_id}_keyframe")
+        timeline.add_material(kf_mat)
+        scene_item.keyframe_material_id = kf_mat.id
+
+        await db.update_project(project_id, org_id=org_id, timeline_json=_save_timeline(timeline))
         await db.update_job(
             job_id,
             status="completed",
@@ -754,7 +814,7 @@ async def generate_keyframe_endpoint(body: KeyframeRequest, user: CurrentUser = 
     project = await db.get_project(body.project_id, org_id=user.org_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    if not project.get("story_json"):
+    if not project.get("timeline_json"):
         raise HTTPException(status_code=400, detail="No story generated yet")
 
     job_id = uuid.uuid4().hex[:12]
@@ -811,17 +871,20 @@ async def extract_frame_endpoint(body: ExtractFrameRequest, user: CurrentUser = 
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    clips = json.loads(project.get("clips_json") or "[]")
-    entry = next((c for c in clips if c.get("scene_id") == body.scene_id), None)
-    if not entry or not entry.get("clip_path"):
-        logger.warning("Extract frame: scene %d has no clip_path", body.scene_id)
+    timeline = _load_timeline(project)
+    scene_item = _find_scene_item(timeline, body.scene_id)
+    if not scene_item or not scene_item.clip_material_id:
         raise HTTPException(status_code=400, detail=f"Scene {body.scene_id} has no generated clip")
 
+    clip_mat = timeline.materials.get(scene_item.clip_material_id)
+    if not clip_mat or not clip_mat.path:
+        raise HTTPException(status_code=400, detail=f"Scene {body.scene_id} has no clip path")
+
     # Resolve to absolute path
-    clip_abs = _abs_path(entry["clip_path"])
+    clip_abs = _abs_path(clip_mat.path)
     if not Path(clip_abs).exists():
         logger.warning("Extract frame: clip file not found at %s", clip_abs)
-        raise HTTPException(status_code=400, detail=f"Clip file not found: {entry['clip_path']}")
+        raise HTTPException(status_code=400, detail="Clip file not found")
 
     # Clamp timestamp
     timestamp = max(0.0, body.timestamp)
@@ -853,15 +916,17 @@ async def extract_frame_endpoint(body: ExtractFrameRequest, user: CurrentUser = 
     # Serve from local storage (fal CDN URLs expire, local paths don't)
     frame_url = f"/files/{storage_path}"
 
-    # Append to extracted_frames in clips_json
-    frame_entry = {"url": frame_url, "path": storage_path, "timestamp": round(timestamp, 2)}
-    existing_frames = entry.get("extracted_frames") or []
-    existing_frames.append(frame_entry)
-    entry["extracted_frames"] = existing_frames
+    # Create a Material for the extracted frame and add to scene
+    frame_mat = Material(
+        type="image", path=storage_path, url=frame_url,
+        name=f"scene_{body.scene_id}_frame_{timestamp:.2f}",
+    )
+    timeline.add_material(frame_mat)
+    scene_item.extracted_frame_ids.append(frame_mat.id)
 
-    await db.update_project(body.project_id, org_id=user.org_id, clips_json=json.dumps(clips))
+    await db.update_project(body.project_id, org_id=user.org_id, timeline_json=_save_timeline(timeline))
 
-    return frame_entry
+    return {"url": frame_url, "path": storage_path, "timestamp": round(timestamp, 2)}
 
 
 async def _generate_transition_task(
@@ -876,19 +941,31 @@ async def _generate_transition_task(
 
     try:
         project = await db.get_project(project_id, org_id=org_id)
-        if not project or not project.get("clips_json"):
-            await db.update_job(job_id, status="failed", message="No clips found")
+        if not project or not project.get("timeline_json"):
+            await db.update_job(job_id, status="failed", message="No timeline found")
             return
 
-        clips = json.loads(project["clips_json"])
-        from_clip = next((c for c in clips if c.get("scene_id") == from_scene_id), None)
-        to_clip = next((c for c in clips if c.get("scene_id") == to_scene_id), None)
+        timeline = _load_timeline(project)
 
-        if not from_clip or not from_clip.get("clip_path"):
+        # Find the SceneItems for the from/to scenes to get their clip materials
+        from_scene = _find_scene_item(timeline, from_scene_id)
+        to_scene = _find_scene_item(timeline, to_scene_id)
+
+        if not from_scene or not from_scene.clip_material_id:
             await db.update_job(job_id, status="failed", message=f"Scene {from_scene_id} has no clip")
             return
-        if not to_clip or not to_clip.get("clip_path"):
+        if not to_scene or not to_scene.clip_material_id:
             await db.update_job(job_id, status="failed", message=f"Scene {to_scene_id} has no clip")
+            return
+
+        from_mat = timeline.materials.get(from_scene.clip_material_id)
+        to_mat = timeline.materials.get(to_scene.clip_material_id)
+
+        if not from_mat or not from_mat.path:
+            await db.update_job(job_id, status="failed", message=f"Scene {from_scene_id} has no clip path")
+            return
+        if not to_mat or not to_mat.path:
+            await db.update_job(job_id, status="failed", message=f"Scene {to_scene_id} has no clip path")
             return
 
         from lorekit.storage import get_file_store
@@ -901,8 +978,8 @@ async def _generate_transition_task(
         await db.update_job(job_id, status="running", message="Extracting frames from clips...")
 
         # Resolve clip paths to local files
-        from_path = store.base_dir / from_clip["clip_path"] if hasattr(store, "base_dir") else None
-        to_path = store.base_dir / to_clip["clip_path"] if hasattr(store, "base_dir") else None
+        from_path = store.base_dir / from_mat.path if hasattr(store, "base_dir") else None
+        to_path = store.base_dir / to_mat.path if hasattr(store, "base_dir") else None
 
         if not from_path or not from_path.exists() or not to_path or not to_path.exists():
             await db.update_job(job_id, status="failed", message="Clip files not found on disk")
@@ -957,47 +1034,53 @@ async def _generate_transition_task(
             resp.raise_for_status()
             await store.write(transition_path, resp.content)
 
-        # Store in project's transitions_clips_json
-        trans_clips = json.loads(project.get("transition_clips_json") or "{}")
-        key = f"{from_scene_id}_{to_scene_id}"
-        trans_clips[key] = {
-            "clip_path": transition_path,
-            "clip_url": transition_video_url,
-            "from_scene_id": from_scene_id,
-            "to_scene_id": to_scene_id,
-            "prompt": prompt,
-        }
-
-        await db.update_project(
-            project_id, org_id=org_id,
-            transition_clips_json=json.dumps(trans_clips),
+        # Create a Material for the transition clip
+        trans_mat = Material(
+            type="video", path=transition_path, url=transition_video_url,
+            name=f"transition_{from_scene_id}_{to_scene_id}",
         )
+        timeline.add_material(trans_mat)
 
-        # Ensure story_json.transitions has this entry
-        from lorekit.models import Transition as TransitionModel
-        story = StoryBreakdown.model_validate_json(project["story_json"])
-        existing = next(
-            (t for t in story.transitions if t.from_scene_id == from_scene_id and t.to_scene_id == to_scene_id),
-            None,
-        )
-        if not existing:
-            story.transitions.append(TransitionModel(
-                from_scene_id=from_scene_id,
-                to_scene_id=to_scene_id,
+        # Find or create the TransitionItem on the video track
+        trans_item = _find_transition_item(timeline, from_scene_id, to_scene_id)
+        if trans_item:
+            trans_item.clip_material_id = trans_mat.id
+        else:
+            # Insert a new TransitionItem between the two scenes
+            video_track = timeline.get_video_track()
+            new_trans = TransitionItem(
+                transition_type="ai_morph",
                 prompt=prompt,
-                duration=max(3, min(15, duration)),
-            ))
-            story.transitions.sort(key=lambda t: t.from_scene_id)
-            story.total_duration = (
-                sum(s.effective_duration for s in story.scenes)
-                + sum(t.effective_duration for t in story.transitions)
+                duration_frames=max(3, min(15, duration)) * timeline.fps,
+                clip_material_id=trans_mat.id,
             )
-            await db.update_project(project_id, org_id=org_id, story_json=story.model_dump_json())
+            # Find position: after from_scene, before to_scene
+            insert_idx = None
+            for idx, item in enumerate(video_track.items):
+                if isinstance(item, SceneItem) and item.scene_id == from_scene_id:
+                    insert_idx = idx + 1
+                    break
+            if insert_idx is not None:
+                video_track.items.insert(insert_idx, new_trans)
+            else:
+                video_track.items.append(new_trans)
+
+        # Recalculate total duration
+        video_track = timeline.get_video_track()
+        total_frames = 0
+        for item in video_track.items:
+            if isinstance(item, SceneItem):
+                total_frames += item.duration_frames
+            elif isinstance(item, TransitionItem) and item.transition_type == "ai_morph":
+                total_frames += item.duration_frames
+        timeline.duration_frames = total_frames
+
+        await db.update_project(project_id, org_id=org_id, timeline_json=_save_timeline(timeline))
 
         await db.update_job(
             job_id, status="completed",
             message="AI transition generated",
-            result=json.dumps({
+            result_json=json.dumps({
                 "from_scene_id": from_scene_id,
                 "to_scene_id": to_scene_id,
                 "clip_path": transition_path,
@@ -1115,14 +1198,16 @@ async def _render_task(
             await db.update_job(job_id, status="failed", message="Project not found")
             return
 
-        story_json = project.get("story_json")
-        clips_json = project.get("clips_json")
-        if not story_json or not clips_json:
-            await db.update_job(job_id, status="failed", message="Missing story or clips")
+        if not project.get("timeline_json"):
+            await db.update_job(job_id, status="failed", message="Missing timeline")
             return
 
-        story = StoryBreakdown.model_validate_json(story_json)
-        clip_entries = json.loads(clips_json)
+        timeline = _load_timeline(project)
+        video_track = timeline.get_video_track()
+
+        # Collect ordered SceneItems
+        all_scene_items = [item for item in video_track.items if isinstance(item, SceneItem)]
+
         # Look up character group for civilization context
         character_id = project.get("character_id", "")
         pool = await db.get_pool()
@@ -1158,7 +1243,7 @@ async def _render_task(
 
         ar = project.get("aspect_ratio", "9:16")
 
-        await db.update_project(project_id, status="assembling")
+        await db.update_project(project_id, org_id=org_id, status="assembling")
 
         settings = get_settings()
         settings.ensure_dirs()
@@ -1167,28 +1252,20 @@ async def _render_task(
         project_output_dir = Path(_abs_path(project_render_path(project_id, ""))).parent
         project_output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Map scene_id -> clip_path (use "subscribe" variant if available, skip "follow" variants)
-        # Resolve storage-relative paths to absolute filesystem paths for ffmpeg
-        clip_map: dict[int, str] = {}
-        for entry in clip_entries:
-            sid = entry.get("scene_id")
-            path = entry.get("clip_path")
-            variant = entry.get("variant")
-            if sid is not None and path and variant != "follow":
-                if sid not in clip_map or variant == "subscribe":
-                    clip_map[sid] = _abs_path(path)
-
-        # Build ordered clip list matching scene order — skip scenes without clips
+        # Build ordered clip list from timeline materials — skip scenes without clips
         ordered_clips: list[str] = []
-        ordered_scenes: list = []
+        ordered_scenes: list[SceneItem] = []
         skipped: list[int] = []
-        for scene in story.scenes:
-            clip_path = clip_map.get(scene.scene_id)
-            if not clip_path:
-                skipped.append(scene.scene_id)
+        for scene_item in all_scene_items:
+            if not scene_item.clip_material_id:
+                skipped.append(scene_item.scene_id)
                 continue
-            ordered_clips.append(clip_path)
-            ordered_scenes.append(scene)
+            mat = timeline.materials.get(scene_item.clip_material_id)
+            if not mat or not mat.path:
+                skipped.append(scene_item.scene_id)
+                continue
+            ordered_clips.append(_abs_path(mat.path))
+            ordered_scenes.append(scene_item)
 
         if not ordered_clips:
             await db.update_job(
@@ -1203,10 +1280,15 @@ async def _render_task(
                 skipped,
             )
 
-        total_duration = (
-            sum(s.effective_duration for s in ordered_scenes)
-            + sum(t.effective_duration for t in story.transitions)
-        )
+        # Calculate total duration from video track items
+        total_duration = 0.0
+        for item in video_track.items:
+            if isinstance(item, SceneItem) and item.clip_material_id:
+                mat = timeline.materials.get(item.clip_material_id)
+                if mat and mat.path:
+                    total_duration += item.effective_duration
+            elif isinstance(item, TransitionItem) and item.transition_type == "ai_morph":
+                total_duration += item.duration_frames / timeline.fps / (item.speed if item.speed > 0 else 1.5)
 
         if raw:
             # --- RAW MODE: just concat clips with crossfades, no effects ---
@@ -1272,15 +1354,19 @@ async def _render_task(
 
             stitched_path = _abs_path(project_render_path(project_id, "stitched.mp4"))
 
-            # Resolve absolute paths for AI morph transition clips
-            for t in story.transitions:
-                if t.type == "ai_morph" and t.clip_path:
-                    t.clip_path = _abs_path(t.clip_path)
+            # Resolve absolute paths for AI morph transition clip materials
+            for item in video_track.items:
+                if isinstance(item, TransitionItem) and item.clip_material_id:
+                    mat = timeline.materials.get(item.clip_material_id)
+                    if mat and mat.path:
+                        mat.path = _abs_path(mat.path)
 
             await stitch_video(
-                ordered_clips, ordered_scenes, audio_path,
-                stitched_path, civilization, total_duration,
-                transitions=story.transitions if story.transitions else None,
+                timeline=timeline,
+                audio_path=audio_path,
+                output_path=stitched_path,
+                civilization=civilization,
+                total_duration=total_duration,
                 aspect_ratio=ar,
                 color_grade_override=color_grade_override,
                 color_grade=color_grade,
@@ -1324,6 +1410,7 @@ async def _render_task(
 
         await db.update_project(
             project_id,
+            org_id=org_id,
             status="rendered",
             output_path=storage_final_path,
         )
@@ -1342,7 +1429,7 @@ async def _render_task(
     except Exception as exc:
         logger.exception("Render failed for project %s", project_id)
         await db.update_job(job_id, status="failed", message=_safe_error(exc))
-        await db.update_project(project_id, status="clips_ready")
+        await db.update_project(project_id, org_id=org_id, status="clips_ready")
 
 
 @router.post("/render")
