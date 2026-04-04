@@ -166,6 +166,7 @@ class TextItem(BaseItem):
     font_size: int = 48
     color: str = "#FFFFFF"
     position: dict = Field(default_factory=lambda: {"x": 0.5, "y": 0.5})
+    width: float = 0.8  # container width as fraction of video width (0.1-1.0)
     animation: dict | None = None
 
 

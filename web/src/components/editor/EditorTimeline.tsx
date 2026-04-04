@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useMemo, useCallback, useRef, useState, useEffect } from "react";
-import { Sparkles, Volume2, VolumeX, Palette } from "lucide-react";
-import type { Scene, Transition } from "@/lib/api";
+import { Sparkles, Volume2, VolumeX, Palette, Type } from "lucide-react";
+import type { Scene, Transition, TextItem } from "@/lib/api";
 import { API_BASE, clipUrl, effectiveDuration } from "@/lib/api";
 import type { SegmentTiming } from "@/components/editor/VideoPreview";
 import { cn, BEAT_COLORS, formatDuration } from "@/lib/utils";
@@ -105,6 +105,14 @@ interface EditorTimelineProps {
   onUpdateTransition?: (fromSceneId: number, toSceneId: number, updates: Partial<Transition>) => void;
   /** Whether color grading is enabled (shows filter track) */
   colorGradeEnabled?: boolean;
+  /** Text overlay items */
+  textItems?: TextItem[];
+  /** Currently selected text item ID */
+  selectedTextId?: string | null;
+  /** Called when a text item is selected on the timeline */
+  onSelectText?: (id: string) => void;
+  /** Called when a text item is dragged/resized on the timeline */
+  onUpdateTextItem?: (id: string, updates: Partial<TextItem>) => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -166,6 +174,10 @@ export function EditorTimeline({
   onUpdateScene,
   onUpdateTransition,
   colorGradeEnabled,
+  textItems,
+  selectedTextId,
+  onSelectText,
+  onUpdateTextItem,
 }: EditorTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [playheadPos, setPlayheadPos] = useState(0);
@@ -481,6 +493,134 @@ export function EditorTimeline({
     return Math.max(MIN_SPEED, Math.min(MAX_SPEED, Math.round(speed * 100) / 100));
   }, [edgeDrag, edgeDragDelta, pixelsPerSecond]);
 
+  /* ---------------------------------------------------------------- */
+  /*  Text item drag — move text items along the timeline              */
+  /* ---------------------------------------------------------------- */
+
+  const [textDrag, setTextDrag] = useState<{ id: string; startX: number; startFrame: number } | null>(null);
+  const textDragRef = useRef<{ id: string; startX: number; startFrame: number } | null>(null);
+
+  const handleTextDragStart = useCallback((e: React.MouseEvent, item: TextItem) => {
+    // Don't start drag if clicking resize handles
+    if ((e.target as HTMLElement).classList.contains("cursor-ew-resize")) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const state = { id: item.id, startX: e.clientX, startFrame: item.from_frame };
+    textDragRef.current = state;
+    setTextDrag(state);
+  }, []);
+
+  useEffect(() => {
+    if (!textDrag) return;
+
+    const handleMove = (e: MouseEvent) => {
+      const drag = textDragRef.current;
+      if (!drag) return;
+      const deltaPx = e.clientX - drag.startX;
+      const deltaFrames = Math.round((deltaPx / pixelsPerSecond) * 30);
+      const newFrame = Math.max(0, drag.startFrame + deltaFrames);
+      textDragRef.current = { ...drag, startFrame: drag.startFrame }; // keep original
+      // Store the computed frame for mouseup
+      (textDragRef.current as any)._currentFrame = newFrame;
+    };
+
+    const handleUp = () => {
+      const drag = textDragRef.current;
+      if (drag) {
+        const newFrame = (drag as any)._currentFrame ?? drag.startFrame;
+        if (newFrame !== drag.startFrame) {
+          onUpdateTextItem?.(drag.id, { from_frame: newFrame });
+        }
+      }
+      textDragRef.current = null;
+      setTextDrag(null);
+    };
+
+    document.body.style.cursor = "grabbing";
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+    return () => {
+      document.body.style.cursor = "";
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+  }, [textDrag, pixelsPerSecond, onUpdateTextItem]);
+
+  /* ---------------------------------------------------------------- */
+  /*  Text item resize — adjust duration via edge handles              */
+  /* ---------------------------------------------------------------- */
+
+  const [textResize, setTextResize] = useState<{
+    id: string;
+    edge: "left" | "right";
+    startX: number;
+    startFrame: number;
+    startDuration: number;
+  } | null>(null);
+  const textResizeRef = useRef<typeof textResize>(null);
+
+  const handleTextResizeStart = useCallback((e: React.MouseEvent, item: TextItem, edge: "left" | "right") => {
+    e.preventDefault();
+    e.stopPropagation();
+    const state = {
+      id: item.id,
+      edge,
+      startX: e.clientX,
+      startFrame: item.from_frame,
+      startDuration: item.duration_frames,
+    };
+    textResizeRef.current = state;
+    setTextResize(state);
+  }, []);
+
+  useEffect(() => {
+    if (!textResize) return;
+
+    const handleMove = (e: MouseEvent) => {
+      const drag = textResizeRef.current;
+      if (!drag) return;
+      const deltaPx = e.clientX - drag.startX;
+      const deltaFrames = Math.round((deltaPx / pixelsPerSecond) * 30);
+
+      if (drag.edge === "right") {
+        const newDuration = Math.max(15, drag.startDuration + deltaFrames);
+        (textResizeRef.current as any)._newFrame = drag.startFrame;
+        (textResizeRef.current as any)._newDuration = newDuration;
+      } else {
+        // Left edge: move from_frame and shrink duration inversely
+        const newFrame = Math.max(0, drag.startFrame + deltaFrames);
+        const frameDelta = newFrame - drag.startFrame;
+        const newDuration = Math.max(15, drag.startDuration - frameDelta);
+        (textResizeRef.current as any)._newFrame = newFrame;
+        (textResizeRef.current as any)._newDuration = newDuration;
+      }
+    };
+
+    const handleUp = () => {
+      const drag = textResizeRef.current;
+      if (drag) {
+        const newFrame = (drag as any)._newFrame ?? drag.startFrame;
+        const newDuration = (drag as any)._newDuration ?? drag.startDuration;
+        if (newFrame !== drag.startFrame || newDuration !== drag.startDuration) {
+          onUpdateTextItem?.(drag.id, { from_frame: newFrame, duration_frames: newDuration });
+        }
+      }
+      textResizeRef.current = null;
+      setTextResize(null);
+    };
+
+    document.body.style.cursor = "ew-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+    return () => {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+  }, [textResize, pixelsPerSecond, onUpdateTextItem]);
+
   // Scroll to selected scene
   useEffect(() => {
     if (!selectedSceneId || !scrollRef.current) return;
@@ -570,7 +710,7 @@ export function EditorTimeline({
       {/* Scrollable tracks area */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-x-auto overflow-y-hidden relative"
+        className="flex-1 overflow-x-auto overflow-y-auto max-h-[280px] relative"
         style={{ minHeight: 0 }}
       >
         <div
@@ -579,7 +719,7 @@ export function EditorTimeline({
         >
           {/* Time ruler */}
           <div
-            className="relative bg-slate-900/80 border-b border-slate-800/50 select-none cursor-crosshair"
+            className="sticky top-0 z-10 bg-slate-900 relative border-b border-slate-800/50 select-none cursor-crosshair"
             style={{ height: RULER_HEIGHT }}
             onMouseDown={handleRulerMouseDown}
           >
@@ -778,6 +918,49 @@ export function EditorTimeline({
                 <Palette className="w-3 h-3 text-amber-400 flex-shrink-0" />
                 <span className="text-[9px] text-amber-300/80 font-medium">Color Grading</span>
               </div>
+            </div>
+          )}
+
+          {/* Text overlay track */}
+          {(textItems && textItems.length > 0) && (
+            <div
+              className="relative border-t border-slate-800/50"
+              style={{ height: 32 }}
+            >
+              {textItems.map((item) => {
+                const left = (item.from_frame / 30) * pixelsPerSecond;
+                const width = Math.max((item.duration_frames / 30) * pixelsPerSecond, 20);
+                const isSelected = selectedTextId === item.id;
+                return (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      "absolute top-1 bottom-1 rounded cursor-pointer flex items-center px-2 gap-1 transition-colors",
+                      isSelected
+                        ? "bg-violet-500/30 border-2 border-amber-400"
+                        : "bg-violet-500/20 border border-violet-500/30 hover:border-violet-400/50"
+                    )}
+                    style={{ left: left + TIMELINE_PAD, width }}
+                    onClick={(e) => { e.stopPropagation(); onSelectText?.(item.id); }}
+                    onMouseDown={(e) => handleTextDragStart(e, item)}
+                  >
+                    <Type className="w-3 h-3 text-violet-400 flex-shrink-0" />
+                    <span className="text-[9px] text-violet-300 truncate">
+                      {item.text || "Text"}
+                    </span>
+                    {/* Right edge resize handle */}
+                    <div
+                      className="absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-amber-400/30 rounded-r"
+                      onMouseDown={(e) => { e.stopPropagation(); handleTextResizeStart(e, item, "right"); }}
+                    />
+                    {/* Left edge resize handle */}
+                    <div
+                      className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-amber-400/30 rounded-l"
+                      onMouseDown={(e) => { e.stopPropagation(); handleTextResizeStart(e, item, "left"); }}
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
 

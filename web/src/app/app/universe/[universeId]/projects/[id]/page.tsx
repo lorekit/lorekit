@@ -11,6 +11,7 @@ import {
   Sparkles,
   RotateCcw,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Image as ImageIcon,
   Play,
@@ -31,6 +32,7 @@ import { LeftPanel, type LeftPanelTab } from "@/components/editor/LeftPanel";
 import { EditorTimeline } from "@/components/editor/EditorTimeline";
 import { SceneDetail } from "@/components/editor/SceneDetail";
 import { TransitionDetail } from "@/components/editor/TransitionDetail";
+import TextItemEditor from "@/components/editor/TextItemEditor";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useProjectStore } from "@/stores/project-store";
 import {
@@ -57,8 +59,11 @@ import {
   setStartKeyframe,
   setEndKeyframe,
   setReferenceImages,
+  addTextItem,
+  updateTextItem,
+  deleteTextItem,
 } from "@/lib/api";
-import type { Scene, Transition, SourceItem, RenderOptions, Environment } from "@/lib/api";
+import type { Scene, Transition, SourceItem, RenderOptions, Environment, TextItem } from "@/lib/api";
 import { getUniverseEnvironments, updateEnvironment, getProjectEffects, createProjectEffect, updateProjectEffect, getProjectRenders, deleteProjectRender } from "@/lib/api";
 import type { RenderRecord } from "@/lib/api";
 import { cn, formatDuration } from "@/lib/utils";
@@ -300,6 +305,12 @@ export default function ProjectEditorPage({
   const reset = useProjectStore((s) => s.reset);
   const selectedSceneFn = useProjectStore((s) => s.selectedScene);
   const totalDurationFn = useProjectStore((s) => s.totalDuration);
+  const textItems = useProjectStore((s) => s.textItems);
+  const setTextItems = useProjectStore((s) => s.setTextItems);
+  const addTextItemLocal = useProjectStore((s) => s.addTextItemLocal);
+  const updateTextItemLocal = useProjectStore((s) => s.updateTextItemLocal);
+  const removeTextItemLocal = useProjectStore((s) => s.removeTextItemLocal);
+  const selectedTextItem = useProjectStore((s) => s.selectedTextItem());
 
   // Local state
   const [error, setError] = useState<string | null>(null);
@@ -315,7 +326,7 @@ export default function ProjectEditorPage({
   const [transitionDeleteConfirm, setTransitionDeleteConfirm] = useState<{ from: number; to: number } | null>(null);
   const [renderMenuOpen, setRenderMenuOpen] = useState(false);
   const [renderOpts, setRenderOpts] = useState<RenderOptions>({
-    text_overlays: false,
+    text_overlays: true,
     color_grade: true,
     audio: true,
   });
@@ -329,12 +340,19 @@ export default function ProjectEditorPage({
   const [refImagePicker, setRefImagePicker] = useState(false);
   const videoTimeRef = useRef(0);
   const videoPreviewRef = useRef<VideoPreviewHandle>(null);
+  const textOverlayRef = useRef<HTMLDivElement>(null);
+  const [isDraggingText, setIsDraggingText] = useState(false);
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [playbackProgress, setPlaybackProgress] = useState<number | null>(null);
   const [audioDuration, setAudioDuration] = useState(0);
   const [actualSegments, setActualSegments] = useState<import("@/components/editor/VideoPreview").SegmentTiming[]>();
   const [actualTotalDuration, setActualTotalDuration] = useState<number>();
   const [characterRefUrls, setCharacterRefUrls] = useState<string[]>([]);
   const [fullVideoTab, setFullVideoTab] = useState<"output" | "color" | "text" | "audio">("output");
+  // Auto-switch to text tab when a text item is selected
+  useEffect(() => {
+    if (selectedElement?.type === "text") setFullVideoTab("text");
+  }, [selectedElement]);
   const [colorGrade, setColorGrade] = useState({ temperature: 6500, saturation: 1.05, contrast: 1.1, vignette: 0.3 });
   const [audioVolume, setAudioVolume] = useState(100);
   const [renders, setRenders] = useState<RenderRecord[]>([]);
@@ -431,6 +449,7 @@ export default function ProjectEditorPage({
         setProject(proj);
         setScenes(scenesData.scenes);
         setTransitions(scenesData.transitions);
+        setTextItems(scenesData.text_items ?? []);
       } catch (err) {
         if (cancelled) return;
         setError(
@@ -451,7 +470,7 @@ export default function ProjectEditorPage({
       cancelled = true;
       reset();
     };
-  }, [id, setProject, setScenes, setTransitions, setLoading, setError, reset]);
+  }, [id, setProject, setScenes, setTransitions, setTextItems, setLoading, setError, reset]);
 
   // Fetch character reference images when project loads
   useEffect(() => {
@@ -530,10 +549,11 @@ export default function ProjectEditorPage({
       setProject(proj);
       setScenes(scenesData.scenes);
       setTransitions(scenesData.transitions);
+      setTextItems(scenesData.text_items ?? []);
     } catch {
       // silent
     }
-  }, [id, setProject, setScenes, setTransitions]);
+  }, [id, setProject, setScenes, setTransitions, setTextItems]);
 
   // ---------- Handlers ----------
 
@@ -547,9 +567,10 @@ export default function ProjectEditorPage({
         const scenesData = await getScenes(id);
         setScenes(scenesData.scenes);
         setTransitions(scenesData.transitions);
+        setTextItems(scenesData.text_items ?? []);
       }
     },
-    [id, updateSceneInStore, setScenes, setTransitions]
+    [id, updateSceneInStore, setScenes, setTransitions, setTextItems]
   );
 
   const handleUpdateTransition = useCallback(
@@ -561,10 +582,35 @@ export default function ProjectEditorPage({
         const scenesData = await getScenes(id);
         setScenes(scenesData.scenes);
         setTransitions(scenesData.transitions);
+        setTextItems(scenesData.text_items ?? []);
       }
     },
-    [id, updateTransitionInStore, setScenes, setTransitions]
+    [id, updateTransitionInStore, setScenes, setTransitions, setTextItems]
   );
+
+  // ---------- Text overlay handlers ----------
+
+  const handleAddText = useCallback(async () => {
+    try {
+      const item = await addTextItem(id, { text: "New Text" });
+      addTextItemLocal(item);
+      selectElement({ type: "text", id: item.id });
+    } catch (err) { console.error("Failed to add text:", err); }
+  }, [id, addTextItemLocal, selectElement]);
+
+  const handleUpdateText = useCallback(async (textId: string, updates: Partial<TextItem>) => {
+    updateTextItemLocal(textId, updates);
+    try {
+      await updateTextItem(id, textId, updates);
+    } catch (err) { console.error("Failed to update text:", err); }
+  }, [id, updateTextItemLocal]);
+
+  const handleDeleteText = useCallback(async (textId: string) => {
+    removeTextItemLocal(textId);
+    try {
+      await deleteTextItem(id, textId);
+    } catch (err) { console.error("Failed to delete text:", err); }
+  }, [id, removeTextItemLocal]);
 
   const handleRegenerateClip = useCallback(
     async (sceneId: string) => {
@@ -759,6 +805,7 @@ export default function ProjectEditorPage({
       const freshData = await getScenes(id);
       setScenes(freshData.scenes);
       setTransitions(freshData.transitions);
+      setTextItems(freshData.text_items ?? []);
       const clippedScenes = freshData.scenes.filter((s) => s.clip_url);
       if (clippedScenes.length > 1) {
         setAllClipsProgress("Generating AI transitions...");
@@ -1101,6 +1148,11 @@ export default function ProjectEditorPage({
                 setRenders((prev) => prev.filter((r) => r.id !== jobId));
               } catch { /* */ }
             }}
+            textItems={textItems}
+            selectedTextId={selectedElement?.type === "text" ? selectedElement.id : null}
+            onSelectText={(textId) => selectElement({ type: "text", id: textId })}
+            onAddText={handleAddText}
+            onDeleteText={handleDeleteText}
           />
         }
 
@@ -1113,7 +1165,7 @@ export default function ProjectEditorPage({
             <div className="flex-1 flex items-center justify-center p-4 min-h-0">
               <div className="w-full flex justify-center">
                 {/* VideoPreview always mounted (hidden when not active) so it measures clip durations for the timeline */}
-                <div className={selectedElement?.type === "full-video" ? "w-[min(60vh*9/16,400px)]" : "hidden"}>
+                <div className={selectedElement?.type === "full-video" || selectedElement?.type === "text" ? "w-[min(60vh*9/16,400px)] relative" : "hidden"}>
                   <VideoPreview
                     ref={videoPreviewRef}
                     scenes={scenes}
@@ -1124,8 +1176,238 @@ export default function ProjectEditorPage({
                     colorGrade={(renderOpts.color_grade ?? true) ? colorGrade : null}
                     audioDuration={audioDuration}
                   />
+                  {/* Text overlay layer — renders text items over the video preview, draggable + resizable when selected */}
+                  {(renderOpts.text_overlays ?? true) && textItems.length > 0 && (
+                    <div
+                      className="absolute inset-0 overflow-hidden"
+                      style={{ aspectRatio: "9/16" }}
+                      ref={textOverlayRef}
+                    >
+                      {/* Center guide lines — only shown while actively dragging */}
+                      {isDraggingText && selectedElement?.type === "text" && (() => {
+                        const sel = textItems.find((t) => t.id === (selectedElement as { type: "text"; id: string }).id);
+                        if (!sel) return null;
+                        const SNAP = 0.02;
+                        const nearCenterX = Math.abs(sel.position.x - 0.5) < SNAP;
+                        const nearCenterY = Math.abs(sel.position.y - 0.5) < SNAP;
+                        return (
+                          <>
+                            {nearCenterX && <div className="absolute top-0 bottom-0 left-1/2 w-px bg-amber-400/50 pointer-events-none z-20" />}
+                            {nearCenterY && <div className="absolute left-0 right-0 top-1/2 h-px bg-amber-400/50 pointer-events-none z-20" />}
+                          </>
+                        );
+                      })()}
+
+                      {textItems.filter((t) => t.enabled).map((item) => {
+                        const totalDur = totalDurationFn();
+                        const currentTime = (playbackProgress ?? 0) * totalDur;
+                        const itemStart = item.from_frame / 30;
+                        const itemEnd = (item.from_frame + item.duration_frames) / 30;
+                        const visible = currentTime >= itemStart && currentTime < itemEnd;
+                        if (!visible) return null;
+                        const isSelected = selectedElement?.type === "text" && selectedElement.id === item.id;
+                        const containerWidth = item.width ?? 0.8;
+                        return (
+                          <div
+                            key={item.id}
+                            className={`absolute select-none ${isSelected ? "cursor-grab active:cursor-grabbing" : "pointer-events-none"}`}
+                            style={{
+                              left: `${item.position.x * 100}%`,
+                              top: `${item.position.y * 100}%`,
+                              transform: "translate(-50%, -50%)",
+                              width: `${containerWidth * 100}%`,
+                            }}
+                            onDoubleClick={isSelected ? (e) => {
+                              e.stopPropagation();
+                              setEditingTextId(item.id);
+                            } : undefined}
+                            onMouseDown={isSelected ? (e) => {
+                              if ((e.target as HTMLElement).dataset.resize) return;
+                              if (editingTextId === item.id) return;
+                              e.preventDefault();
+                              const container = textOverlayRef.current;
+                              if (!container) return;
+                              const rect = container.getBoundingClientRect();
+                              const SNAP = 0.02;
+                              const DRAG_THRESHOLD = 4; // px — must move this far before it counts as a drag
+                              const startX = e.clientX;
+                              const startY = e.clientY;
+                              let didDrag = false;
+                              const onMove = (ev: MouseEvent) => {
+                                if (!didDrag) {
+                                  const dx = ev.clientX - startX;
+                                  const dy = ev.clientY - startY;
+                                  if (Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
+                                  didDrag = true;
+                                  setIsDraggingText(true);
+                                }
+                                let x = (ev.clientX - rect.left) / rect.width;
+                                let y = (ev.clientY - rect.top) / rect.height;
+                                if (Math.abs(x - 0.5) < SNAP) x = 0.5;
+                                if (Math.abs(y - 0.5) < SNAP) y = 0.5;
+                                x = Math.max(0, Math.min(1, x));
+                                y = Math.max(0, Math.min(1, y));
+                                updateTextItemLocal(item.id, { position: { x, y } });
+                              };
+                              const onUp = (ev: MouseEvent) => {
+                                window.removeEventListener("mousemove", onMove);
+                                window.removeEventListener("mouseup", onUp);
+                                setIsDraggingText(false);
+                                if (!didDrag) return; // click without drag — don't move
+                                let x = (ev.clientX - rect.left) / rect.width;
+                                let y = (ev.clientY - rect.top) / rect.height;
+                                if (Math.abs(x - 0.5) < SNAP) x = 0.5;
+                                if (Math.abs(y - 0.5) < SNAP) y = 0.5;
+                                x = Math.max(0, Math.min(1, x));
+                                y = Math.max(0, Math.min(1, y));
+                                handleUpdateText(item.id, { position: { x, y } });
+                              };
+                              window.addEventListener("mousemove", onMove);
+                              window.addEventListener("mouseup", onUp);
+                            } : undefined}
+                          >
+                            {/* Text content — inline editable on double-click */}
+                            {isSelected && editingTextId === item.id ? (
+                              <textarea
+                                ref={(el) => {
+                                  if (el) {
+                                    el.focus();
+                                    el.selectionStart = el.selectionEnd = el.value.length;
+                                    // Auto-size to content
+                                    el.style.height = "auto";
+                                    el.style.height = el.scrollHeight + "px";
+                                  }
+                                }}
+                                defaultValue={item.text}
+                                className="w-full bg-transparent border-none outline-none resize-none ring-2 ring-amber-400 rounded px-2 py-1"
+                                style={{
+                                  fontFamily: item.font_family,
+                                  fontSize: `${item.font_size * 0.5}px`,
+                                  color: item.color,
+                                  textShadow: "0 2px 8px rgba(0,0,0,0.8), 0 1px 3px rgba(0,0,0,0.6)",
+                                  textAlign: "center",
+                                  lineHeight: 1.3,
+                                  caretColor: "white",
+                                  overflow: "hidden",
+                                }}
+                                onInput={(e) => {
+                                  const el = e.target as HTMLTextAreaElement;
+                                  el.style.height = "auto";
+                                  el.style.height = el.scrollHeight + "px";
+                                }}
+                                onBlur={(e) => {
+                                  setEditingTextId(null);
+                                  if (e.target.value !== item.text) {
+                                    handleUpdateText(item.id, { text: e.target.value });
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Escape") {
+                                    setEditingTextId(null);
+                                  }
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                onMouseDown={(e) => e.stopPropagation()}
+                              />
+                            ) : (
+                              <div
+                                className={isSelected ? "ring-2 ring-amber-400/60 rounded px-2 py-1" : ""}
+                                style={{
+                                  fontFamily: item.font_family,
+                                  fontSize: `${item.font_size * 0.5}px`,
+                                  color: item.color,
+                                  textShadow: "0 2px 8px rgba(0,0,0,0.8), 0 1px 3px rgba(0,0,0,0.6)",
+                                  textAlign: "center",
+                                  lineHeight: 1.3,
+                                  whiteSpace: "pre-wrap",
+                                  wordBreak: "break-word",
+                                }}
+                              >
+                                {item.text}
+                              </div>
+                            )}
+
+                            {/* Resize handles — left/right edges to change container width */}
+                            {isSelected && (
+                              <>
+                                {/* Left edge */}
+                                <div
+                                  data-resize="left"
+                                  className="absolute top-0 bottom-0 -left-1 w-2 cursor-ew-resize hover:bg-amber-400/20 flex items-center justify-center"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const container = textOverlayRef.current;
+                                    if (!container) return;
+                                    const containerRect = container.getBoundingClientRect();
+                                    const startX = e.clientX;
+                                    const startWidth = containerWidth;
+                                    const onMove = (ev: MouseEvent) => {
+                                      const deltaPx = startX - ev.clientX;
+                                      const deltaFrac = (deltaPx / containerRect.width) * 2;
+                                      const newW = Math.max(0.1, Math.min(1.0, startWidth + deltaFrac));
+                                      updateTextItemLocal(item.id, { width: Math.round(newW * 100) / 100 });
+                                    };
+                                    const onUp = (ev: MouseEvent) => {
+                                      window.removeEventListener("mousemove", onMove);
+                                      window.removeEventListener("mouseup", onUp);
+                                      const deltaPx = startX - ev.clientX;
+                                      const deltaFrac = (deltaPx / containerRect.width) * 2;
+                                      const newW = Math.max(0.1, Math.min(1.0, startWidth + deltaFrac));
+                                      handleUpdateText(item.id, { width: Math.round(newW * 100) / 100 });
+                                    };
+                                    window.addEventListener("mousemove", onMove);
+                                    window.addEventListener("mouseup", onUp);
+                                  }}
+                                >
+                                  <div className="w-0.5 h-6 bg-amber-400 rounded-full" />
+                                </div>
+                                {/* Right edge */}
+                                <div
+                                  data-resize="right"
+                                  className="absolute top-0 bottom-0 -right-1 w-2 cursor-ew-resize hover:bg-amber-400/20 flex items-center justify-center"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const container = textOverlayRef.current;
+                                    if (!container) return;
+                                    const containerRect = container.getBoundingClientRect();
+                                    const startX = e.clientX;
+                                    const startWidth = containerWidth;
+                                    const onMove = (ev: MouseEvent) => {
+                                      const deltaPx = ev.clientX - startX;
+                                      const deltaFrac = (deltaPx / containerRect.width) * 2;
+                                      const newW = Math.max(0.1, Math.min(1.0, startWidth + deltaFrac));
+                                      updateTextItemLocal(item.id, { width: Math.round(newW * 100) / 100 });
+                                    };
+                                    const onUp = (ev: MouseEvent) => {
+                                      window.removeEventListener("mousemove", onMove);
+                                      window.removeEventListener("mouseup", onUp);
+                                      const deltaPx = ev.clientX - startX;
+                                      const deltaFrac = (deltaPx / containerRect.width) * 2;
+                                      const newW = Math.max(0.1, Math.min(1.0, startWidth + deltaFrac));
+                                      handleUpdateText(item.id, { width: Math.round(newW * 100) / 100 });
+                                    };
+                                    window.addEventListener("mousemove", onMove);
+                                    window.addEventListener("mouseup", onUp);
+                                  }}
+                                >
+                                  <div className="w-0.5 h-6 bg-amber-400 rounded-full" />
+                                </div>
+                                {/* Corner dots (visual only, no resize) */}
+                                <div className="absolute -top-1 -left-1 w-2 h-2 bg-amber-400 rounded-full pointer-events-none" />
+                                <div className="absolute -top-1 -right-1 w-2 h-2 bg-amber-400 rounded-full pointer-events-none" />
+                                <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-amber-400 rounded-full pointer-events-none" />
+                                <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-amber-400 rounded-full pointer-events-none" />
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-                {selectedElement?.type === "full-video" ? null : selectedElement?.type === "transition" ? (
+                {selectedElement?.type === "full-video" || selectedElement?.type === "text" ? null : selectedElement?.type === "transition" ? (
                   <div className="w-[min(60vh*9/16,400px)]">
                     <TransitionPreview
                       fromSceneId={selectedElement.fromSceneId}
@@ -1182,7 +1464,9 @@ export default function ProjectEditorPage({
 
                   const currentIdx = selectedElement.type === "scene"
                     ? segments.findIndex((s) => s.type === "scene" && s.id === selectedElement.id)
-                    : segments.findIndex((s) => s.type === "transition" && s.fromSceneId === selectedElement.fromSceneId && s.toSceneId === selectedElement.toSceneId);
+                    : selectedElement.type === "transition"
+                    ? segments.findIndex((s) => s.type === "transition" && s.fromSceneId === selectedElement.fromSceneId && s.toSceneId === selectedElement.toSceneId)
+                    : -1;
 
                   const goTo = (seg: Segment) => {
                     if (seg.type === "scene") {
@@ -1232,7 +1516,7 @@ export default function ProjectEditorPage({
         /*  RIGHT PANEL — Clip / Keyframe / Properties                   */
         /* ============================================================ */
         rightPanel={
-          selectedElement?.type === "full-video" ? (
+          selectedElement?.type === "full-video" || selectedElement?.type === "text" ? (
             <div className="flex flex-col h-full">
               {/* Tab bar */}
               <div className="flex border-b border-slate-800/50 flex-shrink-0">
@@ -1450,11 +1734,70 @@ export default function ProjectEditorPage({
                 )}
 
                 {fullVideoTab === "text" && (
-                  <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                    <Type className="w-8 h-8 text-slate-600 mb-3" />
-                    <p className="text-sm text-slate-400 font-medium">Text Overlays</p>
-                    <p className="text-xs text-slate-500 mt-1">Coming Soon</p>
-                  </div>
+                  selectedElement?.type === "text" && selectedTextItem ? (
+                    /* Editing a specific text item — show editor with back button */
+                    <div>
+                      <button
+                        onClick={() => selectElement({ type: "full-video" })}
+                        className="flex items-center gap-1 px-4 py-2 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+                      >
+                        <ChevronLeft className="w-3 h-3" /> Back to all text
+                      </button>
+                      <TextItemEditor
+                        item={selectedTextItem}
+                        onUpdate={(updates) => handleUpdateText(selectedTextItem.id, updates)}
+                      />
+                    </div>
+                  ) : (
+                    /* Text list — add, select, bulk edit */
+                    <div className="p-4 space-y-3">
+                      <button
+                        onClick={handleAddText}
+                        className="w-full py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-sm font-semibold flex items-center justify-center gap-2"
+                      >
+                        <Type className="w-4 h-4" /> Add Text Overlay
+                      </button>
+
+                      {textItems.length === 0 ? (
+                        <div className="text-center py-6 text-slate-500 text-sm">
+                          No text overlays yet
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {textItems.map((item) => (
+                            <div
+                              key={item.id}
+                              onClick={() => selectElement({ type: "text", id: item.id })}
+                              className="rounded-lg border border-slate-800 hover:border-slate-700 p-3 cursor-pointer"
+                            >
+                              <p className="text-sm text-white truncate">{item.text || "Empty text"}</p>
+                              <p className="text-[10px] text-slate-500 mt-1">
+                                {(item.from_frame / 30).toFixed(1)}s — {((item.from_frame + item.duration_frames) / 30).toFixed(1)}s
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {textItems.length > 1 && (
+                        <button
+                          onClick={() => {
+                            const style = textItems[0];
+                            textItems.slice(1).forEach((t) => {
+                              handleUpdateText(t.id, {
+                                font_family: style.font_family,
+                                font_size: style.font_size,
+                                color: style.color,
+                              });
+                            });
+                          }}
+                          className="w-full py-1.5 rounded border border-slate-700 text-slate-400 text-xs hover:text-slate-300 hover:border-slate-600"
+                        >
+                          Apply first item&apos;s style to all
+                        </button>
+                      )}
+                    </div>
+                  )
                 )}
 
                 {fullVideoTab === "audio" && (
@@ -2017,6 +2360,10 @@ export default function ProjectEditorPage({
             onUpdateScene={handleUpdateScene}
             onUpdateTransition={handleUpdateTransition}
             colorGradeEnabled={renderOpts.color_grade ?? true}
+            textItems={textItems}
+            selectedTextId={selectedElement?.type === "text" ? selectedElement.id : null}
+            onSelectText={(textId) => selectElement({ type: "text", id: textId })}
+            onUpdateTextItem={handleUpdateText}
           />
         }
       />

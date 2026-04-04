@@ -18,6 +18,7 @@ from lorekit.models import (
     Timeline,
     SceneItem,
     TransitionItem,
+    TextItem,
 )
 
 router = APIRouter(prefix="/api/scenes", tags=["scenes"])
@@ -39,17 +40,11 @@ def _load_timeline(project: dict) -> Timeline:
     return Timeline.model_validate(tl)
 
 
-async def _save_timeline(
-    project_id: str,
-    timeline: Timeline,
-    *,
-    org_id: str | None = None,
-    expected_version: int | None = None,
-) -> None:
+async def _save_timeline(project_id: str, timeline: Timeline, *, org_id: str | None = None) -> None:
     """Recalculate duration, increment version, and persist the timeline.
 
-    If expected_version is provided, the write only succeeds if the current
-    version in the DB matches (optimistic locking). Raises 409 on conflict.
+    Uses optimistic locking: the write only succeeds if the version in the DB
+    matches the version we loaded. Raises 409 on conflict.
     """
     # Recompute total duration from all track items
     all_frames = [
@@ -58,28 +53,28 @@ async def _save_timeline(
         for item in track.items
     ]
     timeline.duration_frames = max(all_frames) if all_frames else 0
+
+    # Optimistic lock: save the version we loaded, then increment
+    loaded_version = timeline.version
     timeline.version += 1
 
-    if expected_version is not None:
-        # Optimistic lock: only update if version hasn't changed
-        pool = await db.get_pool()
-        result = await pool.execute(
-            """UPDATE universe_projects
-               SET timeline_json = $1, updated_at = $2
-               WHERE id = $3
-               AND (timeline_json->>'version')::int = $4""",
-            json.dumps(timeline.model_dump()),
-            __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
-            project_id,
-            expected_version,
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    serialized = json.dumps(timeline.model_dump())
+
+    pool = await db.get_pool()
+    result = await pool.execute(
+        """UPDATE universe_projects
+           SET timeline_json = $1, updated_at = $2
+           WHERE id = $3
+           AND (timeline_json->>'version')::int = $4""",
+        serialized, now, project_id, loaded_version,
+    )
+    if result == "UPDATE 0":
+        raise HTTPException(
+            status_code=409,
+            detail="Timeline was modified concurrently. Please refresh and retry.",
         )
-        if result == "UPDATE 0":
-            raise HTTPException(
-                status_code=409,
-                detail="Timeline was modified concurrently. Please refresh and retry.",
-            )
-    else:
-        await db.update_project(project_id, org_id=org_id, timeline_json=json.dumps(timeline.model_dump()))
 
 
 def _resolve_material(timeline: Timeline, material_id: str | None) -> Material | None:
@@ -177,6 +172,24 @@ def _transition_to_response(trans: TransitionItem, timeline: Timeline) -> dict:
         "clip_path": clip_mat.path if clip_mat else None,
         "clip_url": clip_mat.url if clip_mat else None,
         "enabled": trans.enabled,
+    }
+
+
+def _text_item_to_response(item: TextItem) -> dict:
+    """Convert a TextItem to the API response format."""
+    return {
+        "id": item.id,
+        "text": item.text,
+        "font_family": item.font_family,
+        "font_size": item.font_size,
+        "color": item.color,
+        "position": item.position,
+        "width": item.width,
+        "from_frame": item.from_frame,
+        "duration_frames": item.duration_frames,
+        "duration": item.duration_frames / FPS,
+        "animation": item.animation,
+        "enabled": item.enabled,
     }
 
 
@@ -283,9 +296,18 @@ async def get_scenes(project_id: str, user: CurrentUser = Depends(get_current_us
         elif isinstance(item, TransitionItem):
             transitions.append(_transition_to_response(item, timeline))
 
+    # Extract text items from text-overlay track
+    text_track = timeline.get_track("text-overlay")
+    text_items = []
+    if text_track:
+        for item in text_track.items:
+            if isinstance(item, TextItem):
+                text_items.append(_text_item_to_response(item))
+
     return {
         "scenes": scenes,
         "transitions": transitions,
+        "text_items": text_items,
         "total_duration": timeline.duration_frames / FPS,
     }
 
@@ -319,7 +341,7 @@ async def update_scene(
             setattr(scene, key, val)
 
     _recalc_frames(timeline)
-    await _save_timeline(project_id, timeline, org_id=user.org_id, expected_version=timeline.version - 1)
+    await _save_timeline(project_id, timeline, org_id=user.org_id)
     return _scene_to_response(scene, timeline)
 
 
@@ -382,7 +404,7 @@ async def delete_scene(
     timeline.materials = {k: v for k, v in timeline.materials.items() if k in used_mids}
 
     _recalc_frames(timeline)
-    await _save_timeline(project_id, timeline, org_id=user.org_id, expected_version=timeline.version - 1)
+    await _save_timeline(project_id, timeline, org_id=user.org_id)
 
     remaining = sum(1 for i in video_track.items if isinstance(i, SceneItem))
     return {"deleted": scene_id, "scene_count": remaining}
@@ -421,7 +443,7 @@ async def reorder_scenes(
 
     video_track.items = reordered
     _recalc_frames(timeline)
-    await _save_timeline(project_id, timeline, org_id=user.org_id, expected_version=timeline.version - 1)
+    await _save_timeline(project_id, timeline, org_id=user.org_id)
 
     return {"scenes": [_scene_to_response(s, timeline) for s in reordered]}
 
@@ -461,7 +483,7 @@ async def copy_keyframe(
         timeline.add_material(new_mat)
         target.keyframe_material_id = new_mat.id
 
-    await _save_timeline(project_id, timeline, org_id=user.org_id, expected_version=timeline.version - 1)
+    await _save_timeline(project_id, timeline, org_id=user.org_id)
     return {"copied_to": body.target_scene_ids, "keyframe_url": source_mat.url}
 
 
@@ -494,7 +516,7 @@ async def set_start_keyframe(
     timeline.add_material(new_mat)
     scene.keyframe_material_id = new_mat.id
 
-    await _save_timeline(project_id, timeline, org_id=user.org_id, expected_version=timeline.version - 1)
+    await _save_timeline(project_id, timeline, org_id=user.org_id)
     return {"scene_id": scene_id, "keyframe_url": body.keyframe_url, "keyframe_path": body.keyframe_path}
 
 
@@ -520,7 +542,7 @@ async def set_end_keyframe(
     else:
         scene.end_keyframe_material_id = None
 
-    await _save_timeline(project_id, timeline, org_id=user.org_id, expected_version=timeline.version - 1)
+    await _save_timeline(project_id, timeline, org_id=user.org_id)
     return {"scene_id": scene_id, "end_keyframe_url": body.end_keyframe_url}
 
 
@@ -556,7 +578,7 @@ async def delete_transition(
 
     video_track.items = new_items
     _recalc_frames(timeline)
-    await _save_timeline(project_id, timeline, org_id=user.org_id, expected_version=timeline.version - 1)
+    await _save_timeline(project_id, timeline, org_id=user.org_id)
 
     return {"deleted": f"{from_id}_{to_id}"}
 
@@ -611,7 +633,7 @@ async def update_transition(
             setattr(transition, key, val)
 
     _recalc_frames(timeline)
-    await _save_timeline(project_id, timeline, org_id=user.org_id, expected_version=timeline.version - 1)
+    await _save_timeline(project_id, timeline, org_id=user.org_id)
     return _transition_to_response(transition, timeline)
 
 
@@ -639,5 +661,120 @@ async def set_reference_images(
         timeline.add_material(mat)
         scene.reference_image_ids.append(mat.id)
 
-    await _save_timeline(project_id, timeline, org_id=user.org_id, expected_version=timeline.version - 1)
+    await _save_timeline(project_id, timeline, org_id=user.org_id)
     return {"scene_id": scene_id, "reference_images": urls}
+
+
+# ---------------------------------------------------------------------------
+# Text Item Endpoints
+# ---------------------------------------------------------------------------
+
+
+class TextItemCreate(BaseModel):
+    text: str = "New Text"
+    font_family: str = "Cinzel"
+    font_size: int = 48
+    color: str = "#FFFFFF"
+    position: dict | None = None
+    from_frame: int = 0
+    duration_frames: int = 150  # 5s at 30fps
+
+
+class TextItemUpdate(BaseModel):
+    text: str | None = None
+    font_family: str | None = None
+    font_size: int | None = None
+    color: str | None = None
+    position: dict | None = None
+    width: float | None = None
+    from_frame: int | None = None
+    duration_frames: int | None = None
+    animation: dict | None = None
+    enabled: bool | None = None
+
+
+@router.post("/{project_id}/text")
+async def add_text(
+    project_id: str, body: TextItemCreate,
+    user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """Add a text overlay to the project."""
+    project = await db.get_project(project_id, org_id=user.org_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    timeline = _load_timeline(project)
+    text_track = timeline.get_track("text-overlay")
+    if not text_track:
+        raise HTTPException(status_code=400, detail="No text track in timeline")
+
+    item = TextItem(
+        text=body.text,
+        font_family=body.font_family,
+        font_size=body.font_size,
+        color=body.color,
+        position=body.position or {"x": 0.5, "y": 0.5},
+        from_frame=body.from_frame,
+        duration_frames=body.duration_frames,
+    )
+    text_track.items.append(item)
+
+    await _save_timeline(project_id, timeline, org_id=user.org_id)
+    return _text_item_to_response(item)
+
+
+@router.patch("/{project_id}/text/{text_id}")
+async def update_text(
+    project_id: str, text_id: str, body: TextItemUpdate,
+    user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """Update a text overlay's properties."""
+    project = await db.get_project(project_id, org_id=user.org_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    timeline = _load_timeline(project)
+    text_track = timeline.get_track("text-overlay")
+    if not text_track:
+        raise HTTPException(status_code=404, detail="Text track not found")
+
+    item = next((i for i in text_track.items if isinstance(i, TextItem) and i.id == text_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Text item not found")
+
+    updates = body.model_dump(exclude_none=True)
+    for key, val in updates.items():
+        if hasattr(item, key):
+            setattr(item, key, val)
+
+    # Enforce minimum duration (0.5s)
+    if item.duration_frames < 15:
+        item.duration_frames = 15
+
+    await _save_timeline(project_id, timeline, org_id=user.org_id)
+    return _text_item_to_response(item)
+
+
+@router.delete("/{project_id}/text/{text_id}")
+async def delete_text(
+    project_id: str, text_id: str,
+    user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """Delete a text overlay."""
+    project = await db.get_project(project_id, org_id=user.org_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    timeline = _load_timeline(project)
+    text_track = timeline.get_track("text-overlay")
+    if not text_track:
+        raise HTTPException(status_code=404, detail="Text track not found")
+
+    original_count = len(text_track.items)
+    text_track.items = [i for i in text_track.items if not (isinstance(i, TextItem) and i.id == text_id)]
+
+    if len(text_track.items) == original_count:
+        raise HTTPException(status_code=404, detail="Text item not found")
+
+    await _save_timeline(project_id, timeline, org_id=user.org_id)
+    return {"deleted": text_id}

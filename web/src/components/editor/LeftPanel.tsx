@@ -12,8 +12,10 @@ import {
   Trash2,
   Clapperboard,
   Download,
+  Type,
+  Plus,
 } from "lucide-react";
-import type { Scene, Transition, RenderRecord } from "@/lib/api";
+import type { Scene, Transition, RenderRecord, TextItem } from "@/lib/api";
 import { clipUrl, API_BASE } from "@/lib/api";
 import { cn, BEAT_TEXT_COLORS, formatDuration } from "@/lib/utils";
 
@@ -21,13 +23,14 @@ import { cn, BEAT_TEXT_COLORS, formatDuration } from "@/lib/utils";
 /*  Tab types                                                          */
 /* ------------------------------------------------------------------ */
 
-export type LeftPanelTab = "script" | "audio" | "media" | "renders";
+export type LeftPanelTab = "script" | "audio" | "media" | "renders" | "text";
 
 const TABS: Array<{ key: LeftPanelTab; label: string; icon: React.ElementType }> = [
   { key: "script", label: "Script", icon: ScrollText },
   { key: "audio", label: "Audio", icon: Music },
   { key: "media", label: "Media", icon: ImageIcon },
   { key: "renders", label: "Renders", icon: Clapperboard },
+  { key: "text", label: "Text", icon: Type },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -73,6 +76,13 @@ interface LeftPanelProps {
   renders?: RenderRecord[];
   onDownloadRender?: (path: string) => void;
   onDeleteRender?: (jobId: string) => void;
+
+  // Text overlays
+  textItems?: TextItem[];
+  selectedTextId?: string | null;
+  onSelectText?: (id: string) => void;
+  onAddText?: () => void;
+  onDeleteText?: (id: string) => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -100,6 +110,11 @@ export function LeftPanel({
   renders,
   onDownloadRender,
   onDeleteRender,
+  textItems,
+  selectedTextId,
+  onSelectText,
+  onAddText,
+  onDeleteText,
 }: LeftPanelProps) {
   return (
     <div className="flex flex-col h-full">
@@ -162,6 +177,56 @@ export function LeftPanel({
             onDownload={onDownloadRender}
             onDelete={onDeleteRender}
           />
+        )}
+
+        {activeTab === "text" && (
+          <div className="p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Text Overlays</span>
+              <button
+                onClick={onAddText}
+                className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300"
+              >
+                <Plus className="w-3 h-3" /> Add
+              </button>
+            </div>
+
+            {(!textItems || textItems.length === 0) ? (
+              <div className="text-center py-8 text-slate-500 text-sm">
+                No text overlays yet.<br />Click + to add one.
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {textItems.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => onSelectText?.(item.id)}
+                    className={cn(
+                      "rounded-lg border p-2.5 cursor-pointer transition-colors",
+                      selectedTextId === item.id
+                        ? "border-amber-500/50 bg-amber-500/5"
+                        : "border-slate-800 hover:border-slate-700"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-200 truncate max-w-[200px]">
+                        {item.text || "Empty text"}
+                      </span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onDeleteText?.(item.id); }}
+                        className="text-slate-500 hover:text-red-400 p-0.5"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-1">
+                      {(item.duration_frames / 30).toFixed(1)}s @ {(item.from_frame / 30).toFixed(1)}s
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>

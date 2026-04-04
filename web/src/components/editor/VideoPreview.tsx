@@ -502,31 +502,9 @@ export const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(fu
         )}
         {audioUrl && <audio ref={audioRef} src={clipUrl(audioUrl)} preload="auto" />}
 
-        {/* Play overlay when idle or done */}
-        {(playState === "idle" || playState === "done") && (
-          <button
-            type="button"
-            onClick={play}
-            className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/30 transition-colors"
-          >
-            <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-              <Play className="w-7 h-7 text-white ml-0.5" />
-            </div>
-          </button>
-        )}
+        {/* Play overlay removed — use the Play button below the video instead */}
 
-        {/* Paused overlay */}
-        {playState === "paused" && (
-          <button
-            type="button"
-            onClick={play}
-            className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/10 transition-colors"
-          >
-            <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-              <Play className="w-7 h-7 text-white ml-0.5" />
-            </div>
-          </button>
-        )}
+        {/* Paused overlay removed — use the Play button below the video instead */}
       </div>
 
       {/* Progress bar — clickable for seek */}

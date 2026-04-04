@@ -86,6 +86,21 @@ export interface Transition {
   enabled?: boolean;
 }
 
+export interface TextItem {
+  id: string;
+  text: string;
+  font_family: string;
+  font_size: number;
+  color: string;
+  position: { x: number; y: number };
+  width: number;              // container width as fraction of video (0.1-1.0)
+  from_frame: number;
+  duration_frames: number;
+  duration: number;           // seconds
+  animation: { enter: string; exit: string } | null;
+  enabled: boolean;
+}
+
 /** Compute effective timeline duration: clip length / speed */
 export function effectiveDuration(item: { duration: number; speed?: number }): number {
   return item.duration / (item.speed ?? 1.0);
@@ -446,8 +461,8 @@ export const renderProject = (projectId: string, options: RenderOptions = {}) =>
   });
 
 // Scenes
-export const getScenes = async (projectId: string): Promise<{ scenes: Scene[]; transitions: Transition[] }> => {
-  const data = await fetchAPI<{ scenes: Array<Scene & { clip_path?: string }>; transitions?: Transition[]; total_duration: number }>(`/api/scenes/${projectId}`);
+export const getScenes = async (projectId: string): Promise<{ scenes: Scene[]; transitions: Transition[]; text_items: TextItem[] }> => {
+  const data = await fetchAPI<{ scenes: Array<Scene & { clip_path?: string }>; transitions?: Transition[]; text_items?: TextItem[]; total_duration: number }>(`/api/scenes/${projectId}`);
   const scenes = (data.scenes ?? []).map((s, idx) => ({
     ...s,
     id: s.id ?? String(s.scene_id ?? idx),
@@ -459,8 +474,19 @@ export const getScenes = async (projectId: string): Promise<{ scenes: Scene[]; t
     extracted_frames: s.extracted_frames ?? null,
   }));
   const transitions = data.transitions ?? [];
-  return { scenes, transitions };
+  const text_items = data.text_items ?? [];
+  return { scenes, transitions, text_items };
 };
+
+// Text items
+export const addTextItem = async (projectId: string, data: Partial<TextItem> = {}): Promise<TextItem> =>
+  fetchAPI<TextItem>(`/api/scenes/${projectId}/text`, { method: "POST", body: JSON.stringify(data) });
+
+export const updateTextItem = async (projectId: string, textId: string, updates: Partial<TextItem>): Promise<TextItem> =>
+  fetchAPI<TextItem>(`/api/scenes/${projectId}/text/${textId}`, { method: "PATCH", body: JSON.stringify(updates) });
+
+export const deleteTextItem = async (projectId: string, textId: string): Promise<{ deleted: string }> =>
+  fetchAPI<{ deleted: string }>(`/api/scenes/${projectId}/text/${textId}`, { method: "DELETE" });
 export const updateScene = (projectId: string, sceneId: string, data: Partial<Scene>) =>
   fetchAPI<Scene>(`/api/scenes/${projectId}/${sceneId}`, { method: "PATCH", body: JSON.stringify(data) });
 export const updateTransition = (projectId: string, fromId: number, toId: number, data: Partial<Transition>) =>

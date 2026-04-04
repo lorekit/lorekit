@@ -1,10 +1,11 @@
 import { create } from "zustand";
-import type { Project, Scene, Transition } from "@/lib/api";
+import type { Project, Scene, Transition, TextItem } from "@/lib/api";
 import { effectiveDuration } from "@/lib/api";
 
 export type SelectedElement =
   | { type: "scene"; id: string }
   | { type: "transition"; fromSceneId: number; toSceneId: number }
+  | { type: "text"; id: string }
   | { type: "full-video" }
   | null;
 
@@ -13,6 +14,7 @@ interface ProjectState {
   project: Project | null;
   scenes: Scene[];
   transitions: Transition[];
+  textItems: TextItem[];
   selectedSceneId: string | null;
   selectedElement: SelectedElement;
 
@@ -24,10 +26,14 @@ interface ProjectState {
   setProject: (project: Project) => void;
   setScenes: (scenes: Scene[]) => void;
   setTransitions: (transitions: Transition[]) => void;
+  setTextItems: (items: TextItem[]) => void;
   selectScene: (sceneId: string | null) => void;
   selectElement: (element: SelectedElement) => void;
   updateScene: (sceneId: string, updates: Partial<Scene>) => void;
   updateTransition: (fromSceneId: number, toSceneId: number, updates: Partial<Transition>) => void;
+  addTextItemLocal: (item: TextItem) => void;
+  updateTextItemLocal: (id: string, updates: Partial<TextItem>) => void;
+  removeTextItemLocal: (id: string) => void;
   setLoading: (loading: boolean) => void;
   setGenerating: (generating: boolean) => void;
   reset: () => void;
@@ -35,6 +41,7 @@ interface ProjectState {
   // Computed
   selectedScene: () => Scene | null;
   selectedTransition: () => Transition | null;
+  selectedTextItem: () => TextItem | null;
   totalDuration: () => number;
 }
 
@@ -42,6 +49,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   project: null,
   scenes: [],
   transitions: [],
+  textItems: [],
   selectedSceneId: null,
   selectedElement: null,
   isLoading: false,
@@ -50,16 +58,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setProject: (project) => set({ project }),
   setScenes: (scenes) => set((state) => ({
     scenes,
-    // Preserve current selection if the scene still exists, otherwise select first
     selectedSceneId: scenes.some((s) => s.id === state.selectedSceneId)
       ? state.selectedSceneId
       : scenes[0]?.id ?? null,
-    // Also preserve selectedElement if it's still valid
     selectedElement: state.selectedElement?.type === "scene"
       ? (scenes.some((s) => s.id === (state.selectedElement as { type: "scene"; id: string }).id) ? state.selectedElement : (scenes[0] ? { type: "scene" as const, id: scenes[0].id } : null))
-      : state.selectedElement, // transitions always remain valid
+      : state.selectedElement,
   })),
   setTransitions: (transitions) => set({ transitions }),
+  setTextItems: (textItems) => set({ textItems }),
   selectScene: (sceneId) => set({
     selectedSceneId: sceneId,
     selectedElement: sceneId ? { type: "scene", id: sceneId } : null,
@@ -86,7 +93,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           ),
         };
       }
-      // Create new transition entry in store
       return {
         transitions: [
           ...state.transitions,
@@ -94,9 +100,21 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         ],
       };
     }),
+  addTextItemLocal: (item) => set((state) => ({ textItems: [...state.textItems, item] })),
+  updateTextItemLocal: (id, updates) =>
+    set((state) => ({
+      textItems: state.textItems.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+    })),
+  removeTextItemLocal: (id) =>
+    set((state) => ({
+      textItems: state.textItems.filter((t) => t.id !== id),
+      selectedElement: state.selectedElement?.type === "text" && state.selectedElement.id === id
+        ? null
+        : state.selectedElement,
+    })),
   setLoading: (isLoading) => set({ isLoading }),
   setGenerating: (isGenerating) => set({ isGenerating }),
-  reset: () => set({ project: null, scenes: [], transitions: [], selectedSceneId: null, selectedElement: null, isLoading: false, isGenerating: false }),
+  reset: () => set({ project: null, scenes: [], transitions: [], textItems: [], selectedSceneId: null, selectedElement: null, isLoading: false, isGenerating: false }),
 
   selectedScene: () => {
     const state = get();
@@ -110,10 +128,20 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       (t) => t.from_scene_id === el.fromSceneId && t.to_scene_id === el.toSceneId
     ) ?? null;
   },
+  selectedTextItem: () => {
+    const state = get();
+    const el = state.selectedElement;
+    if (el?.type !== "text") return null;
+    return state.textItems.find((t) => t.id === el.id) ?? null;
+  },
   totalDuration: () => {
     const state = get();
     const sceneDur = state.scenes.reduce((sum, s) => sum + effectiveDuration(s), 0);
     const transDur = state.transitions.reduce((sum, t) => sum + effectiveDuration(t), 0);
-    return sceneDur + transDur;
+    // Text items can extend beyond video — include their end frames
+    const textEnd = state.textItems.length > 0
+      ? Math.max(...state.textItems.map((t) => (t.from_frame + t.duration_frames) / 30))
+      : 0;
+    return Math.max(sceneDur + transDur, textEnd);
   },
 }));
