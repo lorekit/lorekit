@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Navbar } from "@/components/layout/Navbar";
+import { InsufficientCreditsModal } from "@/components/InsufficientCreditsModal";
 
 /**
  * Auth guard for /app routes.
@@ -39,6 +40,7 @@ export default async function AppLayout({
   return (
     <>
       <Navbar />
+      <InsufficientCreditsModal />
       <div className="flex-1 overflow-auto">
         {children}
       </div>

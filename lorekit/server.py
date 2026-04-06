@@ -33,6 +33,7 @@ from lorekit.api.documents import router as documents_router
 from lorekit.api.scripts import router as scripts_router
 from lorekit.api.voices import router as voices_router
 from lorekit.api.audio import router as audio_router
+from lorekit.api.billing import router as billing_router
 from lorekit.api.effects import router as effects_router
 
 
@@ -118,6 +119,7 @@ app.include_router(documents_router)
 app.include_router(scripts_router)
 app.include_router(voices_router)
 app.include_router(audio_router)
+app.include_router(billing_router)
 app.include_router(effects_router)
 
 

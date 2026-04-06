@@ -685,6 +685,9 @@ class TextItemUpdate(BaseModel):
     font_family: str | None = None
     font_size: int | None = None
     color: str | None = None
+    font_weight: int | None = None
+    font_style: str | None = None
+    text_decoration: str | None = None
     position: dict | None = None
     width: float | None = None
     from_frame: int | None = None

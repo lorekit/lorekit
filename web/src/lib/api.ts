@@ -92,6 +92,9 @@ export interface TextItem {
   font_family: string;
   font_size: number;
   color: string;
+  font_weight: number;        // 100-900 (400=normal, 700=bold)
+  font_style: string;         // "normal" | "italic"
+  text_decoration: string;    // "none" | "underline"
   position: { x: number; y: number };
   width: number;              // container width as fraction of video (0.1-1.0)
   from_frame: number;
@@ -266,6 +269,17 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
     localStorage.removeItem("lorekit_token");
     window.location.href = "/login";
     throw new Error("Authentication required");
+  }
+
+  // Handle insufficient credits — dispatch event for modal
+  if (res.status === 402 && typeof window !== "undefined") {
+    let detail = "Insufficient credits";
+    try {
+      const body = await res.json();
+      if (body?.detail) detail = body.detail;
+    } catch {}
+    window.dispatchEvent(new CustomEvent("lorekit:insufficient-credits", { detail }));
+    throw new Error(detail);
   }
 
   if (!res.ok) {
@@ -835,3 +849,81 @@ export const uploadAudio = async (file: File): Promise<AudioAnalysis & { filenam
 
 export const reanalyzeAudio = (filename: string, beatsPerCut: number) =>
   fetchAPI<AudioAnalysis & { filename: string; file_path: string }>(`/api/audio/analyze/${filename}?beats_per_cut=${beatsPerCut}`);
+
+// --- Billing ---
+
+export interface Subscription {
+  balance: number;
+  unlimited: boolean;
+  plan_tier?: string;
+  plan_credits?: number;
+  status?: string;
+  current_period_end?: string;
+  billing_interval?: string;
+  auto_refill_enabled?: boolean;
+  auto_refill_threshold?: number;
+  auto_refill_credits?: number;
+}
+
+export interface LedgerEntry {
+  id: string;
+  amount: number;
+  balance_after: number;
+  source: string;
+  reference_id?: string;
+  description?: string;
+  metadata_json?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface UsageResponse {
+  entries: LedgerEntry[];
+  total: number;
+  unlimited: boolean;
+}
+
+export const getSubscription = () =>
+  fetchAPI<Subscription>("/api/billing/subscription");
+
+export const getUsageHistory = (limit = 50, offset = 0) =>
+  fetchAPI<UsageResponse>(`/api/billing/usage?limit=${limit}&offset=${offset}`);
+
+export const createCheckout = (priceId: string, successUrl?: string, cancelUrl?: string) =>
+  fetchAPI<{ url: string; session_id: string }>("/api/billing/checkout", {
+    method: "POST",
+    body: JSON.stringify({
+      price_id: priceId,
+      ...(successUrl && { success_url: successUrl }),
+      ...(cancelUrl && { cancel_url: cancelUrl }),
+    }),
+  });
+
+export const createPaygCheckout = (credits = 1000, successUrl?: string, cancelUrl?: string) =>
+  fetchAPI<{ url: string; session_id: string }>("/api/billing/checkout/payg", {
+    method: "POST",
+    body: JSON.stringify({
+      credits,
+      ...(successUrl && { success_url: successUrl }),
+      ...(cancelUrl && { cancel_url: cancelUrl }),
+    }),
+  });
+
+export const createPortalSession = () =>
+  fetchAPI<{ url: string }>("/api/billing/portal", { method: "POST" });
+
+export const updateAutoRefill = (enabled: boolean, threshold = 100, credits = 1000) =>
+  fetchAPI<{ ok: boolean }>("/api/billing/auto-refill", {
+    method: "PUT",
+    body: JSON.stringify({ enabled, threshold, credits }),
+  });
+
+export const getBillingAnalytics = () =>
+  fetchAPI<BillingAnalytics>("/api/billing/analytics");
+
+export interface BillingAnalytics {
+  daily_usage: { date: string; credits: number }[];
+  by_source: { source: string; total: number }[];
+  top_projects: { reference_id: string; total: number; description: string }[];
+  burn_rate: number;
+  days_remaining: number | null;
+}

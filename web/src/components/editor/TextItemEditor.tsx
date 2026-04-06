@@ -76,6 +76,47 @@ export default function TextItemEditor({ item, onUpdate }: TextItemEditorProps) 
         </div>
       </div>
 
+      {/* Style: weight, italic, underline */}
+      <div>
+        <label className="text-[11px] text-slate-400 block mb-1">Style</label>
+        <div className="flex items-center gap-2">
+          <select
+            value={item.font_weight ?? 400}
+            onChange={(e) => onUpdate({ font_weight: Number(e.target.value) })}
+            className="flex-1 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-sm text-white focus:border-amber-500/50 focus:outline-none"
+          >
+            <option value={300}>Light</option>
+            <option value={400}>Regular</option>
+            <option value={500}>Medium</option>
+            <option value={600}>Semi-Bold</option>
+            <option value={700}>Bold</option>
+            <option value={900}>Black</option>
+          </select>
+          <button
+            onClick={() => onUpdate({ font_style: item.font_style === "italic" ? "normal" : "italic" })}
+            className={`w-8 h-8 rounded border text-sm font-serif italic flex items-center justify-center transition-colors ${
+              item.font_style === "italic"
+                ? "bg-amber-500/20 border-amber-500 text-amber-400"
+                : "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500"
+            }`}
+            title="Italic"
+          >
+            I
+          </button>
+          <button
+            onClick={() => onUpdate({ text_decoration: item.text_decoration === "underline" ? "none" : "underline" })}
+            className={`w-8 h-8 rounded border text-sm underline flex items-center justify-center transition-colors ${
+              item.text_decoration === "underline"
+                ? "bg-amber-500/20 border-amber-500 text-amber-400"
+                : "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500"
+            }`}
+            title="Underline"
+          >
+            U
+          </button>
+        </div>
+      </div>
+
       {/* Container width */}
       <div>
         <label className="text-[11px] text-slate-400 block mb-1">Width: {Math.round((item.width ?? 0.8) * 100)}%</label>
@@ -90,40 +131,6 @@ export default function TextItemEditor({ item, onUpdate }: TextItemEditorProps) 
         />
         <div className="flex justify-between text-[9px] text-slate-600">
           <span>10%</span><span>50%</span><span>100%</span>
-        </div>
-      </div>
-
-      {/* Position */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-[11px] text-slate-400 block mb-1">X: {item.position.x.toFixed(2)}</label>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={item.position.x}
-            onChange={(e) => onUpdate({ position: { ...item.position, x: Number(e.target.value) } })}
-            className="w-full accent-amber-500"
-          />
-          <div className="flex justify-between text-[9px] text-slate-600">
-            <span>Left</span><span>Center</span><span>Right</span>
-          </div>
-        </div>
-        <div>
-          <label className="text-[11px] text-slate-400 block mb-1">Y: {item.position.y.toFixed(2)}</label>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={item.position.y}
-            onChange={(e) => onUpdate({ position: { ...item.position, y: Number(e.target.value) } })}
-            className="w-full accent-amber-500"
-          />
-          <div className="flex justify-between text-[9px] text-slate-600">
-            <span>Top</span><span>Center</span><span>Bottom</span>
-          </div>
         </div>
       </div>
 

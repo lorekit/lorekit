@@ -122,6 +122,20 @@ export default function SettingsPage() {
         </p>
       </div>
 
+      {/* Billing link (cloud mode) */}
+      {isCloudMode && (
+        <a
+          href="/app/settings/billing"
+          className="mb-6 flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900 px-5 py-4 hover:border-amber-500/30 transition-colors group"
+        >
+          <div>
+            <h2 className="text-sm font-semibold text-white group-hover:text-amber-400 transition-colors">Billing & Credits</h2>
+            <p className="text-xs text-slate-400">Manage subscription, view usage, buy credits</p>
+          </div>
+          <span className="text-slate-600 group-hover:text-amber-400 transition-colors">&rarr;</span>
+        </a>
+      )}
+
       {error && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-400 mb-6">
           {error}

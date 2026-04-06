@@ -231,8 +231,8 @@ def _parse_scene(raw: dict[str, Any], character_name: str) -> SceneItem:
 # ── LLM calling ──────────────────────────────────────────────────────────
 
 
-async def _call_anthropic(system_prompt: str, user_prompt: str, model: str) -> str:
-    """Call Anthropic API and return the response text."""
+async def _call_anthropic(system_prompt: str, user_prompt: str, model: str) -> tuple[str, dict]:
+    """Call Anthropic API and return (text, usage_metadata)."""
     settings = get_settings()
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     message = await client.messages.create(
@@ -241,11 +241,17 @@ async def _call_anthropic(system_prompt: str, user_prompt: str, model: str) -> s
         system=system_prompt,
         messages=[{"role": "user", "content": user_prompt}],
     )
-    return message.content[0].text  # type: ignore[union-attr]
+    usage = {
+        "model": model,
+        "provider": "anthropic",
+        "input_tokens": getattr(message.usage, "input_tokens", 0),
+        "output_tokens": getattr(message.usage, "output_tokens", 0),
+    }
+    return message.content[0].text, usage  # type: ignore[union-attr]
 
 
-async def _call_openai(system_prompt: str, user_prompt: str, model: str) -> str:
-    """Call OpenAI API and return the response text."""
+async def _call_openai(system_prompt: str, user_prompt: str, model: str) -> tuple[str, dict]:
+    """Call OpenAI API and return (text, usage_metadata)."""
     settings = get_settings()
     client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
     response = await client.chat.completions.create(
@@ -256,11 +262,17 @@ async def _call_openai(system_prompt: str, user_prompt: str, model: str) -> str:
             {"role": "user", "content": user_prompt},
         ],
     )
-    return response.choices[0].message.content or ""
+    usage = {
+        "model": model,
+        "provider": "openai",
+        "prompt_tokens": getattr(response.usage, "prompt_tokens", 0) if response.usage else 0,
+        "completion_tokens": getattr(response.usage, "completion_tokens", 0) if response.usage else 0,
+    }
+    return response.choices[0].message.content or "", usage
 
 
-async def _call_llm(system_prompt: str, user_prompt: str) -> str:
-    """Route to the configured LLM provider."""
+async def _call_llm(system_prompt: str, user_prompt: str) -> tuple[str, dict]:
+    """Route to the configured LLM provider. Returns (text, usage_metadata)."""
     settings = get_settings()
     if settings.llm_provider == "openai":
         return await _call_openai(system_prompt, user_prompt, settings.llm_model)
@@ -325,7 +337,7 @@ async def generate_story(
     last_error: Exception | None = None
     for attempt in range(max_retries + 1):
         try:
-            response_text = await _call_llm(system_prompt, user_prompt)
+            response_text, llm_usage = await _call_llm(system_prompt, user_prompt)
             text = _strip_code_fences(response_text)
 
             data = json.loads(text)
@@ -373,6 +385,9 @@ async def generate_story(
                     current_frame += trans_item.duration_frames
 
             timeline.duration_frames = current_frame
+
+            # Store LLM usage metadata for credit metering
+            timeline.metadata["llm_usage"] = llm_usage
 
             # SceneItem has .duration property — validate directly
             issues = validate_scenes(scenes, arc=arc)

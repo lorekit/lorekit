@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
-import { Settings, LogOut, User, Building2, ChevronDown } from "lucide-react";
+import { Settings, LogOut, User, Building2, ChevronDown, Coins } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 import { authClient, isCloud, clearAuthToken } from "@/lib/auth-client";
+import { getSubscription } from "@/lib/api";
 
 const navItems: { href: string; label: string; exact?: boolean }[] = [
   { href: "/app", label: "Home", exact: true },
@@ -51,6 +52,14 @@ function UserMenu({ name, email, onLogout }: { name?: string | null; email?: str
             <Settings className="h-3.5 w-3.5" />
             Settings
           </Link>
+          <Link
+            href="/app/settings/billing"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 transition-colors"
+          >
+            <Coins className="h-3.5 w-3.5" />
+            Billing
+          </Link>
           <button
             onClick={() => { setOpen(false); onLogout(); }}
             className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 transition-colors"
@@ -61,6 +70,42 @@ function UserMenu({ name, email, onLogout }: { name?: string | null; email?: str
         </div>
       )}
     </div>
+  );
+}
+
+/** Credit balance indicator — shown in cloud mode */
+function CreditBalance() {
+  const [balance, setBalance] = useState<number | null>(null);
+  const [monthlyAllowance, setMonthlyAllowance] = useState<number>(0);
+
+  useEffect(() => {
+    getSubscription()
+      .then((sub) => {
+        if (!sub.unlimited) {
+          setBalance(sub.balance);
+          setMonthlyAllowance(sub.plan_credits || 0);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  if (balance === null) return null;
+
+  const isLow = monthlyAllowance > 0 && balance < monthlyAllowance * 0.1;
+
+  return (
+    <Link
+      href="/app/settings/billing"
+      className={cn(
+        "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors",
+        isLow
+          ? "bg-red-500/10 text-red-400 hover:bg-red-500/20"
+          : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+      )}
+    >
+      <Coins className="h-3.5 w-3.5" />
+      <span>{balance.toLocaleString()}</span>
+    </Link>
   );
 }
 
@@ -98,6 +143,9 @@ function CloudMenu() {
   return (
     <>
       <div className="ml-3 h-5 w-px bg-slate-800" />
+
+      {/* Credit balance */}
+      <CreditBalance />
 
       {/* Org switcher */}
       {orgs.length > 0 && (
@@ -154,6 +202,14 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950">
+      {/* Test mode banner */}
+      {process.env.NEXT_PUBLIC_STRIPE_TEST_MODE === "true" && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-1 text-center">
+          <span className="text-[10px] font-medium text-amber-400">
+            Test Mode — Using Stripe test environment
+          </span>
+        </div>
+      )}
       <div className="flex h-16 items-center justify-between px-6 py-3">
         {/* Logo */}
         <Link href="/app" className="flex items-center gap-2">

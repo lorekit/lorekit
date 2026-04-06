@@ -27,6 +27,8 @@ from pydantic import BaseModel
 
 from lorekit import db
 from lorekit.auth.user import get_current_user, CurrentUser
+from lorekit.billing import check_credits, deduct_credits
+from lorekit.billing.metering import estimate_portrait_credits
 from lorekit.config import get_settings, VIBE_PRESETS
 
 logger = logging.getLogger(__name__)
@@ -382,6 +384,10 @@ async def generate_character_image(body: GenerateCharacterRequest, user: Current
                 "theme": theme,
             }
 
+    # Pre-flight credit check
+    if not await check_credits(user.org_id, estimate_portrait_credits()):
+        raise HTTPException(status_code=402, detail="Insufficient credits")
+
     # Generate new image
     settings = get_settings()
     char_desc = body.custom_description or get_themed_char(character_id, theme=theme if theme != "default" else None)
@@ -392,6 +398,12 @@ async def generate_character_image(body: GenerateCharacterRequest, user: Current
     result = await _generate_and_store(
         character_id, character.name, theme, char_desc, settings.fal_key,
         reference_image_urls=ref_urls or None,
+    )
+
+    # Deduct credits after successful generation
+    await deduct_credits(
+        user.org_id, estimate_portrait_credits(), "usage_portrait",
+        desc=f"Portrait for {character.name} ({theme})",
     )
 
     # Copy to project
@@ -446,16 +458,28 @@ async def generate_character_for_character(body: GenerateForCharacterRequest, us
                 "theme": theme,
             }
 
+    # Pre-flight credit check
+    if not await check_credits(user.org_id, estimate_portrait_credits()):
+        raise HTTPException(status_code=402, detail="Insufficient credits")
+
     settings = get_settings()
     char_desc = body.custom_description or get_themed_char(body.character_id, theme=theme if theme != "default" else None)
 
     # Load reference images (if any) for identity-preserving generation
     ref_urls = await _load_ref_urls(body.character_id)
 
-    return await _generate_and_store(
+    result = await _generate_and_store(
         body.character_id, character.name, theme, char_desc, settings.fal_key,
         reference_image_urls=ref_urls or None,
     )
+
+    # Deduct credits after successful generation
+    await deduct_credits(
+        user.org_id, estimate_portrait_credits(), "usage_portrait",
+        desc=f"Portrait for {character.name} ({theme})",
+    )
+
+    return result
 
 
 # Backward-compatible endpoint

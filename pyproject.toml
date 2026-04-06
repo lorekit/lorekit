@@ -20,12 +20,15 @@ dependencies = [
     "python-multipart>=0.0.22",
     "librosa>=0.10.0",
     "numpy>=1.24.0",
+    "Pillow>=10.0.0",
+    "skia-python>=120.0",
 ]
 
 [project.scripts]
 lk = "lorekit.cli:main"
 
 [project.optional-dependencies]
+cloud = ["stripe>=15.0.0"]
 dev = ["pytest", "pytest-asyncio", "httpx", "ruff"]
 
 [tool.pytest.ini_options]

@@ -341,6 +341,16 @@ export default function ProjectEditorPage({
   const videoTimeRef = useRef(0);
   const videoPreviewRef = useRef<VideoPreviewHandle>(null);
   const textOverlayRef = useRef<HTMLDivElement>(null);
+  const [textContainerHeight, setTextContainerHeight] = useState(640);
+  const REFERENCE_HEIGHT = 1280; // font_size is defined in pixels at this reference height
+  // Measure text overlay container so font sizes scale proportionally
+  useEffect(() => {
+    const el = textOverlayRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(([entry]) => setTextContainerHeight(entry.contentRect.height || 640));
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
   const [isDraggingText, setIsDraggingText] = useState(false);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [playbackProgress, setPlaybackProgress] = useState<number | null>(null);
@@ -1282,9 +1292,11 @@ export default function ProjectEditorPage({
                                 className="w-full bg-transparent border-none outline-none resize-none ring-2 ring-amber-400 rounded px-2 py-1"
                                 style={{
                                   fontFamily: item.font_family,
-                                  fontSize: `${item.font_size * 0.5}px`,
+                                  fontSize: `${item.font_size / REFERENCE_HEIGHT * textContainerHeight}px`,
                                   color: item.color,
                                   textShadow: "0 2px 8px rgba(0,0,0,0.8), 0 1px 3px rgba(0,0,0,0.6)",
+                                  WebkitFontSmoothing: "auto",
+                                  MozOsxFontSmoothing: "auto",
                                   textAlign: "center",
                                   lineHeight: 1.3,
                                   caretColor: "white",
@@ -1314,9 +1326,11 @@ export default function ProjectEditorPage({
                                 className={isSelected ? "ring-2 ring-amber-400/60 rounded px-2 py-1" : ""}
                                 style={{
                                   fontFamily: item.font_family,
-                                  fontSize: `${item.font_size * 0.5}px`,
+                                  fontSize: `${item.font_size / REFERENCE_HEIGHT * textContainerHeight}px`,
                                   color: item.color,
                                   textShadow: "0 2px 8px rgba(0,0,0,0.8), 0 1px 3px rgba(0,0,0,0.6)",
+                                  WebkitFontSmoothing: "auto",
+                                  MozOsxFontSmoothing: "auto",
                                   textAlign: "center",
                                   lineHeight: 1.3,
                                   whiteSpace: "pre-wrap",

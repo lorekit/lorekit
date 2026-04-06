@@ -292,6 +292,97 @@ export const projectEffects = pgTable("project_effects", {
   pgPolicy("project_effects_delete", { for: "delete", to: authenticatedRole, using: projectInUserOrgs }),
 ]);
 
+// ============================================================
+// BILLING (Phase 5) — org-scoped credit system
+// ============================================================
+
+export const subscriptions = pgTable("subscriptions", {
+  id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull(),
+  stripeCustomerId: text("stripe_customer_id").notNull(),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  planTier: text("plan_tier").notNull(),  // 'creator' | 'pro' | 'studio'
+  planCredits: integer("plan_credits").notNull(),  // monthly credit allowance
+  status: text("status").notNull(),  // 'active' | 'past_due' | 'canceled' | 'trialing'
+  currentPeriodStart: text("current_period_start"),
+  currentPeriodEnd: text("current_period_end"),
+  billingInterval: text("billing_interval"),  // 'month' | 'year'
+  autoRefillEnabled: integer("auto_refill_enabled").notNull().default(0),  // 0 = off, 1 = on
+  autoRefillThreshold: integer("auto_refill_threshold").notNull().default(100),  // trigger when balance drops below
+  autoRefillCredits: integer("auto_refill_credits").notNull().default(1000),  // credits to purchase
+  stripePaymentMethodId: text("stripe_payment_method_id"),  // saved card for off-session charges
+  lowBalanceNotifiedAt: text("low_balance_notified_at"),  // last time we sent a low balance email
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, () => [
+  pgPolicy("subscriptions_select", { for: "select", to: authenticatedRole, using: inUserOrgs }),
+  pgPolicy("subscriptions_insert", { for: "insert", to: authenticatedRole, withCheck: inUserOrgs }),
+  pgPolicy("subscriptions_update", { for: "update", to: authenticatedRole, using: inUserOrgs }),
+  pgPolicy("subscriptions_delete", { for: "delete", to: authenticatedRole, using: inUserOrgs }),
+]);
+
+export const creditLedger = pgTable("credit_ledger", {
+  id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull(),
+  userId: text("user_id"),  // who triggered the action (for team usage breakdown)
+  amount: integer("amount").notNull(),  // positive = credit, negative = debit
+  balanceAfter: integer("balance_after").notNull(),
+  source: text("source").notNull(),  // 'subscription_refill' | 'payg_purchase' | 'usage_video_clip' | 'usage_keyframe' | 'usage_story' | 'usage_tts' | 'usage_transition' | 'usage_portrait' | 'usage_render' | 'refund' | 'admin_adjustment' | 'referral_bonus'
+  referenceId: text("reference_id"),  // project_id, job_id, or stripe payment_intent
+  description: text("description"),
+  metadataJson: jsonb("metadata_json"),
+  createdAt: text("created_at").notNull(),
+}, () => [
+  // Append-only: SELECT + INSERT only (no UPDATE/DELETE)
+  pgPolicy("credit_ledger_select", { for: "select", to: authenticatedRole, using: inUserOrgs }),
+  pgPolicy("credit_ledger_insert", { for: "insert", to: authenticatedRole, withCheck: inUserOrgs }),
+]);
+
+export const creditBalances = pgTable("credit_balances", {
+  organizationId: text("organization_id").primaryKey(),
+  balance: integer("balance").notNull().default(0),
+  monthlyAllowance: integer("monthly_allowance").notNull().default(0),
+  lastRefillAt: text("last_refill_at"),
+  updatedAt: text("updated_at").notNull(),
+}, () => [
+  // SELECT + UPDATE only (INSERT handled by service layer)
+  pgPolicy("credit_balances_select", { for: "select", to: authenticatedRole, using: inUserOrgs }),
+  pgPolicy("credit_balances_update", { for: "update", to: authenticatedRole, using: inUserOrgs }),
+]);
+
+export const stripeEvents = pgTable("stripe_events", {
+  id: text("id").primaryKey(),  // Stripe event ID (evt_...)
+  eventType: text("event_type").notNull(),
+  processedAt: text("processed_at").notNull(),
+});
+
+export const billingEvents = pgTable("billing_events", {
+  id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull(),
+  eventType: text("event_type").notNull(),  // 'subscription_created' | 'subscription_changed' | 'payment_succeeded' | 'payment_failed' | 'credits_purchased' | 'portal_opened'
+  description: text("description"),
+  metadataJson: jsonb("metadata_json"),
+  createdAt: text("created_at").notNull(),
+}, () => [
+  pgPolicy("billing_events_select", { for: "select", to: authenticatedRole, using: inUserOrgs }),
+  pgPolicy("billing_events_insert", { for: "insert", to: authenticatedRole, withCheck: inUserOrgs }),
+]);
+
+export const referrals = pgTable("referrals", {
+  id: text("id").primaryKey(),
+  referrerOrgId: text("referrer_org_id").notNull(),  // who referred
+  refereeOrgId: text("referee_org_id"),  // who signed up (filled on conversion)
+  referralCode: text("referral_code").notNull(),  // unique code (e.g. "abc123")
+  status: text("status").notNull().default("pending"),  // 'pending' | 'converted' | 'rewarded'
+  referrerCredits: integer("referrer_credits").notNull().default(500),  // credits given to referrer
+  refereeCredits: integer("referee_credits").notNull().default(500),  // bonus credits for referee
+  createdAt: text("created_at").notNull(),
+  convertedAt: text("converted_at"),
+}, () => [
+  pgPolicy("referrals_select", { for: "select", to: authenticatedRole, using: sql`referrer_org_id = ANY(${userOrgIds}) OR referee_org_id = ANY(${userOrgIds})` }),
+  pgPolicy("referrals_insert", { for: "insert", to: authenticatedRole, withCheck: sql`referrer_org_id = ANY(${userOrgIds})` }),
+]);
+
 export const projectAudioAssets = pgTable("project_audio_assets", {
   id: text("id").primaryKey(),
   projectId: text("project_id").notNull(),

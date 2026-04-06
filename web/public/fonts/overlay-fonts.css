@@ -1,0 +1,35 @@
+/* Text overlay fonts — same TTF files used by the render engine (Pillow/FreeType).
+   Loaded in the browser so preview and export use identical font metrics. */
+
+@font-face { font-family: 'Cinzel'; font-weight: 400; src: url('/fonts/Cinzel-400.ttf') format('truetype'); }
+@font-face { font-family: 'Cinzel'; font-weight: 700; src: url('/fonts/Cinzel-700.ttf') format('truetype'); }
+@font-face { font-family: 'Cinzel'; font-weight: 900; src: url('/fonts/Cinzel-900.ttf') format('truetype'); }
+
+@font-face { font-family: 'Inter'; font-weight: 400; src: url('/fonts/Inter-400.ttf') format('truetype'); }
+@font-face { font-family: 'Inter'; font-weight: 500; src: url('/fonts/Inter-500.ttf') format('truetype'); }
+@font-face { font-family: 'Inter'; font-weight: 600; src: url('/fonts/Inter-600.ttf') format('truetype'); }
+@font-face { font-family: 'Inter'; font-weight: 700; src: url('/fonts/Inter-700.ttf') format('truetype'); }
+
+@font-face { font-family: 'Playfair Display'; font-weight: 400; src: url('/fonts/PlayfairDisplay-400.ttf') format('truetype'); }
+@font-face { font-family: 'Playfair Display'; font-weight: 700; src: url('/fonts/PlayfairDisplay-700.ttf') format('truetype'); }
+
+@font-face { font-family: 'Bebas Neue'; font-weight: 400; src: url('/fonts/BebasNeue-400.ttf') format('truetype'); }
+
+@font-face { font-family: 'Oswald'; font-weight: 400; src: url('/fonts/Oswald-400.ttf') format('truetype'); }
+@font-face { font-family: 'Oswald'; font-weight: 500; src: url('/fonts/Oswald-500.ttf') format('truetype'); }
+@font-face { font-family: 'Oswald'; font-weight: 600; src: url('/fonts/Oswald-600.ttf') format('truetype'); }
+@font-face { font-family: 'Oswald'; font-weight: 700; src: url('/fonts/Oswald-700.ttf') format('truetype'); }
+
+@font-face { font-family: 'Roboto'; font-weight: 400; src: url('/fonts/Roboto-400.ttf') format('truetype'); }
+@font-face { font-family: 'Roboto'; font-weight: 500; src: url('/fonts/Roboto-500.ttf') format('truetype'); }
+@font-face { font-family: 'Roboto'; font-weight: 700; src: url('/fonts/Roboto-700.ttf') format('truetype'); }
+
+@font-face { font-family: 'Lora'; font-weight: 400; src: url('/fonts/Lora-400.ttf') format('truetype'); }
+@font-face { font-family: 'Lora'; font-weight: 500; src: url('/fonts/Lora-500.ttf') format('truetype'); }
+@font-face { font-family: 'Lora'; font-weight: 600; src: url('/fonts/Lora-600.ttf') format('truetype'); }
+@font-face { font-family: 'Lora'; font-weight: 700; src: url('/fonts/Lora-700.ttf') format('truetype'); }
+
+@font-face { font-family: 'Montserrat'; font-weight: 400; src: url('/fonts/Montserrat-400.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-weight: 500; src: url('/fonts/Montserrat-500.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-weight: 600; src: url('/fonts/Montserrat-600.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-weight: 700; src: url('/fonts/Montserrat-700.ttf') format('truetype'); }

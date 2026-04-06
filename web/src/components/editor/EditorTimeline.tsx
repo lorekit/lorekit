@@ -128,7 +128,8 @@ const TIMELINE_PAD = 40;
 const EDGE_HANDLE_WIDTH = 6; // px
 const MIN_SPEED = 0.25;
 const MAX_SPEED = 4.0;
-const SNAP_THRESHOLD = 8; // px — magnetize within this distance
+const SNAP_THRESHOLD = 8; // px — magnetize within this distance (edge resize)
+const TEXT_SNAP_THRESHOLD = 12; // px — more generous snap for text item drag
 
 /* ------------------------------------------------------------------ */
 /*  Segment layout types                                               */
@@ -497,17 +498,36 @@ export function EditorTimeline({
   /*  Text item drag — move text items along the timeline              */
   /* ---------------------------------------------------------------- */
 
-  const [textDrag, setTextDrag] = useState<{ id: string; startX: number; startFrame: number } | null>(null);
-  const textDragRef = useRef<{ id: string; startX: number; startFrame: number } | null>(null);
+  const [textDrag, setTextDrag] = useState<{ id: string; startX: number; startFrame: number; durationFrames: number } | null>(null);
+  const textDragRef = useRef<typeof textDrag>(null);
+  const [textDragFrame, setTextDragFrame] = useState<number | null>(null);
+  const textDragFrameRef = useRef<number | null>(null);
+  const [textSnapping, setTextSnapping] = useState(false);
+  const snapGuideRef = useRef<HTMLDivElement>(null);
+
+  // Snap points for text drag — segment edges + audio end (always snap to these)
+  const baseSnapPoints = useMemo(() => {
+    const points: number[] = [];
+    if (audioDurationProp && audioDurationProp > 0) {
+      points.push(audioDurationProp * pixelsPerSecond);
+    }
+    for (const seg of segmentLayout) {
+      points.push(seg.offset);
+      points.push(seg.offset + seg.width);
+    }
+    return [...new Set(points)];
+  }, [audioDurationProp, pixelsPerSecond, segmentLayout]);
 
   const handleTextDragStart = useCallback((e: React.MouseEvent, item: TextItem) => {
     // Don't start drag if clicking resize handles
     if ((e.target as HTMLElement).classList.contains("cursor-ew-resize")) return;
     e.preventDefault();
     e.stopPropagation();
-    const state = { id: item.id, startX: e.clientX, startFrame: item.from_frame };
+    const state = { id: item.id, startX: e.clientX, startFrame: item.from_frame, durationFrames: item.duration_frames };
     textDragRef.current = state;
     setTextDrag(state);
+    setTextDragFrame(item.from_frame);
+    textDragFrameRef.current = item.from_frame;
   }, []);
 
   useEffect(() => {
@@ -518,33 +538,85 @@ export function EditorTimeline({
       if (!drag) return;
       const deltaPx = e.clientX - drag.startX;
       const deltaFrames = Math.round((deltaPx / pixelsPerSecond) * 30);
-      const newFrame = Math.max(0, drag.startFrame + deltaFrames);
-      textDragRef.current = { ...drag, startFrame: drag.startFrame }; // keep original
-      // Store the computed frame for mouseup
-      (textDragRef.current as any)._currentFrame = newFrame;
+      let newFrame = Math.max(0, drag.startFrame + deltaFrames);
+
+      // Snap left and right edges of the text item to snap points
+      const leftPx = (newFrame / 30) * pixelsPerSecond;
+      const rightPx = ((newFrame + drag.durationFrames) / 30) * pixelsPerSecond;
+
+      // Collect all snap targets: base points (segments + audio) always included,
+      // plus other text items' edges (excluding the item being dragged)
+      const allSnap = [...baseSnapPoints];
+      if (textItems) {
+        for (const t of textItems) {
+          if (t.id === drag.id) continue; // skip self
+          allSnap.push((t.from_frame / 30) * pixelsPerSecond);
+          allSnap.push(((t.from_frame + t.duration_frames) / 30) * pixelsPerSecond);
+        }
+      }
+
+      let snapped: number | null = null;
+      let bestDist = TEXT_SNAP_THRESHOLD;
+
+      for (const sp of allSnap) {
+        // Check left edge of text against snap point
+        const distL = Math.abs(leftPx - sp);
+        if (distL < bestDist) {
+          bestDist = distL;
+          snapped = sp;
+          newFrame = Math.max(0, Math.round((sp / pixelsPerSecond) * 30));
+        }
+        // Check right edge of text against snap point
+        const distR = Math.abs(rightPx - sp);
+        if (distR < bestDist) {
+          bestDist = distR;
+          snapped = sp;
+          newFrame = Math.max(0, Math.round(((sp / pixelsPerSecond) - (drag.durationFrames / 30)) * 30));
+        }
+      }
+
+      // Update snap guide via direct DOM manipulation (bypasses React batching)
+      const guideEl = snapGuideRef.current;
+      if (guideEl) {
+        if (snapped != null) {
+          guideEl.style.display = "block";
+          guideEl.style.left = `${snapped + TIMELINE_PAD}px`;
+        } else {
+          guideEl.style.display = "none";
+        }
+      }
+
+      setTextSnapping(snapped != null);
+      textDragFrameRef.current = newFrame;
+      setTextDragFrame(newFrame);
     };
 
     const handleUp = () => {
+      const newFrame = textDragFrameRef.current;
       const drag = textDragRef.current;
-      if (drag) {
-        const newFrame = (drag as any)._currentFrame ?? drag.startFrame;
-        if (newFrame !== drag.startFrame) {
-          onUpdateTextItem?.(drag.id, { from_frame: newFrame });
-        }
+      if (drag && newFrame != null && newFrame !== drag.startFrame) {
+        onUpdateTextItem?.(drag.id, { from_frame: newFrame });
       }
       textDragRef.current = null;
+      textDragFrameRef.current = null;
       setTextDrag(null);
+      setTextDragFrame(null);
+      setTextSnapping(false);
+      const guideEl = snapGuideRef.current;
+      if (guideEl) guideEl.style.display = "none";
     };
 
     document.body.style.cursor = "grabbing";
+    document.body.style.userSelect = "none";
     window.addEventListener("mousemove", handleMove);
     window.addEventListener("mouseup", handleUp);
     return () => {
       document.body.style.cursor = "";
+      document.body.style.userSelect = "";
       window.removeEventListener("mousemove", handleMove);
       window.removeEventListener("mouseup", handleUp);
     };
-  }, [textDrag, pixelsPerSecond, onUpdateTextItem]);
+  }, [textDrag, pixelsPerSecond, onUpdateTextItem, baseSnapPoints, textItems]);
 
   /* ---------------------------------------------------------------- */
   /*  Text item resize — adjust duration via edge handles              */
@@ -558,6 +630,8 @@ export function EditorTimeline({
     startDuration: number;
   } | null>(null);
   const textResizeRef = useRef<typeof textResize>(null);
+  const [textResizePreview, setTextResizePreview] = useState<{ frame: number; duration: number } | null>(null);
+  const textResizePreviewRef = useRef<typeof textResizePreview>(null);
 
   const handleTextResizeStart = useCallback((e: React.MouseEvent, item: TextItem, edge: "left" | "right") => {
     e.preventDefault();
@@ -571,6 +645,8 @@ export function EditorTimeline({
     };
     textResizeRef.current = state;
     setTextResize(state);
+    setTextResizePreview({ frame: item.from_frame, duration: item.duration_frames });
+    textResizePreviewRef.current = { frame: item.from_frame, duration: item.duration_frames };
   }, []);
 
   useEffect(() => {
@@ -582,31 +658,74 @@ export function EditorTimeline({
       const deltaPx = e.clientX - drag.startX;
       const deltaFrames = Math.round((deltaPx / pixelsPerSecond) * 30);
 
+      let newFrame: number;
+      let newDuration: number;
       if (drag.edge === "right") {
-        const newDuration = Math.max(15, drag.startDuration + deltaFrames);
-        (textResizeRef.current as any)._newFrame = drag.startFrame;
-        (textResizeRef.current as any)._newDuration = newDuration;
+        newFrame = drag.startFrame;
+        newDuration = Math.max(15, drag.startDuration + deltaFrames);
       } else {
-        // Left edge: move from_frame and shrink duration inversely
-        const newFrame = Math.max(0, drag.startFrame + deltaFrames);
+        newFrame = Math.max(0, drag.startFrame + deltaFrames);
         const frameDelta = newFrame - drag.startFrame;
-        const newDuration = Math.max(15, drag.startDuration - frameDelta);
-        (textResizeRef.current as any)._newFrame = newFrame;
-        (textResizeRef.current as any)._newDuration = newDuration;
+        newDuration = Math.max(15, drag.startDuration - frameDelta);
       }
+
+      // Snap the dragged edge to segment boundaries, audio end, other text edges
+      const edgePx = drag.edge === "right"
+        ? ((newFrame + newDuration) / 30) * pixelsPerSecond
+        : (newFrame / 30) * pixelsPerSecond;
+
+      const allSnap = [...baseSnapPoints];
+      if (textItems) {
+        for (const t of textItems) {
+          if (t.id === drag.id) continue;
+          allSnap.push((t.from_frame / 30) * pixelsPerSecond);
+          allSnap.push(((t.from_frame + t.duration_frames) / 30) * pixelsPerSecond);
+        }
+      }
+
+      let snapped: number | null = null;
+      let bestDist = TEXT_SNAP_THRESHOLD;
+      for (const sp of allSnap) {
+        const dist = Math.abs(edgePx - sp);
+        if (dist < bestDist) {
+          bestDist = dist;
+          snapped = sp;
+        }
+      }
+
+      if (snapped != null) {
+        const snappedFrame = Math.round((snapped / pixelsPerSecond) * 30);
+        if (drag.edge === "right") {
+          newDuration = Math.max(15, snappedFrame - newFrame);
+        } else {
+          const sf = Math.max(0, snappedFrame);
+          const frameDelta = sf - drag.startFrame;
+          newDuration = Math.max(15, drag.startDuration - frameDelta);
+          newFrame = sf;
+        }
+        setSnapGuidePos(snapped);
+      } else {
+        setSnapGuidePos(null);
+      }
+
+      const preview = { frame: newFrame, duration: newDuration };
+      textResizePreviewRef.current = preview;
+      setTextResizePreview(preview);
     };
 
     const handleUp = () => {
       const drag = textResizeRef.current;
-      if (drag) {
-        const newFrame = (drag as any)._newFrame ?? drag.startFrame;
-        const newDuration = (drag as any)._newDuration ?? drag.startDuration;
-        if (newFrame !== drag.startFrame || newDuration !== drag.startDuration) {
-          onUpdateTextItem?.(drag.id, { from_frame: newFrame, duration_frames: newDuration });
+      const preview = textResizePreviewRef.current;
+      if (drag && preview) {
+        if (preview.frame !== drag.startFrame || preview.duration !== drag.startDuration) {
+          onUpdateTextItem?.(drag.id, { from_frame: preview.frame, duration_frames: preview.duration });
         }
       }
       textResizeRef.current = null;
+      textResizePreviewRef.current = null;
       setTextResize(null);
+      setTextResizePreview(null);
+      setSnapGuidePos(null);
     };
 
     document.body.style.cursor = "ew-resize";
@@ -619,7 +738,7 @@ export function EditorTimeline({
       window.removeEventListener("mousemove", handleMove);
       window.removeEventListener("mouseup", handleUp);
     };
-  }, [textResize, pixelsPerSecond, onUpdateTextItem]);
+  }, [textResize, pixelsPerSecond, onUpdateTextItem, baseSnapPoints, textItems]);
 
   // Scroll to selected scene
   useEffect(() => {
@@ -921,48 +1040,53 @@ export function EditorTimeline({
             </div>
           )}
 
-          {/* Text overlay track */}
-          {(textItems && textItems.length > 0) && (
-            <div
-              className="relative border-t border-slate-800/50"
-              style={{ height: 32 }}
-            >
-              {textItems.map((item) => {
-                const left = (item.from_frame / 30) * pixelsPerSecond;
-                const width = Math.max((item.duration_frames / 30) * pixelsPerSecond, 20);
-                const isSelected = selectedTextId === item.id;
-                return (
+          {/* Text overlay tracks — each text item gets its own lane */}
+          {(textItems && textItems.length > 0) && textItems.map((item) => {
+            const isDragging = textDrag?.id === item.id && textDragFrame != null;
+            const isResizing = textResize?.id === item.id && textResizePreview != null;
+            const isItemSnapping = isDragging && textSnapping;
+            const displayFrame = isDragging ? textDragFrame : isResizing ? textResizePreview.frame : item.from_frame;
+            const displayDuration = isResizing ? textResizePreview.duration : item.duration_frames;
+            const left = (displayFrame / 30) * pixelsPerSecond;
+            const width = Math.max((displayDuration / 30) * pixelsPerSecond, 20);
+            const isSelected = selectedTextId === item.id;
+            return (
+              <div
+                key={item.id}
+                className="relative border-t border-slate-800/50"
+                style={{ height: 28 }}
+              >
+                <div
+                  className={cn(
+                    "absolute top-0.5 bottom-0.5 rounded cursor-pointer flex items-center px-2 gap-1",
+                    isItemSnapping
+                      ? "bg-amber-500/30 border-2 border-amber-400 ring-2 ring-amber-400/50"
+                      : isSelected
+                      ? "bg-violet-500/30 border-2 border-amber-400"
+                      : "bg-violet-500/20 border border-violet-500/30 hover:border-violet-400/50"
+                  )}
+                  style={{ left: left + TIMELINE_PAD, width, transition: isItemSnapping ? "none" : undefined }}
+                  onClick={(e) => { e.stopPropagation(); onSelectText?.(item.id); }}
+                  onMouseDown={(e) => handleTextDragStart(e, item)}
+                >
+                  <Type className="w-3 h-3 text-violet-400 flex-shrink-0" />
+                  <span className="text-[9px] text-violet-300 truncate">
+                    {item.text || "Text"}
+                  </span>
+                  {/* Right edge resize handle */}
                   <div
-                    key={item.id}
-                    className={cn(
-                      "absolute top-1 bottom-1 rounded cursor-pointer flex items-center px-2 gap-1 transition-colors",
-                      isSelected
-                        ? "bg-violet-500/30 border-2 border-amber-400"
-                        : "bg-violet-500/20 border border-violet-500/30 hover:border-violet-400/50"
-                    )}
-                    style={{ left: left + TIMELINE_PAD, width }}
-                    onClick={(e) => { e.stopPropagation(); onSelectText?.(item.id); }}
-                    onMouseDown={(e) => handleTextDragStart(e, item)}
-                  >
-                    <Type className="w-3 h-3 text-violet-400 flex-shrink-0" />
-                    <span className="text-[9px] text-violet-300 truncate">
-                      {item.text || "Text"}
-                    </span>
-                    {/* Right edge resize handle */}
-                    <div
-                      className="absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-amber-400/30 rounded-r"
-                      onMouseDown={(e) => { e.stopPropagation(); handleTextResizeStart(e, item, "right"); }}
-                    />
-                    {/* Left edge resize handle */}
-                    <div
-                      className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-amber-400/30 rounded-l"
-                      onMouseDown={(e) => { e.stopPropagation(); handleTextResizeStart(e, item, "left"); }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                    className="absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-amber-400/30 rounded-r"
+                    onMouseDown={(e) => { e.stopPropagation(); handleTextResizeStart(e, item, "right"); }}
+                  />
+                  {/* Left edge resize handle */}
+                  <div
+                    className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-amber-400/30 rounded-l"
+                    onMouseDown={(e) => { e.stopPropagation(); handleTextResizeStart(e, item, "left"); }}
+                  />
+                </div>
+              </div>
+            );
+          })}
 
           {/* Audio track */}
           <div
@@ -1009,16 +1133,18 @@ export function EditorTimeline({
             )}
           </div>
 
-          {/* Snap guide line */}
-          {snapGuidePos != null && (
-            <div
-              className="absolute top-0 bottom-0 w-px pointer-events-none z-30"
-              style={{
-                left: snapGuidePos + TIMELINE_PAD,
-                borderLeft: "1px dashed rgb(245 158 11 / 0.7)",
-              }}
-            />
-          )}
+          {/* Snap guide line — always mounted, shown/hidden via ref for instant DOM updates */}
+          <div
+            ref={snapGuideRef}
+            className="absolute top-0 bottom-0 pointer-events-none z-40"
+            style={{
+              display: snapGuidePos != null ? "block" : "none",
+              left: snapGuidePos != null ? snapGuidePos + TIMELINE_PAD : 0,
+              width: 2,
+              background: "rgb(245 158 11)",
+              boxShadow: "0 0 8px 2px rgb(245 158 11 / 0.6), 0 0 2px 0 rgb(245 158 11)",
+            }}
+          />
 
           {/* Playhead */}
           <div

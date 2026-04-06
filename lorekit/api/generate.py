@@ -14,8 +14,18 @@ from pydantic import BaseModel, field_validator as pydantic_field_validator
 
 from lorekit import db
 from lorekit.auth.user import get_current_user, CurrentUser
+from lorekit.billing import check_credits, deduct_credits
+from lorekit.billing.metering import (
+    estimate_clips_credits,
+    estimate_keyframe_credits,
+    estimate_render_credits,
+    estimate_story_credits,
+    estimate_tts_credits,
+    estimate_transition_credits,
+    estimate_video_clip_credits,
+)
 from lorekit.config import get_settings
-from lorekit.models import SourceItem, Timeline, SceneItem, TransitionItem, Material
+from lorekit.models import SourceItem, Timeline, SceneItem, TransitionItem, Material, TextItem
 from lorekit.storage import get_file_store, project_render_path, project_audio_path
 from lorekit.tasks import get_task_runner
 
@@ -278,6 +288,11 @@ async def generate_story_endpoint(body: StoryRequest, user: CurrentUser = Depend
         except Exception:
             pass  # fallback to default duration
 
+    # Pre-flight credit check
+    estimated = estimate_story_credits()
+    if not await check_credits(user.org_id, estimated):
+        raise HTTPException(status_code=402, detail="Insufficient credits")
+
     # Generate story via LLM — returns a Timeline
     story = await generate_story(
         character=character,
@@ -286,6 +301,19 @@ async def generate_story_endpoint(body: StoryRequest, user: CurrentUser = Depend
         target_duration=effective_duration,
         theme=body.theme,
         arc_template=body.arc_template,
+    )
+
+    # Deduct credits — use real token count if available, fall back to flat estimate
+    llm_usage = story.metadata.get("llm_usage", {})
+    total_tokens = (
+        llm_usage.get("prompt_tokens", 0) + llm_usage.get("completion_tokens", 0)
+        + llm_usage.get("input_tokens", 0) + llm_usage.get("output_tokens", 0)
+    )
+    story_credits = max(1, total_tokens // 1000) if total_tokens > 0 else estimate_story_credits()
+    await deduct_credits(
+        user.org_id, story_credits, "usage_story",
+        desc=f"Story for {character.name}",
+        metadata=llm_usage if llm_usage else None,
     )
 
     # Create project
@@ -464,6 +492,17 @@ async def _generate_clips_task(job_id: str, project_id: str, org_id: str | None 
             scene_item.clip_material_id = clip_mat.id
             gen_idx += 1
 
+            # Deduct credits for keyframe + video clip
+            clip_credits = estimate_keyframe_credits() + estimate_video_clip_credits(
+                scene_item.effective_duration, "v3_pro",
+            )
+            await deduct_credits(
+                org_id or "local", clip_credits, "usage_video_clip",
+                ref_id=project_id,
+                desc=f"Scene {scene_item.scene_id}, {scene_item.effective_duration}s",
+                metadata={"scene_id": scene_item.scene_id, "duration": scene_item.effective_duration},
+            )
+
             # Save after each scene so progress is visible immediately
             await db.update_project(project_id, org_id=org_id, timeline_json=_save_timeline(timeline))
 
@@ -519,6 +558,19 @@ async def generate_clips(body: ClipsRequest, user: CurrentUser = Depends(get_cur
         raise HTTPException(status_code=404, detail="Project not found")
     if not project.get("timeline_json"):
         raise HTTPException(status_code=400, detail="No story generated yet")
+
+    # Pre-flight credit check — estimate cost for all ungenerated scenes
+    timeline = _load_timeline(project)
+    video_track = timeline.get_video_track()
+    scenes = [item for item in video_track.items if isinstance(item, SceneItem)]
+    ungenerated = [
+        {"duration": s.effective_duration, "model": "v3_pro"}
+        for s in scenes
+        if not s.clip_material_id or not timeline.materials.get(s.clip_material_id or "")
+    ]
+    estimated = estimate_clips_credits(ungenerated)
+    if not await check_credits(user.org_id, estimated):
+        raise HTTPException(status_code=402, detail="Insufficient credits")
 
     job_id = uuid.uuid4().hex[:12]
     await db.create_job(job_id, body.project_id, "clips")
@@ -599,6 +651,16 @@ async def _generate_single_clip_task(
             theme=theme, keyframe_url=existing_keyframe, aspect_ratio=ar,
         )
 
+        # Deduct credits
+        clip_credits = estimate_keyframe_credits() + estimate_video_clip_credits(
+            scene_item.effective_duration, "v3_pro",
+        )
+        await deduct_credits(
+            org_id or "local", clip_credits, "usage_video_clip",
+            ref_id=project_id,
+            desc=f"Scene {scene_id} regen, {scene_item.effective_duration}s",
+        )
+
         # Create a Material for the new clip and update scene item
         clip_mat = Material(type="video", path=clip_path, name=f"scene_{scene_id}_clip")
         timeline.add_material(clip_mat)
@@ -624,6 +686,11 @@ async def generate_single_clip_endpoint(body: SingleClipRequest, user: CurrentUs
     project = await db.get_project(body.project_id, org_id=user.org_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    # Pre-flight: worst case = keyframe + V3 Pro 5s
+    estimated = estimate_keyframe_credits() + estimate_video_clip_credits(5.0, "v3_pro")
+    if not await check_credits(user.org_id, estimated):
+        raise HTTPException(status_code=402, detail="Insufficient credits")
 
     job_id = uuid.uuid4().hex[:12]
     await db.create_job(job_id, body.project_id, "clip")
@@ -772,6 +839,12 @@ async def _generate_keyframe_task(
 
         logger.info("Keyframe generated for scene %d: %s", scene_id, keyframe_url)
 
+        # Deduct credits for keyframe generation
+        await deduct_credits(
+            org_id or "local", estimate_keyframe_credits(), "usage_keyframe",
+            ref_id=project_id, desc=f"Keyframe for scene {scene_id}",
+        )
+
         # Download keyframe to durable storage (fal CDN URLs expire after ~7 days)
         import time
         from lorekit.storage import get_file_store
@@ -817,6 +890,10 @@ async def generate_keyframe_endpoint(body: KeyframeRequest, user: CurrentUser = 
     if not project.get("timeline_json"):
         raise HTTPException(status_code=400, detail="No story generated yet")
 
+    # Pre-flight credit check
+    if not await check_credits(user.org_id, estimate_keyframe_credits()):
+        raise HTTPException(status_code=402, detail="Insufficient credits")
+
     job_id = uuid.uuid4().hex[:12]
     await db.create_job(job_id, body.project_id, "keyframe")
     runner = get_task_runner()
@@ -839,6 +916,11 @@ async def generate_transition_endpoint(body: TransitionRequest, user: CurrentUse
     project = await db.get_project(body.project_id, org_id=user.org_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    # Pre-flight: transition is a video clip at the requested duration
+    estimated = estimate_transition_credits(float(body.duration), "v3_pro")
+    if not await check_credits(user.org_id, estimated):
+        raise HTTPException(status_code=402, detail="Insufficient credits")
 
     job_id = uuid.uuid4().hex[:12]
     await db.create_job(job_id, body.project_id, "transition")
@@ -1022,6 +1104,16 @@ async def _generate_transition_task(
             fal_key=settings.fal_key,
             prompt=prompt,
             duration=str(max(3, min(15, duration))),
+        )
+
+        # Deduct credits for transition generation
+        actual_duration = max(3, min(15, duration))
+        await deduct_credits(
+            org_id or "local",
+            estimate_transition_credits(float(actual_duration), "v3_pro"),
+            "usage_transition",
+            ref_id=project_id,
+            desc=f"Transition {from_scene_id}→{to_scene_id}, {actual_duration}s",
         )
 
         # Download and store the transition clip
@@ -1331,6 +1423,19 @@ async def _render_task(
                         str(settings.audio_assets_dir),
                         output_dir=audio_output_dir,
                     )
+                    # Deduct TTS credits based on narration text length
+                    total_chars = sum(
+                        len(getattr(s, "narration_text", "") or getattr(s, "text_overlay", "") or "")
+                        for s in ordered_scenes
+                    )
+                    if total_chars > 0:
+                        tts_credits = estimate_tts_credits(total_chars)
+                        await deduct_credits(
+                            org_id or "local", tts_credits, "usage_tts",
+                            ref_id=project_id,
+                            desc=f"TTS narration, {total_chars} chars",
+                            metadata={"char_count": total_chars},
+                        )
                 except Exception as audio_exc:
                     logger.warning("Audio mix failed (%s), using silent track", audio_exc)
                     audio = False  # fall through to silent
@@ -1354,13 +1459,6 @@ async def _render_task(
 
             stitched_path = _abs_path(project_render_path(project_id, "stitched.mp4"))
 
-            # Resolve absolute paths for AI morph transition clip materials
-            for item in video_track.items:
-                if isinstance(item, TransitionItem) and item.clip_material_id:
-                    mat = timeline.materials.get(item.clip_material_id)
-                    if mat and mat.path:
-                        mat.path = _abs_path(mat.path)
-
             await stitch_video(
                 timeline=timeline,
                 audio_path=audio_path,
@@ -1370,17 +1468,24 @@ async def _render_task(
                 aspect_ratio=ar,
                 color_grade_override=color_grade_override,
                 color_grade=color_grade,
+                resolve_path=_abs_path,
             )
 
             # Step 3: Burn text overlays (optional)
-            if text_overlays:
+            text_track = timeline.get_track("text-overlay")
+            enabled_text_items = [
+                item for item in (text_track.items if text_track else [])
+                if isinstance(item, TextItem) and getattr(item, "enabled", True) and item.text
+            ]
+
+            if text_overlays and enabled_text_items:
                 await db.update_job(job_id, status="running", progress=75, message="Adding text overlays...")
 
                 from lorekit.assembly.overlay import add_text_overlays
 
                 final_path = _abs_path(project_render_path(project_id, "final.mp4"))
                 await add_text_overlays(
-                    stitched_path, ordered_scenes, civilization, final_path,
+                    stitched_path, enabled_text_items, final_path,
                 )
                 Path(stitched_path).unlink(missing_ok=True)
             else:
@@ -1407,6 +1512,12 @@ async def _render_task(
         history_storage_path = history_path
         if hasattr(store, "base_dir") and history_path.startswith(str(store.base_dir)):
             history_storage_path = history_path[len(str(store.base_dir)) + 1:]
+
+        # Deduct credits for render
+        await deduct_credits(
+            org_id or "local", estimate_render_credits(), "usage_render",
+            ref_id=project_id, desc="Final render",
+        )
 
         await db.update_project(
             project_id,
@@ -1438,6 +1549,10 @@ async def render_video(body: RenderRequest, user: CurrentUser = Depends(get_curr
     project = await db.get_project(body.project_id, org_id=user.org_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    # Pre-flight credit check for render
+    if not await check_credits(user.org_id, estimate_render_credits()):
+        raise HTTPException(status_code=402, detail="Insufficient credits")
 
     job_id = uuid.uuid4().hex[:12]
     await db.create_job(job_id, body.project_id, "render")
