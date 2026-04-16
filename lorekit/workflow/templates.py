@@ -198,6 +198,94 @@ def face_swap_ugc(
     return wf
 
 
+def from_story(
+    project_id: str,
+    scenes: list[dict[str, Any]],
+    character_image_url: str | None = None,
+    character_ref_urls: list[str] | None = None,
+    aspect_ratio: str = "9:16",
+    theme: str | None = None,
+) -> Workflow:
+    """Build a workflow from LLM-generated story scenes.
+
+    Each scene from the story output becomes:
+    - A `scene` config node (holds visual_description, camera, duration, beat)
+    - A `kontext_keyframe` node (generates keyframe from scene config)
+    - A `kling_v3_pro` node (generates video clip from keyframe)
+
+    All keyframe nodes run in parallel (wave 1), then all video nodes (wave 2).
+    """
+    wf = Workflow(project_id=project_id, name="Story Pipeline")
+
+    ref_urls = list(dict.fromkeys(
+        ([character_image_url] if character_image_url else [])
+        + (character_ref_urls or [])
+    ))[:5]
+
+    clip_node_ids: list[str] = []
+
+    for i, scene in enumerate(scenes):
+        y_pos = i * 200
+
+        # Scene config node — holds editable content
+        sc = WorkflowNode(
+            type="scene",
+            label=f"Scene {scene.get('scene_id', i + 1)}",
+            params={
+                "scene_id": scene.get("scene_id", i + 1),
+                "beat": scene.get("beat", ""),
+                "visual_description": scene.get("visual_description", ""),
+                "camera": scene.get("camera", ""),
+                "duration": scene.get("duration", 5),
+                "speed": 1.0,
+                "text_overlay": scene.get("text_overlay", ""),
+                "character_present": scene.get("character_present", True),
+                "enabled": True,
+            },
+            position={"x": 0, "y": y_pos},
+        )
+        wf.add_node(sc)
+
+        # Keyframe generation node
+        kf = WorkflowNode(
+            type="kontext_keyframe",
+            label=f"Keyframe {scene.get('scene_id', i + 1)}",
+            params={
+                "aspect_ratio": aspect_ratio,
+                "reference_images": ref_urls,
+            },
+            inputs={
+                "prompt": f"{sc.id}.outputs.visual_description",
+            },
+            position={"x": 300, "y": y_pos},
+        )
+        wf.add_node(kf)
+
+        # Video generation node
+        vid = WorkflowNode(
+            type="kling_v3_pro",
+            label=f"Clip {scene.get('scene_id', i + 1)}",
+            params={
+                "duration": scene.get("duration", 5),
+                "elements": [
+                    {
+                        "frontal_image_url": character_image_url,
+                        "reference_image_urls": ref_urls,
+                    }
+                ] if character_image_url and scene.get("character_present", True) else [],
+            },
+            inputs={
+                "start_image": f"{kf.id}.outputs.url",
+                "prompt": f"{sc.id}.outputs.visual_description",
+            },
+            position={"x": 600, "y": y_pos},
+        )
+        wf.add_node(vid)
+        clip_node_ids.append(vid.id)
+
+    return wf
+
+
 # Template registry
 WORKFLOW_TEMPLATES: dict[str, dict] = {
     "ugc_reaction": {

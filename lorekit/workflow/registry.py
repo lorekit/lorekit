@@ -175,6 +175,28 @@ _register(
     cost_flat=0.02,
 )
 
+# ── Content nodes (editable scene/transition configs, no fal.ai call) ────
+
+_register(
+    "scene",
+    endpoint=None,
+    category="content",
+    label="Scene",
+    input_keys=["visual_description", "camera", "duration", "speed", "text_overlay", "beat", "character_present"],
+    output_keys=["keyframe_url", "clip_url", "clip_path"],
+    local=True,
+)
+
+_register(
+    "transition",
+    endpoint=None,
+    category="content",
+    label="Transition",
+    input_keys=["prompt", "duration", "speed", "transition_type"],
+    output_keys=["clip_url", "clip_path"],
+    local=True,
+)
+
 # ── Local operations (no fal.ai call) ────────────────────────────────────
 
 _register(

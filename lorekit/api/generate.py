@@ -359,11 +359,44 @@ async def generate_story_endpoint(body: StoryRequest, user: CurrentUser = Depend
         hook_quote_id=body.hook_quote_id,
         truth_quote_id=body.truth_quote_id,
     )
+    # Build workflow graph from the story scenes
+    from lorekit.workflow.templates import from_story as build_workflow_from_story
+    from lorekit.api.character import get_character_image_url as _get_char_img, _load_ref_urls
+
+    char_image = await _get_char_img(body.character_id, theme=body.theme)
+    char_refs = await _load_ref_urls(body.character_id)
+
+    # Extract scenes from the timeline for the workflow
+    video_track = story.get_video_track()
+    scene_dicts = [
+        {
+            "scene_id": item.scene_id,
+            "beat": item.beat,
+            "visual_description": item.visual_description,
+            "camera": item.camera,
+            "duration": item.duration,
+            "text_overlay": item.text_overlay,
+            "character_present": item.character_present,
+        }
+        for item in video_track.items
+        if hasattr(item, "scene_id")
+    ]
+
+    workflow = build_workflow_from_story(
+        project_id=project_id,
+        scenes=scene_dicts,
+        character_image_url=char_image,
+        character_ref_urls=char_refs,
+        aspect_ratio=body.aspect_ratio,
+        theme=body.theme,
+    )
+
     await db.update_project(
         project_id,
         org_id=user.org_id,
         status="story_ready",
         timeline_json=_save_timeline(story),
+        workflow_json=workflow.model_dump_json(),
         aspect_ratio=body.aspect_ratio,
         audio_mode=body.audio_mode,
         uploaded_audio_path=validated_audio_path,
@@ -373,6 +406,7 @@ async def generate_story_endpoint(body: StoryRequest, user: CurrentUser = Depend
     return {
         "project_id": project_id,
         "timeline": story.model_dump(),
+        "workflow": workflow.model_dump(),
     }
 
 
