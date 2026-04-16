@@ -209,6 +209,69 @@ export default function WorkflowPage({
     [projectId, setWorkflow]
   );
 
+  // Handlers for timeline and left panel tab content
+  // (must be before early returns to satisfy Rules of Hooks)
+  const handleAddText = useCallback(async () => {
+    try {
+      const item = await addTextItem(projectId);
+      setTextItems((prev) => [...prev, item]);
+      setSelectedTextId(item.id);
+    } catch {}
+  }, [projectId]);
+
+  const handleDeleteText = useCallback(
+    async (textId: string) => {
+      try {
+        await deleteTextItem(projectId, textId);
+        setTextItems((prev) => prev.filter((t) => t.id !== textId));
+        if (selectedTextId === textId) setSelectedTextId(null);
+      } catch {}
+    },
+    [projectId, selectedTextId]
+  );
+
+  const handleUpdateScene = useCallback(
+    async (sceneId: string, updates: Partial<Scene>) => {
+      try {
+        await updateScene(projectId, sceneId, updates);
+        setScenes((prev) =>
+          prev.map((s) => (s.id === sceneId ? { ...s, ...updates } : s))
+        );
+      } catch {}
+    },
+    [projectId]
+  );
+
+  const handleUpdateTransition = useCallback(
+    async (fromId: number, toId: number, updates: Partial<Transition>) => {
+      try {
+        await updateTransition(projectId, fromId, toId, updates);
+        setTransitions((prev) =>
+          prev.map((t) =>
+            t.from_scene_id === fromId && t.to_scene_id === toId
+              ? { ...t, ...updates }
+              : t
+          )
+        );
+      } catch {}
+    },
+    [projectId]
+  );
+
+  const handleDownloadRender = useCallback((path: string) => {
+    window.open(clipUrl(`/files/${path}`), "_blank");
+  }, []);
+
+  const handleDeleteRender = useCallback(
+    async (jobId: string) => {
+      try {
+        await deleteProjectRender(projectId, jobId);
+        setRenders((prev) => prev.filter((r) => r.id !== jobId));
+      } catch {}
+    },
+    [projectId]
+  );
+
   // Loading state
   if (loading) {
     return (
@@ -313,68 +376,6 @@ export default function WorkflowPage({
       </div>
     );
   }
-
-  // Handlers for timeline and left panel tab content
-  const handleAddText = useCallback(async () => {
-    try {
-      const item = await addTextItem(projectId);
-      setTextItems((prev) => [...prev, item]);
-      setSelectedTextId(item.id);
-    } catch {}
-  }, [projectId]);
-
-  const handleDeleteText = useCallback(
-    async (textId: string) => {
-      try {
-        await deleteTextItem(projectId, textId);
-        setTextItems((prev) => prev.filter((t) => t.id !== textId));
-        if (selectedTextId === textId) setSelectedTextId(null);
-      } catch {}
-    },
-    [projectId, selectedTextId]
-  );
-
-  const handleUpdateScene = useCallback(
-    async (sceneId: string, updates: Partial<Scene>) => {
-      try {
-        await updateScene(projectId, sceneId, updates);
-        setScenes((prev) =>
-          prev.map((s) => (s.id === sceneId ? { ...s, ...updates } : s))
-        );
-      } catch {}
-    },
-    [projectId]
-  );
-
-  const handleUpdateTransition = useCallback(
-    async (fromId: number, toId: number, updates: Partial<Transition>) => {
-      try {
-        await updateTransition(projectId, fromId, toId, updates);
-        setTransitions((prev) =>
-          prev.map((t) =>
-            t.from_scene_id === fromId && t.to_scene_id === toId
-              ? { ...t, ...updates }
-              : t
-          )
-        );
-      } catch {}
-    },
-    [projectId]
-  );
-
-  const handleDownloadRender = useCallback((path: string) => {
-    window.open(clipUrl(`/files/${path}`), "_blank");
-  }, []);
-
-  const handleDeleteRender = useCallback(
-    async (jobId: string) => {
-      try {
-        await deleteProjectRender(projectId, jobId);
-        setRenders((prev) => prev.filter((r) => r.id !== jobId));
-      } catch {}
-    },
-    [projectId]
-  );
 
   // Main editor
   return (

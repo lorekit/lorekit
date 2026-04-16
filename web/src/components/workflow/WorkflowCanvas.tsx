@@ -120,19 +120,23 @@ function WorkflowNodeComponent({ data, selected }: NodeProps<Node<WorkflowNodeDa
   const inputKeys = Object.keys(workflowNode.inputs);
   const outputKeys = Object.keys(workflowNode.outputs);
 
-  // Check for thumbnail in outputs
+  // Check for thumbnail in outputs — show for any completed node with a URL
   const thumbnailUrl = useMemo(() => {
     if (workflowNode.status !== "completed") return null;
+    const urlVal = workflowNode.outputs.url;
+    if (typeof urlVal === "string" && urlVal.length > 5) {
+      return clipUrl(urlVal);
+    }
+    // Fallback: check all output values
     for (const val of Object.values(workflowNode.outputs)) {
-      if (typeof val === "string" && (val.endsWith(".png") || val.endsWith(".jpg") || val.endsWith(".webp") || val.endsWith(".mp4"))) {
+      if (typeof val === "string" && (val.startsWith("http") || val.startsWith("projects/") || val.startsWith("characters/"))) {
         return clipUrl(val);
-      }
-      if (typeof val === "object" && val?.url) {
-        return clipUrl(val.url);
       }
     }
     return null;
   }, [workflowNode.status, workflowNode.outputs]);
+
+  const isVideo = thumbnailUrl?.includes(".mp4") || workflowNode.type.includes("kling");
 
   return (
     <div
@@ -185,12 +189,23 @@ function WorkflowNodeComponent({ data, selected }: NodeProps<Node<WorkflowNodeDa
 
       {/* Thumbnail preview */}
       {thumbnailUrl && (
-        <div className="px-3 pt-2">
-          <img
-            src={thumbnailUrl}
-            alt="Output preview"
-            className="w-full h-20 object-cover rounded-md border border-slate-700/50"
-          />
+        <div className="px-2 pt-2">
+          {isVideo ? (
+            <video
+              src={thumbnailUrl}
+              muted
+              playsInline
+              onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+              onMouseLeave={(e) => { const v = e.target as HTMLVideoElement; v.pause(); v.currentTime = 0; }}
+              className="w-full h-28 object-cover rounded-md border border-slate-700/50"
+            />
+          ) : (
+            <img
+              src={thumbnailUrl}
+              alt="Output"
+              className="w-full h-28 object-cover rounded-md border border-slate-700/50"
+            />
+          )}
         </div>
       )}
 

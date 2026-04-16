@@ -306,6 +306,12 @@ WORKFLOW_TEMPLATES: dict[str, dict] = {
         "function": "face_swap_ugc",
         "required_params": ["source_face_url", "character_image_url", "prompt"],
     },
+    "from_story": {
+        "name": "From Story",
+        "description": "Build workflow from project's existing story scenes (auto-populated)",
+        "function": "from_story",
+        "required_params": ["scenes"],
+    },
 }
 
 

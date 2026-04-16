@@ -96,18 +96,130 @@ async def create_workflow(body: CreateWorkflowRequest, user: CurrentUser = Depen
         raise HTTPException(status_code=404, detail="Project not found")
 
     if body.template:
-        wf = create_from_template(
-            body.template,
-            project_id=body.project_id,
-            **body.template_params,
-        )
+        # Auto-populate template params from project data if not provided
+        params = dict(body.template_params)
+        if "character_image_url" not in params:
+            from lorekit.api.character import get_character_image_url, _load_ref_urls
+            character_id = project.get("character_id", "")
+            theme = project.get("theme")
+            if character_id:
+                char_img = await get_character_image_url(character_id, theme=theme)
+                if char_img:
+                    params["character_image_url"] = char_img
+                char_refs = await _load_ref_urls(character_id)
+                if char_refs:
+                    params["character_ref_urls"] = char_refs
+
+        # Only add prompt for templates that need it
+        if "prompt" not in params and body.template in ("ugc_reaction", "face_swap_ugc"):
+            params["prompt"] = project.get("name", "Generated scene")
+
+        # For from_story template, auto-load scenes from timeline
+        if body.template == "from_story" and "scenes" not in params:
+            tl_raw = project.get("timeline_json")
+            if tl_raw:
+                import json as _json
+                tl = _json.loads(tl_raw) if isinstance(tl_raw, str) else tl_raw
+                tracks = tl.get("tracks", [])
+                if tracks:
+                    video_track = tracks[0] if isinstance(tracks, list) else tracks.get("video-main", {})
+                    items = video_track.get("items", []) if isinstance(video_track, dict) else []
+                    params["scenes"] = [
+                        {k: item[k] for k in ["scene_id", "beat", "visual_description", "camera", "duration", "text_overlay", "character_present"] if k in item}
+                        for item in items
+                        if item.get("type") == "scene"
+                    ]
+
+        try:
+            wf = create_from_template(
+                body.template,
+                project_id=body.project_id,
+                **params,
+            )
+        except (TypeError, KeyError) as exc:
+            raise HTTPException(status_code=400, detail=f"Template error: {exc}")
         if body.name:
             wf.name = body.name
+
+        # Backfill outputs from existing timeline (if clips already generated)
+        if body.template == "from_story":
+            tl_raw = project.get("timeline_json")
+            if tl_raw:
+                import json as _json
+                tl = _json.loads(tl_raw) if isinstance(tl_raw, str) else tl_raw
+                materials = tl.get("materials", {})
+                tracks = tl.get("tracks", [])
+                video_track = tracks[0] if isinstance(tracks, list) and tracks else {}
+                items = video_track.get("items", []) if isinstance(video_track, dict) else []
+
+                for item in items:
+                    if item.get("type") != "scene":
+                        continue
+                    scene_id = item.get("scene_id")
+
+                    # Find matching scene, keyframe, and clip nodes
+                    scene_node = None
+                    kf_node = None
+                    clip_node = None
+                    for n in wf.nodes.values():
+                        if n.type == "scene" and n.params.get("scene_id") == scene_id:
+                            scene_node = n
+                        elif n.type == "kontext_keyframe" and n.label.endswith(str(scene_id)):
+                            kf_node = n
+                        elif n.type == "kling_v3_pro" and n.label.endswith(str(scene_id)):
+                            clip_node = n
+
+                    # Populate keyframe output
+                    kf_mat_id = item.get("keyframe_material_id")
+                    kf_url = None
+                    if kf_mat_id and kf_mat_id in materials:
+                        mat = materials[kf_mat_id]
+                        kf_url = mat.get("url") or mat.get("path")
+                    if not kf_url:
+                        kf_url = item.get("keyframe_url") or item.get("keyframe_path")
+
+                    if kf_url and kf_node:
+                        kf_node.outputs = {"url": kf_url}
+                        kf_node.status = "completed"
+
+                    # Populate clip output
+                    clip_mat_id = item.get("clip_material_id")
+                    clip_url = None
+                    if clip_mat_id and clip_mat_id in materials:
+                        mat = materials[clip_mat_id]
+                        clip_url = mat.get("url") or mat.get("path")
+                    if not clip_url:
+                        clip_url = item.get("clip_url") or item.get("clip_path")
+
+                    if clip_url and clip_node:
+                        clip_node.outputs = {"url": clip_url}
+                        clip_node.status = "completed"
+
+                    # Mark scene as completed if it has a clip
+                    if clip_url and scene_node:
+                        scene_node.outputs = {
+                            "keyframe_url": kf_url or "",
+                            "clip_url": clip_url,
+                        }
+                        scene_node.status = "completed"
+
     else:
         wf = Workflow(project_id=body.project_id, name=body.name)
 
     await _save_workflow(wf, org_id=user.org_id)
     return wf.model_dump()
+
+
+@router.get("/templates")
+async def get_templates(user: CurrentUser = Depends(get_current_user)) -> dict:
+    """List available workflow templates."""
+    return {"templates": list_templates()}
+
+
+@router.get("/node-types")
+async def get_node_types(user: CurrentUser = Depends(get_current_user)) -> dict:
+    """List all available node types."""
+    return {"node_types": list_node_types()}
 
 
 @router.get("/{project_id}")
@@ -243,18 +355,6 @@ async def retry_node_endpoint(body: RetryNodeRequest, user: CurrentUser = Depend
     return await execute_workflow_endpoint(
         ExecuteRequest(workflow_id=body.workflow_id), user=user,
     )
-
-
-@router.get("/templates")
-async def get_templates(user: CurrentUser = Depends(get_current_user)) -> dict:
-    """List available workflow templates."""
-    return {"templates": list_templates()}
-
-
-@router.get("/node-types")
-async def get_node_types(user: CurrentUser = Depends(get_current_user)) -> dict:
-    """List all available node types."""
-    return {"node_types": list_node_types()}
 
 
 # ── Background task ───────────────────────────────────────────────────────
