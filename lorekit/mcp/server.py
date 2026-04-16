@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
-from lorekit.mcp import tools
+from lorekit.mcp import tools  # noqa: F401
+from lorekit.mcp import workflow_tools as wf_tools
 
 mcp = FastMCP(
     "lorekit",
@@ -748,3 +749,84 @@ async def lorekit_context_preset_delete(preset_id: str) -> str:
 async def lorekit_tts_models() -> str:
     """List available text-to-speech models and voices."""
     return await tools.tts_models()
+
+
+# ---------------------------------------------------------------------------
+# Workflows
+# ---------------------------------------------------------------------------
+
+@mcp.tool
+async def lorekit_workflow_create(
+    project_id: str, template: str | None = None, name: str = "", template_params: str = "{}",
+) -> str:
+    """Create a workflow for a project, optionally from a template.
+
+    Templates: "ugc_reaction", "multi_scene", "face_swap_ugc".
+    template_params is a JSON string of template-specific parameters.
+    """
+    return await wf_tools.workflow_create(project_id, template, name, template_params)
+
+
+@mcp.tool
+async def lorekit_workflow_get(project_id: str) -> str:
+    """Get the workflow graph for a project. Shows all nodes, connections, and statuses."""
+    return await wf_tools.workflow_get(project_id)
+
+
+@mcp.tool
+async def lorekit_workflow_add_node(
+    project_id: str, type: str, label: str = "", params: str = "{}", inputs: str = "{}",
+) -> str:
+    """Add a node to a project's workflow.
+
+    type: node type (kontext_keyframe, kling_v3_pro, kling_o3, face_swap, download, etc.)
+    params: JSON string of model-specific parameters
+    inputs: JSON string mapping input names to upstream refs (e.g. {"image": "node_abc.outputs.url"})
+    """
+    return await wf_tools.workflow_add_node(project_id, type, label, params, inputs)
+
+
+@mcp.tool
+async def lorekit_workflow_update_node(
+    project_id: str, node_id: str, params: str | None = None, label: str | None = None, inputs: str | None = None,
+) -> str:
+    """Update a node's parameters, label, or inputs."""
+    return await wf_tools.workflow_update_node(project_id, node_id, params, label, inputs)
+
+
+@mcp.tool
+async def lorekit_workflow_remove_node(project_id: str, node_id: str) -> str:
+    """Remove a node from the workflow. Also removes any connections to it."""
+    return await wf_tools.workflow_remove_node(project_id, node_id)
+
+
+@mcp.tool
+async def lorekit_workflow_connect(
+    project_id: str, from_node: str, output_key: str, to_node: str, input_key: str,
+) -> str:
+    """Connect one node's output to another node's input."""
+    return await wf_tools.workflow_connect(project_id, from_node, output_key, to_node, input_key)
+
+
+@mcp.tool
+async def lorekit_workflow_execute(project_id: str) -> str:
+    """Start executing a workflow. Returns a job_id for polling progress."""
+    return await wf_tools.workflow_execute(project_id)
+
+
+@mcp.tool
+async def lorekit_workflow_retry_node(project_id: str, node_id: str) -> str:
+    """Retry a failed node. Resets it to pending and re-executes the workflow."""
+    return await wf_tools.workflow_retry_node(project_id, node_id)
+
+
+@mcp.tool
+async def lorekit_workflow_templates() -> str:
+    """List available workflow templates (pre-built pipeline patterns)."""
+    return await wf_tools.workflow_templates()
+
+
+@mcp.tool
+async def lorekit_workflow_node_types() -> str:
+    """List all available node types with their inputs, outputs, and costs."""
+    return await wf_tools.workflow_node_types()

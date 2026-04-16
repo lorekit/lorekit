@@ -361,7 +361,7 @@ async def update_project(
     """
     pool = await get_pool()
     allowed = {
-        "name", "status", "timeline_json", "output_path",
+        "name", "status", "timeline_json", "workflow_json", "output_path",
         "youtube_id", "youtube_title", "cost_usd",
         "hook_quote_id", "truth_quote_id",
         "character_image_url", "character_image_path",

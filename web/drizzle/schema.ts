@@ -11,7 +11,7 @@ import { authenticatedRole } from "drizzle-orm/supabase";
 // that reference it.
 // ============================================================
 
-const userOrgIds = sql`(SELECT ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()))`;
+const userOrgIds = sql`ARRAY(SELECT organization_id FROM organization_members WHERE user_id = auth.uid()::text)`;
 const inUserOrgs = sql`organization_id = ANY(${userOrgIds})`;
 const universeInUserOrgs = sql`universe_id IN (SELECT id FROM universes WHERE organization_id = ANY(${userOrgIds}))`;
 const characterInUserOrgs = sql`character_id IN (SELECT id FROM characters WHERE universe_id IN (SELECT id FROM universes WHERE organization_id = ANY(${userOrgIds})))`;
@@ -48,7 +48,7 @@ export const universes = pgTable("universes", {
   pgPolicy("universes_delete", {
     for: "delete",
     to: authenticatedRole,
-    using: sql`organization_id = ANY(${userOrgIds}) AND EXISTS (SELECT 1 FROM organization_members WHERE organization_id = universes.organization_id AND user_id = auth.uid() AND role IN ('owner', 'admin'))`,
+    using: sql`organization_id = ANY(${userOrgIds}) AND EXISTS (SELECT 1 FROM organization_members WHERE organization_id = universes.organization_id AND user_id = auth.uid()::text AND role IN ('owner', 'admin'))`,
   }),
 ]);
 
@@ -69,6 +69,44 @@ export const videoStyles = pgTable("video_styles", {
   pgPolicy("video_styles_delete", { for: "delete", to: authenticatedRole, using: sql`is_builtin = 0 AND ${inUserOrgs}` }),
 ]);
 
+export const storyContextPresets = pgTable("story_context_presets", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  context: text("context").notNull(),  // the actual story_context text passed to generate_story
+  category: text("category").notNull().default("general"),  // "ugc", "cinematic", "product", "general"
+  isBuiltin: integer("is_builtin").notNull().default(0),
+  organizationId: text("organization_id").notNull().default("local"),
+  createdAt: text("created_at").notNull(),
+}, () => [
+  pgPolicy("story_context_presets_select", { for: "select", to: authenticatedRole, using: sql`is_builtin = 1 OR ${inUserOrgs}` }),
+  pgPolicy("story_context_presets_insert", { for: "insert", to: authenticatedRole, withCheck: inUserOrgs }),
+  pgPolicy("story_context_presets_update", { for: "update", to: authenticatedRole, using: sql`is_builtin = 0 AND ${inUserOrgs}` }),
+  pgPolicy("story_context_presets_delete", { for: "delete", to: authenticatedRole, using: sql`is_builtin = 0 AND ${inUserOrgs}` }),
+]);
+
+export const arcTemplates = pgTable("arc_templates", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  beatsJson: text("beats_json").notNull().default("[]"),
+  optionalBeatsJson: text("optional_beats_json").notNull().default("[]"),
+  minDuration: real("min_duration").notNull().default(30),
+  maxDuration: real("max_duration").notNull().default(50),
+  minScenes: integer("min_scenes").notNull().default(5),
+  maxScenes: integer("max_scenes").notNull().default(8),
+  maxSceneDuration: real("max_scene_duration").notNull().default(8),
+  systemPromptFragment: text("system_prompt_fragment").notNull().default(""),
+  isBuiltin: integer("is_builtin").notNull().default(0),
+  organizationId: text("organization_id").notNull().default("local"),
+  createdAt: text("created_at").notNull(),
+}, () => [
+  pgPolicy("arc_templates_select", { for: "select", to: authenticatedRole, using: sql`is_builtin = 1 OR ${inUserOrgs}` }),
+  pgPolicy("arc_templates_insert", { for: "insert", to: authenticatedRole, withCheck: inUserOrgs }),
+  pgPolicy("arc_templates_update", { for: "update", to: authenticatedRole, using: sql`is_builtin = 0 AND ${inUserOrgs}` }),
+  pgPolicy("arc_templates_delete", { for: "delete", to: authenticatedRole, using: sql`is_builtin = 0 AND ${inUserOrgs}` }),
+]);
+
 // ============================================================
 // TIER 2: DIRECT CHILDREN OF UNIVERSES
 // ============================================================
@@ -81,10 +119,12 @@ export const characters = pgTable("characters", {
   name: text("name").notNull(),
   groupName: text("group_name").notNull(),
   era: text("era").notNull().default(""),
-  characterDescription: text("character_description").notNull().default(""),
+  characterDescription: text("character_description").notNull().default(""),  // appearance only
+  targetAudience: text("target_audience").notNull().default(""),
+  performanceNotes: text("performance_notes").notNull().default(""),
   characterImageUrl: text("character_image_url"),
   characterRefUrls: text("character_ref_urls"),
-  characterStylesJson: text("character_styles_json"),  // {"theme": {"description": "...", "image_url": "...", "image_path": "..."}}
+  characterStylesJson: text("character_styles_json"),  // {"theme": {"description": "...", "images": [...]}}
 }, () => orgPolicies("characters", universeInUserOrgs));
 
 export const environments = pgTable("environments", {
@@ -177,6 +217,7 @@ export const universeProjects = pgTable("universe_projects", {
   audioMode: text("audio_mode").notNull().default("auto"),
   uploadedAudioPath: text("uploaded_audio_path"),
   timelineJson: jsonb("timeline_json"),
+  workflowJson: jsonb("workflow_json"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, () => orgPolicies("projects", universeInUserOrgs));
@@ -296,29 +337,26 @@ export const projectEffects = pgTable("project_effects", {
 // BILLING (Phase 5) — org-scoped credit system
 // ============================================================
 
-export const subscriptions = pgTable("subscriptions", {
+// NOTE: The old "subscriptions" table is replaced by Better Auth's "subscription" table.
+// BA manages subscription lifecycle (checkout, status, periods) automatically.
+// Only custom fields (credits, auto-refill) live in subscription_extras below.
+
+// Extends Better Auth's subscription table with custom fields for credits/auto-refill
+export const subscriptionExtras = pgTable("subscription_extras", {
   id: text("id").primaryKey(),
-  organizationId: text("organization_id").notNull(),
-  stripeCustomerId: text("stripe_customer_id").notNull(),
-  stripeSubscriptionId: text("stripe_subscription_id"),
-  planTier: text("plan_tier").notNull(),  // 'creator' | 'pro' | 'studio'
-  planCredits: integer("plan_credits").notNull(),  // monthly credit allowance
-  status: text("status").notNull(),  // 'active' | 'past_due' | 'canceled' | 'trialing'
-  currentPeriodStart: text("current_period_start"),
-  currentPeriodEnd: text("current_period_end"),
-  billingInterval: text("billing_interval"),  // 'month' | 'year'
-  autoRefillEnabled: integer("auto_refill_enabled").notNull().default(0),  // 0 = off, 1 = on
-  autoRefillThreshold: integer("auto_refill_threshold").notNull().default(100),  // trigger when balance drops below
-  autoRefillCredits: integer("auto_refill_credits").notNull().default(1000),  // credits to purchase
-  stripePaymentMethodId: text("stripe_payment_method_id"),  // saved card for off-session charges
-  lowBalanceNotifiedAt: text("low_balance_notified_at"),  // last time we sent a low balance email
+  organizationId: text("organization_id").notNull().unique(),
+  planCredits: integer("plan_credits").notNull().default(1500),
+  autoRefillEnabled: integer("auto_refill_enabled").notNull().default(0),
+  autoRefillThreshold: integer("auto_refill_threshold").notNull().default(100),
+  autoRefillCredits: integer("auto_refill_credits").notNull().default(1000),
+  stripePaymentMethodId: text("stripe_payment_method_id"),
+  lowBalanceNotifiedAt: text("low_balance_notified_at"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, () => [
-  pgPolicy("subscriptions_select", { for: "select", to: authenticatedRole, using: inUserOrgs }),
-  pgPolicy("subscriptions_insert", { for: "insert", to: authenticatedRole, withCheck: inUserOrgs }),
-  pgPolicy("subscriptions_update", { for: "update", to: authenticatedRole, using: inUserOrgs }),
-  pgPolicy("subscriptions_delete", { for: "delete", to: authenticatedRole, using: inUserOrgs }),
+  pgPolicy("subscription_extras_select", { for: "select", to: authenticatedRole, using: inUserOrgs }),
+  pgPolicy("subscription_extras_insert", { for: "insert", to: authenticatedRole, withCheck: inUserOrgs }),
+  pgPolicy("subscription_extras_update", { for: "update", to: authenticatedRole, using: inUserOrgs }),
 ]);
 
 export const creditLedger = pgTable("credit_ledger", {

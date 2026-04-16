@@ -30,6 +30,7 @@ from lorekit.api.universes import router as universes_router
 from lorekit.api.environments import router as environments_router
 from lorekit.api.templates import router as templates_router
 from lorekit.api.documents import router as documents_router
+from lorekit.api.workflow import router as workflow_router
 from lorekit.api.scripts import router as scripts_router
 from lorekit.api.voices import router as voices_router
 from lorekit.api.audio import router as audio_router
@@ -118,6 +119,7 @@ app.include_router(universes_router)
 app.include_router(environments_router)
 app.include_router(templates_router)
 app.include_router(documents_router)
+app.include_router(workflow_router)
 app.include_router(scripts_router)
 app.include_router(voices_router)
 app.include_router(audio_router)

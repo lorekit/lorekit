@@ -8,7 +8,9 @@ import {
   Film,
   BookOpen,
   Loader2,
-
+  ArrowLeft,
+  Workflow,
+  SlidersHorizontal,
 } from "lucide-react";
 import { getUniverse, getUniverseProjects, getUniverseCharacters } from "@/lib/api";
 import type { Universe, Project, Character } from "@/lib/api";
@@ -110,6 +112,15 @@ export default function UniverseDashboardPage({
 
   return (
     <div className="p-8 space-y-6">
+      {/* Back to Universes */}
+      <Link
+        href="/app/universe"
+        className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to Universes
+      </Link>
+
       <div className="space-y-4">
         {/* Stats Row */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -205,26 +216,27 @@ export default function UniverseDashboardPage({
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {recentProjects.map((project) => (
-              <Link
+              <div
                 key={project.id}
-                href={`/app/projects/${project.id}`}
                 className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden hover:border-slate-700 transition-colors group"
               >
                 {/* Thumbnail */}
-                <div className="h-36 bg-slate-800 flex items-center justify-center">
-                  {project.thumbnail_url ? (
-                    <img
-                      src={project.thumbnail_url}
-                      alt={project.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Film className="h-8 w-8 text-slate-600 group-hover:text-slate-500 transition-colors" />
-                  )}
-                </div>
+                <Link href={`/app/projects/${project.id}`}>
+                  <div className="h-36 bg-slate-800 flex items-center justify-center">
+                    {project.thumbnail_url ? (
+                      <img
+                        src={project.thumbnail_url}
+                        alt={project.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Film className="h-8 w-8 text-slate-600 group-hover:text-slate-500 transition-colors" />
+                    )}
+                  </div>
+                </Link>
 
                 <div className="p-4 space-y-2">
-                  <h3 className="text-sm font-semibold text-white truncate group-hover:text-amber-400 transition-colors">
+                  <h3 className="text-sm font-semibold text-white truncate">
                     {project.name}
                   </h3>
                   <p className="text-xs text-slate-400 truncate">
@@ -242,8 +254,24 @@ export default function UniverseDashboardPage({
                       {formatDate(project.created_at)}
                     </span>
                   </div>
+                  <div className="flex gap-2 pt-2">
+                    <Link
+                      href={`/app/projects/${project.id}`}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+                    >
+                      <SlidersHorizontal className="w-3.5 h-3.5" />
+                      Editor
+                    </Link>
+                    <Link
+                      href={`/app/universe/${universeId}/projects/${project.id}/workflow`}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-800 hover:bg-amber-500/20 hover:text-amber-400 rounded-lg transition-colors"
+                    >
+                      <Workflow className="w-3.5 h-3.5" />
+                      Workflow
+                    </Link>
+                  </div>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         )}
