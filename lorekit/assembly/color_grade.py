@@ -1,4 +1,4 @@
-"""Civilization-specific color grading via ffmpeg filters."""
+"""Environment-specific color grading via ffmpeg filters."""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ import asyncio
 import logging
 import shlex
 
-from lorekit.config import CIVILIZATIONS
+from lorekit.config import BUILTIN_ENVIRONMENTS
 
 logger = logging.getLogger(__name__)
 
-# Extended color grading presets beyond what's in CivilizationPreset
+# Extended color grading presets beyond what's in EnvironmentPreset
 _GRADE_EXTRAS: dict[str, dict] = {
     "roman": {
         "curves": "curves=preset=lighter",
@@ -36,13 +36,13 @@ _GRADE_EXTRAS: dict[str, dict] = {
 
 
 def get_color_grade_filter(
-    civilization: str,
+    environment_key: str,
     color_grade_override: dict | None = None,
 ) -> str:
     """Return ffmpeg filter string for color grading.
 
     If color_grade_override is provided (from DB environment), use those values.
-    Otherwise fall back to hardcoded civilization presets.
+    Otherwise fall back to hardcoded environment_key presets.
 
     Expected override keys: temperature, saturation, contrast, vignette
     """
@@ -55,9 +55,9 @@ def get_color_grade_filter(
             vignette=color_grade_override.get("vignette", 0.0),
         )
     else:
-        preset = CIVILIZATIONS.get(civilization)
+        preset = BUILTIN_ENVIRONMENTS.get(environment_key)
         if not preset:
-            logger.warning("Unknown civilization %r, using neutral grade", civilization)
+            logger.warning("Unknown environment_key %r, using neutral grade", environment_key)
             return "null"
         cg = preset.color_grade
     filters: list[str] = []
@@ -74,16 +74,16 @@ def get_color_grade_filter(
         angle = cg.vignette * 3.14159
         filters.append(f"vignette=PI/{3.14159 / angle:.1f}" if angle > 0 else "")
 
-    # Extended grading — only when using civilization presets, not custom overrides
+    # Extended grading — only when using environment_key presets, not custom overrides
     if not color_grade_override:
-        extras = _GRADE_EXTRAS.get(civilization, {})
+        extras = _GRADE_EXTRAS.get(environment_key, {})
         if curves := extras.get("curves"):
             filters.append(curves)
         if shadows := extras.get("shadows"):
             filters.append(shadows)
 
         # Japanese-specific: film grain
-        if civilization == "japanese":
+        if environment_key == "japanese":
             filters.append("noise=alls=8:allf=t")
 
     # Remove empty strings
@@ -95,10 +95,10 @@ def get_color_grade_filter(
 async def apply_color_grade(
     input_path: str,
     output_path: str,
-    civilization: str,
+    environment_key: str,
 ) -> str:
     """Apply color grading via ffmpeg. Returns output path."""
-    filter_str = get_color_grade_filter(civilization)
+    filter_str = get_color_grade_filter(environment_key)
 
     cmd = [
         "ffmpeg", "-y",
@@ -111,7 +111,7 @@ async def apply_color_grade(
         output_path,
     ]
 
-    logger.info("Applying %s color grade to %s", civilization, input_path)
+    logger.info("Applying %s color grade to %s", environment_key, input_path)
     await _run_ffmpeg(cmd)
     logger.info("Color grade complete: %s", output_path)
     return output_path

@@ -1,5 +1,6 @@
 """LoreKit configuration and environment presets."""
 
+import os
 from pathlib import Path
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,7 +13,7 @@ class ColorGrade(BaseModel):
     vignette: float
 
 
-class CivilizationPreset(BaseModel):
+class EnvironmentPreset(BaseModel):
     name: str
     color_grade: ColorGrade
     font: str
@@ -20,8 +21,52 @@ class CivilizationPreset(BaseModel):
     text_shadow: str
 
 
-# Alias for new code
-EnvironmentPreset = CivilizationPreset
+_NEUTRAL_ENVIRONMENT = EnvironmentPreset(
+    name="Default",
+    color_grade=ColorGrade(temperature=6500, saturation=1.0, contrast=1.0, vignette=0.0),
+    font="Inter",
+    text_color="#FFFFFF",
+    text_shadow="minimal",
+)
+
+
+BUILTIN_ENVIRONMENTS: dict[str, EnvironmentPreset] = {
+    "roman": EnvironmentPreset(
+        name="Roman",
+        color_grade=ColorGrade(temperature=6500, saturation=1.05, contrast=1.1, vignette=0.3),
+        font="Cinzel",
+        text_color="#FFFFFF",
+        text_shadow="warm",
+    ),
+    "chinese": EnvironmentPreset(
+        name="Chinese",
+        color_grade=ColorGrade(temperature=5500, saturation=0.85, contrast=1.0, vignette=0.2),
+        font="Noto Serif",
+        text_color="#FFD700",
+        text_shadow="cool",
+    ),
+    "japanese": EnvironmentPreset(
+        name="Japanese",
+        color_grade=ColorGrade(temperature=5800, saturation=0.8, contrast=0.95, vignette=0.1),
+        font="Noto Sans JP",
+        text_color="#FFFFFF",
+        text_shadow="minimal",
+    ),
+    "greek": EnvironmentPreset(
+        name="Greek",
+        color_grade=ColorGrade(temperature=6000, saturation=1.0, contrast=1.15, vignette=0.15),
+        font="Cinzel",
+        text_color="#FFFFFF",
+        text_shadow="cool",
+    ),
+    "modern": EnvironmentPreset(
+        name="Modern",
+        color_grade=ColorGrade(temperature=6500, saturation=1.0, contrast=1.0, vignette=0.0),
+        font="Inter",
+        text_color="#FFFFFF",
+        text_shadow="minimal",
+    ),
+}
 
 
 VIBE_PRESETS: dict[str, dict] = {
@@ -58,11 +103,32 @@ VIBE_PRESETS: dict[str, dict] = {
             "Raw, aggressive, primal energy. The visual intensity of a Zack Snyder "
             "film still or a dark fantasy movie poster photograph."
         ),
-        # Only injected when character_present=True
         "character_prompt": (
             "Characters are imposing, powerful, godlike figures with real human skin "
             "texture, pores, scars, sweat — NOT smooth, NOT plastic, NOT CG. "
             "Real armor and costumes."
+        ),
+    },
+    "ugc_selfie": {
+        "name": "UGC Selfie",
+        "description": "iPhone front-camera selfie — raw, authentic, phone-quality",
+        "prompt": (
+            "POV from a front-facing phone camera. The camera IS the phone — "
+            "the person looks directly into the lens. NO phone visible in frame, "
+            "NO device held as a prop. Raw iPhone front-camera selfie video. "
+            "Smartphone footage quality. Subtle wide-angle barrel distortion from "
+            "phone lens. Digital noise and compression artifacts. Computational "
+            "photography bokeh on background with visible edge haloing. "
+            "Natural ambient lighting — NO studio lights, NO cinematic rigs. "
+            "Visible skin texture, pores, imperfections. "
+            "NOT cinematic, NOT polished, NOT DSLR, NOT film grain. "
+            "Selfie distance, arm's length framing."
+        ),
+        "character_prompt": (
+            "Real person filming themselves on iPhone front camera. The camera IS "
+            "the phone they are holding — NO phone visible in the shot, NO device "
+            "as a prop. Natural skin with visible pores, no retouching, no airbrushing. "
+            "Casual everyday clothing. Authentic candid expression. Phone-distance framing."
         ),
     },
     "custom": {
@@ -72,40 +138,13 @@ VIBE_PRESETS: dict[str, dict] = {
     },
 }
 
-CIVILIZATIONS: dict[str, CivilizationPreset] = {
-    "roman": CivilizationPreset(
-        name="Roman",
-        color_grade=ColorGrade(temperature=6500, saturation=1.05, contrast=1.1, vignette=0.3),
-        font="Cinzel",
-        text_color="#FFFFFF",
-        text_shadow="warm",
-    ),
-    "chinese": CivilizationPreset(
-        name="Chinese",
-        color_grade=ColorGrade(temperature=5500, saturation=0.85, contrast=1.0, vignette=0.2),
-        font="Noto Serif",
-        text_color="#FFD700",
-        text_shadow="cool",
-    ),
-    "japanese": CivilizationPreset(
-        name="Japanese",
-        color_grade=ColorGrade(temperature=5800, saturation=0.8, contrast=0.95, vignette=0.1),
-        font="Noto Sans JP",
-        text_color="#FFFFFF",
-        text_shadow="minimal",
-    ),
-    "greek": CivilizationPreset(
-        name="Greek",
-        color_grade=ColorGrade(temperature=6000, saturation=1.0, contrast=1.15, vignette=0.15),
-        font="Cinzel",
-        text_color="#FFFFFF",
-        text_shadow="cool",
-    ),
-}
-
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="", env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_prefix="",
+        env_file=os.environ.get("ENV_FILE", ".env"),
+        env_file_encoding="utf-8",
+    )
 
     anthropic_api_key: str = ""
     openai_api_key: str = ""
@@ -117,8 +156,6 @@ class Settings(BaseSettings):
     output_dir: Path = Path("./output")
     clips_dir: Path = Path("./clips")
     audio_assets_dir: Path = Path("./lorekit/audio/assets")
-    video_vibe: str = "Colorful casual mobile game illustration style. Think Clash of Clans, Coin Master, or a premium mobile game cutscene. Chunky stylized 3D-look characters with oversized heads, big friendly eyes, round expressive faces, and exaggerated proportions — NOT photorealistic, NOT hyper-detailed. Lush vibrant environments: bright emerald greens, warm golden sandstone, vivid blue skies with fluffy white clouds, rich foliage and vines. Warm golden-hour lighting with soft shadows. Bold clean rendering with subtle outlines and rich saturated colors. Characters look approachable, friendly, and slightly cartoonish — like a wise grandpa in a mobile game. Architecture is stylized and chunky (thick stone columns, rounded edges, simplified details). Overall: fun, warm, inviting, and polished — the visual quality of a top mobile game trailer."
-    video_vibe_preset: str = "mobile_game"
 
     def ensure_dirs(self) -> None:
         """Create required directories if they don't exist."""
@@ -131,8 +168,6 @@ def get_settings() -> Settings:
     return Settings()
 
 
-def get_civilization(civilization: str) -> CivilizationPreset:
-    """Look up a civilization preset by key. Raises KeyError if not found."""
-    if civilization not in CIVILIZATIONS:
-        raise KeyError(f"Unknown civilization {civilization!r}. Choose from: {list(CIVILIZATIONS)}")
-    return CIVILIZATIONS[civilization]
+def get_environment(key: str) -> EnvironmentPreset:
+    """Look up an environment preset by key. Returns neutral default for unknowns."""
+    return BUILTIN_ENVIRONMENTS.get(key, _NEUTRAL_ENVIRONMENT)

@@ -9,29 +9,10 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from lorekit import db
-from lorekit.config import CIVILIZATIONS, get_settings
+from lorekit.config import get_settings
 from lorekit.models import Timeline
 
 console = Console()
-
-# --- Character registry (used for random selection) ---
-
-CHARACTERS: dict[str, str] = {
-    "marcus_aurelius": "roman",
-    "seneca": "roman",
-    "epictetus": "roman",
-    "sun_tzu": "chinese",
-    "lao_tzu": "chinese",
-    "confucius": "chinese",
-    "miyamoto_musashi": "japanese",
-    "tsunetomo_yamamoto": "japanese",
-    "socrates": "greek",
-    "aristotle": "greek",
-    "heraclitus": "greek",
-}
-
-# Backward compatibility alias
-PHILOSOPHERS = CHARACTERS
 
 
 async def select_quotes(
@@ -69,7 +50,7 @@ async def select_quotes(
 
 async def generate_story_breakdown(
     character_id: str,
-    civilization: str,
+    environment_key: str,
     hook_quote: dict,
     truth_quote: dict,
 ) -> dict:
@@ -131,7 +112,7 @@ async def generate_video(
     Args:
         theme: Vibe preset key (e.g. "dark_masculine"). When set, uses
             the theme's vibe prompt and per-theme character descriptions.
-            Falls back to ``settings.video_vibe_preset`` if not provided.
+            Falls back to "mobile_game" if not provided.
         arc_template: Arc template ID (e.g. "story", "rapid_montage").
             Defaults to "story".
     """
@@ -139,16 +120,16 @@ async def generate_video(
     settings.ensure_dirs()
     await db.init_pool()
 
-    # Resolve theme from settings if not explicitly provided
+    # Resolve theme — default to mobile_game if not explicitly provided
     if theme is None:
-        theme = settings.video_vibe_preset
+        theme = "mobile_game"
 
     # 0. Pick character if not specified
     if character_id is None:
-        character_id = random.choice(list(CHARACTERS.keys()))
-    civilization = CHARACTERS.get(character_id, "roman")
+        raise ValueError("character_id is required — character lookups come from DB")
+    environment_key = ""
 
-    console.print(f"\n[bold cyan]LoreKit[/] — Generating video for [bold]{character_id}[/] ({civilization})")
+    console.print(f"\n[bold cyan]LoreKit[/] — Generating video for [bold]{character_id}[/]")
 
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as progress:
         # 1. Select quotes
@@ -161,14 +142,14 @@ async def generate_video(
 
         # 2. Generate story breakdown via Claude
         task = progress.add_task("Generating story breakdown...", total=None)
-        story_data = await generate_story_breakdown(character_id, civilization, hook_quote, truth_quote)
+        story_data = await generate_story_breakdown(character_id, environment_key, hook_quote, truth_quote)
         progress.update(task, description="[green]Story breakdown ready[/]")
 
         # 3. Build VideoProject
         story = StoryBreakdown.model_validate(story_data)
         project = VideoProject(
             character_id=character_id,
-            civilization=civilization,
+            environment_key=environment_key,
             theme=theme or "",
             arc_template=arc_template or "story",
             story=story,
@@ -240,8 +221,14 @@ async def batch_generate(count: int = 1, schedule: str | None = None) -> list[Vi
     settings.ensure_dirs()
     await db.init_pool()
 
-    # If schedule is given, pick characters based on day-of-week mapping
-    character_ids = list(CHARACTERS.keys())
+    # Load character IDs from DB
+    pool = await db.get_pool()
+    rows = await pool.fetch("SELECT id FROM characters ORDER BY name")
+    character_ids = [r["id"] for r in rows]
+    if not character_ids:
+        console.print("[red]No characters found in database. Import characters first.[/]")
+        raise SystemExit(1)
+
     if schedule:
         # Simple rotation: pick character(s) based on schedule keyword
         import hashlib

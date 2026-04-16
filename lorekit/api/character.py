@@ -1,12 +1,13 @@
-"""Character image generation — per-theme reference images for consistent video.
+"""Character image generation — per-theme images for consistent video.
 
-Each character can have a character image per theme (mobile_game, cinematic,
-dark_masculine, etc.).  Images are stored in ``character_images_json`` on the
-character row as ``{theme: {url, local_path}}``.  The legacy
-``character_image_url`` column is kept as the "default" (no-theme) image.
+Each character can have multiple images per theme stored as a flat list in
+``character_styles_json``: ``{theme: {images: [{url, path, label}], description: "..."}}``.
 
-Helper ``get_character_image_url(character_id, theme)`` is the single place
-clip generation should call to get the right portrait for Kling elements.
+All images are equal — no "default" vs "views" hierarchy. Every image serves
+as a reference for identity-preserving generation when creating new ones.
+
+Helper ``get_character_image_url(character_id, theme)`` returns the first
+image for clip generation. ``get_character_image_urls()`` returns all of them.
 """
 
 from __future__ import annotations
@@ -34,8 +35,10 @@ from lorekit.config import get_settings, VIBE_PRESETS
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/character", tags=["character"])
 
-# Image generation — all image gen uses Nano Banana 2
+# Image generation models
 FAL_NANO_BANANA_2 = "https://queue.fal.run/fal-ai/nano-banana-2"
+FAL_KONTEXT_MAX_MULTI = "https://queue.fal.run/fal-ai/flux-pro/kontext/max/multi"
+FAL_KONTEXT_MAX = "https://queue.fal.run/fal-ai/flux-pro/kontext/max"
 
 
 # ---------------------------------------------------------------------------
@@ -68,6 +71,24 @@ _THEME_PORTRAIT_SETTINGS: dict[str, dict[str, str]] = {
             "Rich cinematic lighting, film grain."
         ),
         "negative": "NOT cartoon, NOT stylized, NOT game art.",
+    },
+    "ugc_selfie": {
+        "framing": (
+            "Single still frame, 9:16 vertical composition. "
+            "POV from a front-facing phone camera — the camera IS the phone. "
+            "Person looks directly into the lens. Selfie perspective, arm's length, "
+            "slightly above eye level. Person fills 60-70% of frame. "
+            "NO phone visible in frame, NO device held as a prop."
+        ),
+        "background": (
+            "Natural indoor or outdoor background. Slightly out of focus from "
+            "computational bokeh with edge haloing. Real environment, not a studio."
+        ),
+        "negative": (
+            "NOT cinematic, NOT studio lighting, NOT professional camera, "
+            "NOT model photography, NOT retouched, NOT airbrushed. "
+            "NO phone visible in shot, NO device as prop, NOT third-person angle."
+        ),
     },
 }
 
@@ -106,28 +127,20 @@ def _build_character_prompt(
 # ---------------------------------------------------------------------------
 
 async def _load_character_styles(character_id: str) -> dict[str, dict]:
-    """Load per-theme styles from character_styles_json."""
+    """Load per-theme styles from character_styles_json.
+
+    Each theme entry contains:
+    - ``description``: optional theme-specific character description
+    - ``images``: flat list of ``{url, path, label}`` dicts
+    """
     pool = await db.get_pool()
     row = await pool.fetchrow(
-        "SELECT character_styles_json, character_image_url FROM characters WHERE id = $1",
+        "SELECT character_styles_json FROM characters WHERE id = $1",
         character_id,
     )
     if not row:
         return {}
-    styles: dict = _json.loads(row["character_styles_json"] or "{}") if row["character_styles_json"] else {}
-    # Ensure the legacy default URL is also in the map
-    if row["character_image_url"] and "default" not in styles:
-        styles["default"] = {"image_url": row["character_image_url"], "image_path": None}
-    return styles
-
-
-def _load_character_images(styles: dict[str, dict]) -> dict[str, dict]:
-    """Extract image data from styles dict (backward-compat helper)."""
-    return {
-        theme: {"url": data.get("image_url"), "local_path": data.get("image_path")}
-        for theme, data in styles.items()
-        if data.get("image_url")
-    }
+    return _json.loads(row["character_styles_json"] or "{}") if row["character_styles_json"] else {}
 
 
 async def _save_character_image(
@@ -135,8 +148,10 @@ async def _save_character_image(
     theme: str,
     url: str,
     local_path: str,
+    label: str = "portrait",
+    prompt: str = "",
 ) -> None:
-    """Upsert one themed image into character_styles_json."""
+    """Append an image to the theme's flat images list."""
     pool = await db.get_pool()
     row = await pool.fetchrow(
         "SELECT character_styles_json FROM characters WHERE id = $1",
@@ -146,60 +161,57 @@ async def _save_character_image(
 
     if theme not in styles:
         styles[theme] = {}
-    styles[theme]["image_url"] = url
-    styles[theme]["image_path"] = local_path
+    if "images" not in styles[theme]:
+        styles[theme]["images"] = []
 
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute(
-                "UPDATE characters SET character_styles_json = $1 WHERE id = $2",
-                _json.dumps(styles), character_id,
-            )
-            # Keep legacy column in sync
-            await conn.execute(
-                "UPDATE characters SET character_image_url = $1 WHERE id = $2",
-                url, character_id,
-            )
+    entry: dict = {"url": url, "path": local_path, "label": label}
+    if prompt:
+        entry["prompt"] = prompt
+    styles[theme]["images"].append(entry)
+
+    await pool.execute(
+        "UPDATE characters SET character_styles_json = $1 WHERE id = $2",
+        _json.dumps(styles), character_id,
+    )
 
 
 async def get_character_image_url(
     character_id: str,
     theme: str | None = None,
 ) -> str | None:
-    """Get the character image URL for a character + theme.
+    """Get the first character image URL for a character + theme.
 
     This is the single function that clip generation should call.
-    Falls back: themed image -> default image -> None.
-
-    Local /files/ URLs are uploaded to fal.ai CDN on-the-fly so that
-    external services (Flux, Kling) can access them.
     """
     styles = await _load_character_styles(character_id)
-    images = _load_character_images(styles)
     url: str | None = None
-    if theme and theme in images:
-        url = images[theme].get("url")
-    elif "default" in images:
-        url = images["default"].get("url")
-    if not url:
-        # Legacy fallback: check the old column directly
-        pool = await db.get_pool()
-        row = await pool.fetchrow(
-            "SELECT character_image_url FROM characters WHERE id = $1",
-            character_id,
-        )
-        url = row["character_image_url"] if row and row["character_image_url"] else None
+
+    for try_theme in ([theme] if theme else []) + list(styles.keys()):
+        imgs = styles.get(try_theme, {}).get("images", [])
+        if imgs:
+            url = imgs[0].get("url")
+            if url:
+                break
 
     if not url:
         return None
-
-    # If it's already a public URL, return as-is
     if url.startswith("http://") or url.startswith("https://"):
         return url
-
-    # Local /files/ URL — upload to fal CDN so external services can access it
-    resolved = await _resolve_ref_image_for_fal(url.split("?")[0])  # strip cache-buster
+    resolved = await _resolve_ref_image_for_fal(url.split("?")[0])
     return resolved or url
+
+
+async def get_character_image_urls(
+    character_id: str,
+    theme: str | None = None,
+) -> list[str]:
+    """Get ALL character image URLs for a theme (for passing to Kling as references)."""
+    styles = await _load_character_styles(character_id)
+    for try_theme in ([theme, "default"] if theme else ["default"]):
+        imgs = styles.get(try_theme, {}).get("images", [])
+        if imgs:
+            return [img["url"] for img in imgs if img.get("url")]
+    return []
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +280,113 @@ async def _resolve_ref_image_for_fal(url: str) -> str | None:
     return await ensure_fal_url(url)
 
 
+async def _edit_image_kontext_single(
+    edit_prompt: str,
+    headers: dict,
+    source_image_url: str,
+) -> str:
+    """Edit a single image using Kontext Max (single image in/out).
+
+    Best for changing clothing/background while keeping face identical.
+    Uses fal-ai/flux-pro/kontext/max (NOT Multi — Multi produces grids).
+    """
+    payload: dict = {
+        "prompt": edit_prompt,
+        "image_url": source_image_url,
+        "aspect_ratio": "9:16",
+        "output_format": "png",
+        "safety_tolerance": 6,
+    }
+
+    logger.info("Editing portrait with Kontext Max (single image)")
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        resp = await client.post(FAL_KONTEXT_MAX, json=payload, headers=headers)
+        resp.raise_for_status()
+        job = resp.json()
+        request_id = job["request_id"]
+
+        status_url = job.get("status_url", f"{FAL_KONTEXT_MAX}/requests/{request_id}/status")
+        response_url = job.get("response_url", f"{FAL_KONTEXT_MAX}/requests/{request_id}")
+
+        for _ in range(120):
+            await asyncio.sleep(3)
+            status_resp = await client.get(status_url, headers=headers)
+            status_resp.raise_for_status()
+            status_data = status_resp.json()
+            if status_data.get("status") == "COMPLETED":
+                break
+            elif status_data.get("status") in ("FAILED", "CANCELLED"):
+                raise HTTPException(status_code=500, detail="Kontext image edit failed")
+        else:
+            raise HTTPException(status_code=504, detail="Kontext image edit timed out")
+
+        result_resp = await client.get(response_url, headers=headers)
+        if result_resp.status_code in (404, 422):
+            result_resp = await client.get(f"{FAL_KONTEXT_MAX}/requests/{request_id}", headers=headers)
+        result_resp.raise_for_status()
+        result_data = result_resp.json()
+
+    images = result_data.get("images", [])
+    if not images:
+        raise HTTPException(status_code=500, detail="No image in Kontext response")
+    return images[0]["url"]
+
+
+async def _edit_image_kontext(
+    edit_prompt: str,
+    headers: dict,
+    source_image_urls: list[str],
+) -> str:
+    """Edit image(s) using Kontext. Single image → Kontext Max, multiple → Max Multi."""
+    # Single image: use Kontext Max for clean single-image output
+    if len(source_image_urls) == 1:
+        return await _edit_image_kontext_single(edit_prompt, headers, source_image_urls[0])
+
+    # Multiple images: use Kontext Max Multi
+    payload: dict = {
+        "prompt": edit_prompt,
+        "image_urls": source_image_urls[:4],
+        "aspect_ratio": "9:16",
+        "output_format": "png",
+        "safety_tolerance": 6,
+    }
+
+    logger.info("Editing portrait with Kontext Max Multi (%d source images)", len(source_image_urls))
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        resp = await client.post(FAL_KONTEXT_MAX_MULTI, json=payload, headers=headers)
+        resp.raise_for_status()
+        job = resp.json()
+        request_id = job["request_id"]
+
+        status_url = job.get("status_url", f"{FAL_KONTEXT_MAX_MULTI}/requests/{request_id}/status")
+        response_url = job.get("response_url", f"{FAL_KONTEXT_MAX_MULTI}/requests/{request_id}")
+
+        for _ in range(120):
+            await asyncio.sleep(3)
+            status_resp = await client.get(status_url, headers=headers)
+            status_resp.raise_for_status()
+            status_data = status_resp.json()
+            if status_data.get("status") == "COMPLETED":
+                break
+            elif status_data.get("status") in ("FAILED", "CANCELLED"):
+                raise HTTPException(status_code=500, detail="Kontext image edit failed")
+        else:
+            raise HTTPException(status_code=504, detail="Kontext image edit timed out")
+
+        result_resp = await client.get(response_url, headers=headers)
+        if result_resp.status_code in (404, 422):
+            result_resp = await client.get(f"{FAL_KONTEXT_MAX_MULTI}/requests/{request_id}", headers=headers)
+        result_resp.raise_for_status()
+        result_data = result_resp.json()
+
+    images = result_data.get("images", [])
+    if not images:
+        raise HTTPException(status_code=500, detail="No image in Kontext response")
+    return images[0]["url"]
+
+
 async def _generate_and_store(
     character_id: str,
     character_name: str,
@@ -275,23 +394,19 @@ async def _generate_and_store(
     char_desc: str,
     fal_key: str,
     reference_image_urls: list[str] | None = None,
+    label: str = "portrait",
+    edit_mode: bool = False,
 ) -> dict:
-    """Generate a character image for a character+theme, save it, return metadata.
+    """Generate a character image and append it to the theme's images list.
 
-    If *reference_image_urls* is provided, uses Kontext image-to-image to
-    preserve the reference likeness while applying the theme style.
+    When *edit_mode* is True and reference images exist, uses Kontext
+    image-to-image to edit the first reference (preserving face identity).
+    Otherwise uses Nano Banana 2 text-to-image for generation from scratch.
     """
-    vibe = VIBE_PRESETS.get(theme, {}).get("prompt", "")
-    if not vibe:
-        settings = get_settings()
-        vibe = settings.video_vibe
-
     headers = {
         "Authorization": f"Key {fal_key}",
         "Content-Type": "application/json",
     }
-
-    prompt = _build_character_prompt(character_name, char_desc, vibe, theme)
 
     # Resolve all reference images to URLs fal.ai can access
     resolved_refs: list[str] = []
@@ -303,16 +418,24 @@ async def _generate_and_store(
             else:
                 logger.warning("Could not resolve reference image %s — skipping", ref_url)
 
-    image_url = await _generate_single_image(
-        prompt, headers,
-        reference_image_urls=resolved_refs if resolved_refs else None,
-    )
+    if edit_mode and resolved_refs:
+        # Kontext: edit existing portrait — keeps face identical
+        prompt = char_desc  # Used as edit instruction directly
+        image_url = await _edit_image_kontext(prompt, headers, resolved_refs)
+    else:
+        # Nano Banana 2: generate from scratch (first portrait or no refs)
+        vibe = VIBE_PRESETS.get(theme, {}).get("prompt", "")
+        prompt = _build_character_prompt(character_name, char_desc, vibe, theme)
+        image_url = await _generate_single_image(
+            prompt, headers,
+            reference_image_urls=resolved_refs if resolved_refs else None,
+        )
 
     # Download and store via the file store
     from lorekit.storage import get_file_store, character_image_path
 
     store = get_file_store()
-    storage_path = character_image_path(character_id, theme)
+    storage_path = character_image_path(character_id, theme, view=label if label != "portrait" else "default")
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         img_resp = await client.get(image_url)
@@ -321,16 +444,15 @@ async def _generate_and_store(
 
     import time
     serving_url = await store.get_url(storage_path)
-    # Cache-buster so browsers fetch the new image
     cache_bust_url = serving_url + f"?v={int(time.time())}"
 
-    # Store the local serving URL in the DB (permanent, we own it)
-    await _save_character_image(character_id, theme, serving_url, storage_path)
+    await _save_character_image(character_id, theme, serving_url, storage_path, label=label, prompt=prompt)
 
     return {
         "image_url": cache_bust_url,
         "local_path": storage_path,
         "theme": theme,
+        "label": label,
         "reused": False,
     }
 
@@ -369,17 +491,17 @@ async def generate_character_image(body: GenerateCharacterRequest, user: Current
     # Check for existing themed image (unless force regenerate)
     if not body.force and not body.custom_description:
         styles = await _load_character_styles(character_id)
-        images = _load_character_images(styles)
-        if theme in images and images[theme].get("url"):
-            existing_url = images[theme]["url"]
+        theme_imgs = styles.get(theme, {}).get("images", [])
+        if theme_imgs:
+            existing = theme_imgs[0]
             await db.update_project(
                 body.project_id,
-                character_image_url=existing_url,
-                character_image_path=images[theme].get("local_path", ""),
+                character_image_url=existing["url"],
+                character_image_path=existing.get("path", ""),
             )
             return {
-                "image_url": existing_url,
-                "local_path": images[theme].get("local_path"),
+                "image_url": existing["url"],
+                "local_path": existing.get("path"),
                 "reused": True,
                 "theme": theme,
             }
@@ -420,6 +542,7 @@ class GenerateForCharacterRequest(BaseModel):
     character_id: str
     custom_description: str | None = None
     theme: str | None = None
+    view: str = "default"
     force: bool = False
 
 
@@ -444,49 +567,50 @@ async def generate_character_for_character(body: GenerateForCharacterRequest, us
         raise HTTPException(status_code=404, detail="Character not found")
 
     theme = body.theme or "default"
+    label = body.view or "portrait"
     character = await get_character(pool, body.character_id)
-
-    # Check existing
-    if not body.force and not body.custom_description:
-        styles = await _load_character_styles(body.character_id)
-        images = _load_character_images(styles)
-        if theme in images and images[theme].get("url"):
-            return {
-                "image_url": images[theme]["url"],
-                "local_path": images[theme].get("local_path"),
-                "reused": True,
-                "theme": theme,
-            }
 
     # Pre-flight credit check
     if not await check_credits(user.org_id, estimate_portrait_credits()):
         raise HTTPException(status_code=402, detail="Insufficient credits")
 
     settings = get_settings()
-    char_desc = body.custom_description or get_themed_char(body.character_id, theme=theme if theme != "default" else None)
+    appearance = get_themed_char(body.character_id, theme=theme if theme != "default" else None)
 
-    # Load reference images (if any) for identity-preserving generation
+    # Load existing images as identity references
     ref_urls = await _load_ref_urls(body.character_id)
+    styles = await _load_character_styles(body.character_id)
+    existing_imgs = styles.get(theme, {}).get("images", [])
+    for img in existing_imgs:
+        if img.get("url"):
+            ref_urls = (ref_urls or []) + [img["url"]]
+
+    # Route: Kontext edit (views with existing portrait) vs Nano Banana 2 (first portrait)
+    has_existing = bool(existing_imgs)
+    if has_existing and body.custom_description:
+        # Kontext: edit the default portrait with the setting/pose instruction
+        char_desc = body.custom_description
+        use_edit_mode = True
+    else:
+        # Nano Banana 2: generate from scratch
+        char_desc = f"{appearance} Setting: {body.custom_description}" if body.custom_description else appearance
+        use_edit_mode = False
 
     result = await _generate_and_store(
         body.character_id, character.name, theme, char_desc, settings.fal_key,
         reference_image_urls=ref_urls or None,
+        label=label,
+        edit_mode=use_edit_mode,
     )
 
     # Deduct credits after successful generation
     await deduct_credits(
         user.org_id, estimate_portrait_credits(), "usage_portrait",
-        desc=f"Portrait for {character.name} ({theme})",
+        desc=f"Portrait for {character.name} ({theme}/{label})",
     )
 
     return result
 
-
-# Backward-compatible endpoint
-@router.post("/generate-for-philosopher")
-async def generate_character_for_philosopher_legacy(body: GenerateForCharacterRequest, user: CurrentUser = Depends(get_current_user)) -> dict:
-    """Legacy endpoint: generate a character image for a character (no project needed)."""
-    return await generate_character_for_character(body, user=user)
 
 
 @router.get("/images/{character_id}")
@@ -507,18 +631,108 @@ async def list_character_images(character_id: str, user: CurrentUser = Depends(g
     if not char_check:
         raise HTTPException(status_code=404, detail="Character not found")
     styles = await _load_character_styles(character_id)
-    images = _load_character_images(styles)
-    # Add theme display names
+    # Return flat images list per theme
     result: list[dict] = []
-    for theme_key, data in images.items():
+    for theme_key, data in styles.items():
+        imgs = data.get("images", [])
+        if not imgs:
+            continue
         preset = VIBE_PRESETS.get(theme_key, {})
         result.append({
             "theme": theme_key,
             "theme_name": preset.get("name", theme_key.replace("_", " ").title()),
-            "url": data.get("url"),
-            "local_path": data.get("local_path"),
+            "images": [{"url": img.get("url"), "path": img.get("path"), "label": img.get("label", "portrait"), "prompt": img.get("prompt", "")} for img in imgs],
         })
-    return {"character_id": character_id, "images": result}
+    return {"character_id": character_id, "themes": result}
+
+
+class DeleteCharacterImageRequest(BaseModel):
+    theme: str
+    index: int  # index into the images array
+
+
+@router.delete("/images/{character_id}")
+async def delete_character_image(
+    character_id: str,
+    body: DeleteCharacterImageRequest,
+    user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """Delete a character image by theme and index."""
+    await _verify_character_ownership(character_id, user.org_id)
+
+    pool = await db.get_pool()
+    row = await pool.fetchrow(
+        "SELECT character_styles_json FROM characters WHERE id = $1",
+        character_id,
+    )
+    styles: dict = _json.loads(row["character_styles_json"] or "{}") if row and row["character_styles_json"] else {}
+
+    theme_data = styles.get(body.theme)
+    if not theme_data:
+        raise HTTPException(status_code=404, detail="No images for this theme")
+
+    imgs = theme_data.get("images", [])
+    if body.index < 0 or body.index >= len(imgs):
+        raise HTTPException(status_code=404, detail="Image index out of range")
+
+    removed = imgs.pop(body.index)
+    file_path = removed.get("path")
+
+    await pool.execute(
+        "UPDATE characters SET character_styles_json = $1 WHERE id = $2",
+        _json.dumps(styles), character_id,
+    )
+
+    # Delete file from storage
+    if file_path:
+        try:
+            from lorekit.storage import get_file_store
+            store = get_file_store()
+            await store.delete(file_path)
+        except Exception:
+            logger.warning("Failed to delete image file: %s", file_path)
+
+    return {"deleted": True, "theme": body.theme, "index": body.index}
+
+
+class SetDefaultImageRequest(BaseModel):
+    theme: str
+    index: int
+
+
+@router.patch("/images/{character_id}/set-default")
+async def set_default_character_image(
+    character_id: str,
+    body: SetDefaultImageRequest,
+    user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """Move an image to index 0 (used for video generation)."""
+    await _verify_character_ownership(character_id, user.org_id)
+
+    pool = await db.get_pool()
+    row = await pool.fetchrow(
+        "SELECT character_styles_json FROM characters WHERE id = $1",
+        character_id,
+    )
+    styles: dict = _json.loads(row["character_styles_json"] or "{}") if row and row["character_styles_json"] else {}
+
+    theme_data = styles.get(body.theme)
+    if not theme_data:
+        raise HTTPException(status_code=404, detail="No images for this theme")
+
+    imgs = theme_data.get("images", [])
+    if body.index < 0 or body.index >= len(imgs):
+        raise HTTPException(status_code=404, detail="Image index out of range")
+
+    # Move to front
+    img = imgs.pop(body.index)
+    imgs.insert(0, img)
+
+    await pool.execute(
+        "UPDATE characters SET character_styles_json = $1 WHERE id = $2",
+        _json.dumps(styles), character_id,
+    )
+    return {"ok": True, "theme": body.theme}
 
 
 # ---------------------------------------------------------------------------

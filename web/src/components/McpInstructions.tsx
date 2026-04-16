@@ -61,14 +61,10 @@ export function McpInstructions() {
                 Connect to the LoreKit cloud MCP endpoint:
               </p>
               <CodeBlock
-                code={`claude mcp add --transport http lorekit ${mcpUrl} \\\n  --header "Authorization: Bearer YOUR_API_TOKEN"`}
+                code={`claude mcp add --transport http lorekit ${mcpUrl}`}
               />
               <p className="text-xs text-slate-500 mt-1.5">
-                Your API token is available in{" "}
-                <a href="/app/settings" className="text-amber-400 hover:text-amber-300">
-                  Settings
-                </a>
-                .
+                You'll be prompted to log in via your browser when Claude first connects.
               </p>
             </div>
           )}
@@ -110,9 +106,6 @@ export function McpInstructions() {
                       lorekit: {
                         type: "streamable-http",
                         url: mcpUrl,
-                        headers: {
-                          Authorization: "Bearer YOUR_API_TOKEN",
-                        },
                       },
                     },
                   },
@@ -121,11 +114,7 @@ export function McpInstructions() {
                 )}
               />
               <p className="text-xs text-slate-500 mt-1.5">
-                Your API token is available in{" "}
-                <a href="/app/settings" className="text-amber-400 hover:text-amber-300">
-                  Settings
-                </a>
-                .
+                You'll be prompted to log in via your browser when Claude first connects.
               </p>
             </div>
           )}

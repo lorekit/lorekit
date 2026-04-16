@@ -132,6 +132,7 @@ class StoryRequest(BaseModel):
     aspect_ratio: str = "9:16"  # "9:16" (portrait/short) or "16:9" (landscape)
     audio_mode: str = "auto"  # auto | narration | uploaded | silent
     uploaded_audio_path: str | None = None  # for uploaded mode
+    story_context: str | None = None  # free-text creative direction for the LLM
 
     @pydantic_field_validator("theme", "arc_template", mode="before")
     @classmethod
@@ -148,6 +149,14 @@ class ClipsRequest(BaseModel):
 class SingleClipRequest(BaseModel):
     project_id: str
     scene_id: int
+    character_image_url: str | None = None  # override character portrait for this clip
+
+
+class ProjectCharacterImageRequest(BaseModel):
+    project_id: str
+    custom_description: str  # Edit instruction, e.g. "Change to black athletic shirt, gym background"
+    label: str = "variation"  # e.g. "gym", "office", "casual"
+    scene_id: int | None = None  # If provided, sets as reference image on this scene
 
 
 class KeyframeRequest(BaseModel):
@@ -293,6 +302,27 @@ async def generate_story_endpoint(body: StoryRequest, user: CurrentUser = Depend
     if not await check_credits(user.org_id, estimated):
         raise HTTPException(status_code=402, detail="Insufficient credits")
 
+    # Build story context: explicit > environment > none
+    # Then layer on performance_notes if available
+    story_context = body.story_context
+    if not story_context and character.group:
+        env_row = await pool.fetchrow(
+            "SELECT environment_description FROM environments WHERE universe_id = $1 AND name = $2",
+            body.universe_id, character.group,
+        )
+        if env_row and env_row["environment_description"]:
+            story_context = env_row["environment_description"]
+
+    # Auto-inject performance notes (reaction choreography, mannerisms)
+    char_row = await pool.fetchrow(
+        "SELECT performance_notes FROM characters WHERE id = $1",
+        body.character_id,
+    )
+    perf_notes = char_row["performance_notes"] if char_row and char_row["performance_notes"] else ""
+    if perf_notes:
+        notes_ctx = f"\n\nPERFORMANCE DIRECTION: {perf_notes}"
+        story_context = (story_context or "") + notes_ctx
+
     # Generate story via LLM — returns a Timeline
     story = await generate_story(
         character=character,
@@ -301,6 +331,7 @@ async def generate_story_endpoint(body: StoryRequest, user: CurrentUser = Depend
         target_duration=effective_duration,
         theme=body.theme,
         arc_template=body.arc_template,
+        story_context=story_context,
     )
 
     # Deduct credits — use real token count if available, fall back to flat estimate
@@ -336,6 +367,7 @@ async def generate_story_endpoint(body: StoryRequest, user: CurrentUser = Depend
         aspect_ratio=body.aspect_ratio,
         audio_mode=body.audio_mode,
         uploaded_audio_path=validated_audio_path,
+        theme=body.theme,
     )
 
     return {
@@ -367,7 +399,7 @@ async def _generate_clips_task(job_id: str, project_id: str, org_id: str | None 
         vibe_text = style["prompt"] if style and style.get("prompt") else None
 
         from lorekit.sources.database import get_character
-        from lorekit.api.character import get_character_image_url
+        from lorekit.api.character import get_character_image_url, _load_ref_urls
 
         pool = await db.get_pool()
         character = await get_character(pool, character_id)
@@ -378,9 +410,12 @@ async def _generate_clips_task(job_id: str, project_id: str, org_id: str | None 
         if not character_image_url:
             character_image_url = project.get("character_image_url")
 
+        # ---- CHARACTER REFERENCE IMAGES: for multi-angle consistency ----
+        character_ref_urls = await _load_ref_urls(character_id)
+
         logger.info(
-            "Clips task — project=%s theme=%s character_image=%s",
-            project_id, theme, bool(character_image_url),
+            "Clips task — project=%s theme=%s character_image=%s refs=%d",
+            project_id, theme, bool(character_image_url), len(character_ref_urls or []),
         )
 
         ar = project.get("aspect_ratio", "9:16")
@@ -393,16 +428,16 @@ async def _generate_clips_task(job_id: str, project_id: str, org_id: str | None 
 
         from lorekit.video.generator import (
             generate_single_clip,
-            _generate_keyframe_from_portrait,
+            _generate_keyframe_kontext,
             _generate_keyframe_text,
         )
         from lorekit.video.prompt_builder import build_video_prompt
-        from lorekit.config import get_civilization
+        from lorekit.config import get_environment
 
-        civ_config = get_civilization(character.group)
+        env_config = get_environment(character.group)
 
         # Use resolved vibe text or fall back to settings default
-        active_vibe = vibe_text or settings.video_vibe
+        active_vibe = vibe_text or ""
 
         # Collect all SceneItems from the video track
         all_scene_items = [item for item in video_track.items if isinstance(item, SceneItem)]
@@ -437,11 +472,11 @@ async def _generate_clips_task(job_id: str, project_id: str, org_id: str | None 
         if need_hook_keyframe:
             await db.update_job(job_id, status="running", message="Generating hook keyframe for loop...")
             first_prompt = build_video_prompt(
-                first_scene, character, civ_config.model_dump(), active_vibe, theme=theme,
+                first_scene, character, env_config.model_dump(), active_vibe, theme=theme,
             )
             if first_scene.character_present and character_image_url:
-                hook_keyframe_url = await _generate_keyframe_from_portrait(
-                    first_prompt, settings.fal_key, character_image_url, aspect_ratio=ar,
+                hook_keyframe_url = await _generate_keyframe_kontext(
+                    first_prompt, settings.fal_key, [character_image_url], aspect_ratio=ar,
                 )
             else:
                 hook_keyframe_url = await _generate_keyframe_text(
@@ -480,11 +515,21 @@ async def _generate_clips_task(job_id: str, project_id: str, org_id: str | None 
                 gen_scene = scene_item.model_copy(
                     update={"visual_description": scene_item.visual_description.replace("{{CTA}}", "Subscribe")}
                 )
-            clip_path = await generate_single_clip(
+            clip_path, kf_path, kf_url = await generate_single_clip(
                 gen_scene, character, project_id,
-                character_image_url, end_image_url=end_image_url, theme=theme,
+                character_image_url, character_ref_urls=character_ref_urls,
+                end_image_url=end_image_url, theme=theme,
                 aspect_ratio=ar,
             )
+
+            # Store keyframe as a material (for media gallery)
+            if kf_path:
+                old_kf_id = scene_item.keyframe_material_id
+                if old_kf_id:
+                    scene_item.keyframe_history.append(old_kf_id)
+                kf_mat = Material(type="image", path=kf_path, url=kf_url, name=f"scene_{scene_item.scene_id}_keyframe")
+                timeline.add_material(kf_mat)
+                scene_item.keyframe_material_id = kf_mat.id
 
             # Create a Material for the generated clip and attach to scene
             clip_mat = Material(type="video", path=clip_path, name=f"scene_{scene_item.scene_id}_clip")
@@ -519,9 +564,10 @@ async def _generate_clips_task(job_id: str, project_id: str, org_id: str | None 
                         "scene_id": scene_item.scene_id + 1000,
                     }
                 )
-                follow_path = await generate_single_clip(
+                follow_path, _, _ = await generate_single_clip(
                     follow_scene, character, project_id,
-                    character_image_url, end_image_url=end_image_url, theme=theme,
+                    character_image_url, character_ref_urls=character_ref_urls,
+                    end_image_url=end_image_url, theme=theme,
                     aspect_ratio=ar,
                 )
                 follow_mat = Material(
@@ -587,7 +633,8 @@ async def generate_clips(body: ClipsRequest, user: CurrentUser = Depends(get_cur
 
 
 async def _generate_single_clip_task(
-    job_id: str, project_id: str, scene_id: int, org_id: str | None = None
+    job_id: str, project_id: str, scene_id: int, org_id: str | None = None,
+    character_image_override: str | None = None,
 ) -> None:
     """Background task: regenerate a single scene clip."""
     try:
@@ -608,15 +655,23 @@ async def _generate_single_clip_task(
         theme = project.get("theme") or None
 
         from lorekit.sources.database import get_character
-        from lorekit.api.character import get_character_image_url
+        from lorekit.api.character import get_character_image_url, _load_ref_urls
 
         pool = await db.get_pool()
         character = await get_character(pool, character_id)
 
-        # ---- CHARACTER IMAGE: get the themed version ----
-        character_image_url = await get_character_image_url(character_id, theme=theme)
-        if not character_image_url:
-            character_image_url = project.get("character_image_url")
+        # ---- CHARACTER IMAGE: use override or get the themed version ----
+        if character_image_override:
+            from lorekit.storage.upload import ensure_fal_url
+            character_image_url = await ensure_fal_url(character_image_override)
+        else:
+            character_image_url = await get_character_image_url(character_id, theme=theme)
+            if not character_image_url:
+                character_image_url = project.get("character_image_url")
+
+        # ---- CHARACTER REFERENCE IMAGES ----
+        # When using an override image, skip extra refs — they pollute the scene
+        character_ref_urls = None if character_image_override else await _load_ref_urls(character_id)
 
         await db.update_job(job_id, status="running", message=f"Regenerating scene {scene_id}")
 
@@ -645,8 +700,9 @@ async def _generate_single_clip_task(
         existing_keyframe = await ensure_fal_url(existing_keyframe) or existing_keyframe
         existing_end_keyframe = await ensure_fal_url(existing_end_keyframe)
 
-        clip_path = await gen_clip(
+        clip_path, kf_path, kf_url = await gen_clip(
             scene_item, character, project_id, character_image_url,
+            character_ref_urls=character_ref_urls,
             end_image_url=existing_end_keyframe,
             theme=theme, keyframe_url=existing_keyframe, aspect_ratio=ar,
         )
@@ -660,6 +716,15 @@ async def _generate_single_clip_task(
             ref_id=project_id,
             desc=f"Scene {scene_id} regen, {scene_item.effective_duration}s",
         )
+
+        # Store keyframe as a material (for media gallery)
+        if kf_path:
+            old_kf_id = scene_item.keyframe_material_id
+            if old_kf_id:
+                scene_item.keyframe_history.append(old_kf_id)
+            kf_mat = Material(type="image", path=kf_path, url=kf_url, name=f"scene_{scene_id}_keyframe")
+            timeline.add_material(kf_mat)
+            scene_item.keyframe_material_id = kf_mat.id
 
         # Create a Material for the new clip and update scene item
         clip_mat = Material(type="video", path=clip_path, name=f"scene_{scene_id}_clip")
@@ -702,6 +767,7 @@ async def generate_single_clip_endpoint(body: SingleClipRequest, user: CurrentUs
         project_id=body.project_id,
         scene_id=body.scene_id,
         org_id=user.org_id,
+        character_image_override=body.character_image_url,
     )
 
     return {"job_id": job_id}
@@ -740,7 +806,7 @@ async def _generate_keyframe_task(
             _generate_keyframe_kontext,
         )
         from lorekit.video.prompt_builder import build_video_prompt
-        from lorekit.config import get_civilization
+        from lorekit.config import get_environment
         from lorekit.api.character import _resolve_ref_image_for_fal
 
         pool = await db.get_pool()
@@ -751,11 +817,11 @@ async def _generate_keyframe_task(
             character_image_url = project.get("character_image_url")
 
         settings = get_settings()
-        civ_config = get_civilization(character.group)
+        env_config = get_environment(character.group)
 
         # Resolve vibe text from DB video_styles table
         style = await db.get_video_style(theme) if theme else None
-        vibe_text = style["prompt"] if style and style.get("prompt") else settings.video_vibe
+        vibe_text = style["prompt"] if style and style.get("prompt") else ""
 
         ar = project.get("aspect_ratio", "9:16")
 
@@ -804,7 +870,7 @@ async def _generate_keyframe_task(
         has_refs = bool(ordered_refs) or (scene_item.character_present and bool(character_image_url))
         skip_char = has_refs and image_model == "nano_banana_2"
         prompt = build_video_prompt(
-            scene_item, character, civ_config.model_dump(), vibe_text, theme=theme,
+            scene_item, character, env_config.model_dump(), vibe_text, theme=theme,
             skip_character=skip_char,
         )
 
@@ -908,6 +974,83 @@ async def generate_keyframe_endpoint(body: KeyframeRequest, user: CurrentUser = 
     )
 
     return {"job_id": job_id}
+
+
+@router.post("/project-character-image")
+async def generate_project_character_image(
+    body: ProjectCharacterImageRequest,
+    user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """Generate a character variation for a project (e.g., gym outfit).
+
+    Stores the image as a project Material in the timeline, NOT on the character.
+    Uses Kontext Max (single image) to edit the base portrait.
+    """
+    project = await db.get_project(body.project_id, org_id=user.org_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if not project.get("timeline_json"):
+        raise HTTPException(status_code=400, detail="No story generated yet")
+
+    character_id = project.get("character_id")
+    if not character_id:
+        raise HTTPException(status_code=400, detail="No character on project")
+
+    theme = project.get("theme") or None
+
+    # Get the base portrait
+    from lorekit.api.character import get_character_image_url, _edit_image_kontext_single
+    from lorekit.storage.upload import ensure_fal_url
+    from lorekit.storage import get_file_store
+    from lorekit.storage.paths import project_character_image_path
+
+    base_url = await get_character_image_url(character_id, theme=theme)
+    if not base_url:
+        base_url = project.get("character_image_url")
+    if not base_url:
+        raise HTTPException(status_code=400, detail="No character portrait found")
+
+    fal_url = await ensure_fal_url(base_url)
+    if not fal_url:
+        raise HTTPException(status_code=400, detail="Could not resolve portrait for fal.ai")
+
+    settings = get_settings()
+    headers = {"Authorization": f"Key {settings.fal_key}", "Content-Type": "application/json"}
+
+    # Generate variation using Kontext Max (single image edit)
+    result_url = await _edit_image_kontext_single(body.custom_description, headers, fal_url)
+
+    # Download and store as project material
+    store = get_file_store()
+    storage_path = project_character_image_path(body.project_id, body.label, org_id=user.org_id)
+
+    import httpx as _httpx
+    async with _httpx.AsyncClient(timeout=60.0) as client:
+        img_resp = await client.get(result_url)
+        img_resp.raise_for_status()
+        await store.write(storage_path, img_resp.content)
+
+    serving_url = f"/files/{storage_path}"
+
+    # Add as Material to timeline
+    timeline = _load_timeline(project)
+    mat = Material(type="image", path=storage_path, url=serving_url, name=body.label)
+    timeline.add_material(mat)
+
+    # If scene_id provided, set as reference image on that scene
+    if body.scene_id is not None:
+        scene = _find_scene_item(timeline, body.scene_id)
+        if scene:
+            scene.reference_image_ids.append(mat.id)
+
+    await db.update_project(body.project_id, org_id=user.org_id, timeline_json=_save_timeline(timeline))
+
+    return {
+        "material_id": mat.id,
+        "image_url": serving_url,
+        "label": body.label,
+        "path": storage_path,
+    }
 
 
 @router.post("/transition")
@@ -1300,11 +1443,11 @@ async def _render_task(
         # Collect ordered SceneItems
         all_scene_items = [item for item in video_track.items if isinstance(item, SceneItem)]
 
-        # Look up character group for civilization context
+        # Look up character group for environment context
         character_id = project.get("character_id", "")
         pool = await db.get_pool()
         char_row = await pool.fetchrow("SELECT group_name, universe_id FROM characters WHERE id = $1", character_id)
-        civilization = char_row["group_name"] if char_row else "roman"
+        environment_key = char_row["group_name"] if char_row else "roman"
         universe_id = char_row["universe_id"] if char_row else None
 
         # Load color grade: prefer project_effects, fall back to environment
@@ -1325,7 +1468,7 @@ async def _render_task(
             if not color_grade_override and universe_id:
                 env_row = await pool.fetchrow(
                     "SELECT color_grade_json FROM environments WHERE universe_id = $1 AND LOWER(name) = LOWER($2)",
-                    universe_id, civilization,
+                    universe_id, environment_key,
                 )
                 if env_row and env_row["color_grade_json"]:
                     try:
@@ -1419,7 +1562,7 @@ async def _render_task(
                 try:
                     audio_output_dir = str(Path(_abs_path(project_audio_path(project_id, ""))).parent)
                     audio_path = await build_audio_timeline(
-                        ordered_scenes, total_duration, civilization,
+                        ordered_scenes, total_duration, environment_key,
                         str(settings.audio_assets_dir),
                         output_dir=audio_output_dir,
                     )
@@ -1463,7 +1606,7 @@ async def _render_task(
                 timeline=timeline,
                 audio_path=audio_path,
                 output_path=stitched_path,
-                civilization=civilization,
+                environment_key=environment_key,
                 total_duration=total_duration,
                 aspect_ratio=ar,
                 color_grade_override=color_grade_override,

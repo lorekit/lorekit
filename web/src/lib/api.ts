@@ -1,6 +1,6 @@
 "use client";
 
-const API_BASE = "http://localhost:8001";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
 export { API_BASE };
 
@@ -22,9 +22,6 @@ export interface Character {
   hook_count: number;
   truth_count: number;
 }
-
-/** @deprecated Use Character instead */
-export type Philosopher = Character;
 
 export interface SourceItem {
   id: string;
@@ -235,6 +232,7 @@ export interface ArcTemplate {
   max_duration: number;
   min_scenes: number;
   max_scenes: number;
+  is_builtin?: boolean;
 }
 
 export interface Settings {
@@ -264,8 +262,26 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
   });
 
-  // Handle auth errors — redirect to login
+  // Handle auth errors — try refreshing the bearer token before giving up
   if (res.status === 401 && typeof window !== "undefined") {
+    const { refreshAuthToken } = await import("@/lib/auth-client");
+    const refreshed = await refreshAuthToken();
+    if (refreshed) {
+      // Retry the original request with the new token
+      const newToken = localStorage.getItem("lorekit_token");
+      const retryRes = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers: {
+          ...authHeaders,
+          ...options?.headers,
+          ...(newToken ? { Authorization: `Bearer ${newToken}` } : {}),
+        },
+      });
+      if (retryRes.ok) {
+        return retryRes.json() as Promise<T>;
+      }
+    }
+    // Refresh failed or retry failed — redirect to login
     localStorage.removeItem("lorekit_token");
     window.location.href = "/login";
     throw new Error("Authentication required");
@@ -293,19 +309,11 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
-// Characters (formerly Philosophers)
+// Characters
 export const getCharacters = () => fetchAPI<Character[]>("/api/characters");
 export const getCharacter = (id: string) => fetchAPI<Character>(`/api/characters/${id}`);
 export const updateCharacter = (id: string, data: Partial<Pick<Character, "name" | "era" | "group" | "character_description">>) =>
   fetchAPI<Character>(`/api/characters/${id}`, { method: "PATCH", body: JSON.stringify(data) });
-
-/** @deprecated Use getCharacters */
-export const getPhilosophers = getCharacters;
-/** @deprecated Use getCharacter */
-export const getPhilosopher = getCharacter;
-/** @deprecated Use updateCharacter */
-export const updatePhilosopher = (id: string, data: Partial<Pick<Character, "name" | "era" | "group" | "character_description">>) =>
-  updateCharacter(id, data);
 
 // Source Items (formerly Quotes)
 export const createSourceItem = (data: { character_id: string; text: string; theme: string; emotional_function: string }) =>
@@ -334,9 +342,8 @@ export const updateQuote = (id: string, data: Partial<Pick<SourceItem, "text" | 
 /** @deprecated Use deleteSourceItem */
 export const deleteQuote = (id: string) => deleteSourceItem(id);
 /** @deprecated Use getSourceItems */
-export const getQuotes = (params?: { philosopher_id?: string; character_id?: string; function?: string; limit?: number }) => {
-  const character_id = params?.character_id ?? params?.philosopher_id;
-  return getSourceItems({ character_id, function: params?.function, limit: params?.limit });
+export const getQuotes = (params?: { character_id?: string; function?: string; limit?: number }) => {
+  return getSourceItems({ character_id: params?.character_id, function: params?.function, limit: params?.limit });
 };
 /** @deprecated Use getSourceStats */
 export const getQuoteStats = getSourceStats;
@@ -550,6 +557,16 @@ export const getVibePresets = () =>
   fetchAPI<{ presets: Record<string, VibePreset>; styles: VideoStyle[] }>("/api/settings/vibe-presets");
 export const getArcTemplates = () =>
   fetchAPI<{ templates: Record<string, ArcTemplate> }>("/api/settings/arc-templates");
+export const createArcTemplate = (data: {
+  name: string; description?: string; min_duration?: number; max_duration?: number;
+  min_scenes?: number; max_scenes?: number; max_scene_duration?: number;
+  beats_json?: string; system_prompt_fragment?: string;
+}) =>
+  fetchAPI<ArcTemplate & { id: string }>("/api/settings/arc-templates", { method: "POST", body: JSON.stringify(data) });
+export const deleteArcTemplate = (id: string) =>
+  fetchAPI<{ deleted: boolean }>(`/api/settings/arc-templates/${id}`, { method: "DELETE" });
+export const duplicateArcTemplate = (id: string) =>
+  fetchAPI<ArcTemplate & { id: string }>(`/api/settings/arc-templates/${id}/duplicate`, { method: "POST" });
 
 // Video Styles CRUD
 export const listVideoStyles = () =>
@@ -570,30 +587,42 @@ export const generateCharacterImage = (projectId: string, customDescription?: st
     body: JSON.stringify({ project_id: projectId, custom_description: customDescription, theme }),
   });
 
-export interface CharacterImage {
+export interface CharacterImageEntry {
+  url: string | null;
+  path: string | null;
+  label: string;
+  prompt?: string;
+}
+
+export interface CharacterImageTheme {
   theme: string;
   theme_name: string;
-  url: string | null;
-  local_path: string | null;
+  images: CharacterImageEntry[];
 }
 
 export const getCharacterImages = (characterId: string) =>
-  fetchAPI<{ character_id: string; images: CharacterImage[] }>(`/api/character/images/${characterId}`);
+  fetchAPI<{ character_id: string; themes: CharacterImageTheme[] }>(`/api/character/images/${characterId}`);
+
+export const deleteCharacterImage = (characterId: string, theme: string, index: number) =>
+  fetchAPI<{ deleted: boolean }>(`/api/character/images/${characterId}`, {
+    method: "DELETE",
+    body: JSON.stringify({ theme, index }),
+  });
+
+export const setDefaultCharacterImage = (characterId: string, theme: string, index: number) =>
+  fetchAPI<{ ok: boolean }>(`/api/character/images/${characterId}/set-default`, {
+    method: "PATCH",
+    body: JSON.stringify({ theme, index }),
+  });
 
 export const generateCharacterForCharacter = (
   characterId: string,
-  opts?: { theme?: string; force?: boolean; custom_description?: string },
+  opts?: { theme?: string; force?: boolean; custom_description?: string; view?: string },
 ) =>
-  fetchAPI<{ image_url: string; local_path: string; theme: string; reused: boolean }>(
+  fetchAPI<{ image_url: string; local_path: string; theme: string; reused: boolean; view?: string }>(
     "/api/character/generate-for-character",
     { method: "POST", body: JSON.stringify({ character_id: characterId, ...opts }) },
   );
-
-/** @deprecated Use generateCharacterForCharacter */
-export const generateCharacterForPhilosopher = (
-  characterId: string,
-  opts?: { theme?: string; force?: boolean; custom_description?: string },
-) => generateCharacterForCharacter(characterId, opts);
 
 // Character Reference Images
 export const getCharacterReferenceImages = (characterId: string) =>
@@ -888,15 +917,8 @@ export const getSubscription = () =>
 export const getUsageHistory = (limit = 50, offset = 0) =>
   fetchAPI<UsageResponse>(`/api/billing/usage?limit=${limit}&offset=${offset}`);
 
-export const createCheckout = (priceId: string, successUrl?: string, cancelUrl?: string) =>
-  fetchAPI<{ url: string; session_id: string }>("/api/billing/checkout", {
-    method: "POST",
-    body: JSON.stringify({
-      price_id: priceId,
-      ...(successUrl && { success_url: successUrl }),
-      ...(cancelUrl && { cancel_url: cancelUrl }),
-    }),
-  });
+// Subscription checkout and portal are handled by BA client SDK:
+// authClient.subscription.upgrade() and authClient.subscription.cancel()
 
 export const createPaygCheckout = (credits = 1000, successUrl?: string, cancelUrl?: string) =>
   fetchAPI<{ url: string; session_id: string }>("/api/billing/checkout/payg", {
@@ -907,9 +929,6 @@ export const createPaygCheckout = (credits = 1000, successUrl?: string, cancelUr
       ...(cancelUrl && { cancel_url: cancelUrl }),
     }),
   });
-
-export const createPortalSession = () =>
-  fetchAPI<{ url: string }>("/api/billing/portal", { method: "POST" });
 
 export const updateAutoRefill = (enabled: boolean, threshold = 100, credits = 1000) =>
   fetchAPI<{ ok: boolean }>("/api/billing/auto-refill", {

@@ -11,15 +11,16 @@ from lorekit import db
 from lorekit.auth.user import get_current_user, CurrentUser
 
 router = APIRouter(prefix="/api/characters", tags=["characters"])
-legacy_router = APIRouter(prefix="/api/philosophers", tags=["characters"])
 
 
 class CharacterUpdate(BaseModel):
     name: str | None = None
     era: str | None = None
     group: str | None = None
-    character_description: str | None = None
-    character_styles_json: dict[str, dict] | None = None  # per-theme: {"theme": {"description": "...", "image_url": "...", ...}}
+    character_description: str | None = None  # appearance only
+    target_audience: str | None = None
+    performance_notes: str | None = None
+    character_styles_json: dict[str, dict] | None = None
 
 
 @router.get("")
@@ -40,7 +41,22 @@ async def list_characters(user: CurrentUser = Depends(get_current_user)) -> list
            ORDER BY p.group_name, p.name""",
         user.org_id,
     )
-    return [dict(r) for r in rows]
+    result = []
+    for r in rows:
+        char = dict(r)
+        # Resolve default image from character_styles_json (first image in first theme)
+        if char.get("character_styles_json"):
+            try:
+                styles = json.loads(char["character_styles_json"])
+                for theme_data in styles.values():
+                    imgs = theme_data.get("images", [])
+                    if imgs and imgs[0].get("url"):
+                        char["character_image_url"] = imgs[0]["url"]
+                        break
+            except (json.JSONDecodeError, TypeError):
+                pass
+        result.append(char)
+    return result
 
 
 @router.get("/{character_id}")
@@ -73,7 +89,7 @@ async def get_character(character_id: str, user: CurrentUser = Depends(get_curre
 @router.patch("/{character_id}")
 async def update_character(character_id: str, body: CharacterUpdate, user: CurrentUser = Depends(get_current_user)) -> dict:
     """Update character fields."""
-    ALLOWED_COLUMNS = {"name", "era", "group_name", "character_description", "character_styles_json"}
+    ALLOWED_COLUMNS = {"name", "era", "group_name", "character_description", "target_audience", "performance_notes", "character_styles_json"}
 
     pool = await db.get_pool()
     row = await pool.fetchrow(
@@ -120,23 +136,3 @@ async def update_character(character_id: str, body: CharacterUpdate, user: Curre
         character_id, user.org_id,
     )
     return dict(updated)
-
-
-# --- Backward-compatible legacy router (delegates to same handlers) ---
-
-@legacy_router.get("")
-async def list_characters_legacy(user: CurrentUser = Depends(get_current_user)) -> list[dict]:
-    """Legacy endpoint: list all characters."""
-    return await list_characters(user=user)
-
-
-@legacy_router.get("/{character_id}")
-async def get_character_legacy(character_id: str, user: CurrentUser = Depends(get_current_user)) -> dict:
-    """Legacy endpoint: get character detail."""
-    return await get_character(character_id, user=user)
-
-
-@legacy_router.patch("/{character_id}")
-async def update_character_legacy(character_id: str, body: CharacterUpdate, user: CurrentUser = Depends(get_current_user)) -> dict:
-    """Legacy endpoint: update character."""
-    return await update_character(character_id, body, user=user)

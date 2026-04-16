@@ -11,7 +11,6 @@ from lorekit import db
 from lorekit.auth.user import get_current_user, CurrentUser
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
-legacy_router = APIRouter(prefix="/api/quotes", tags=["sources"])
 
 
 class SourceItemCreate(BaseModel):
@@ -164,40 +163,3 @@ async def delete_source_item(item_id: str, user: CurrentUser = Depends(get_curre
         raise HTTPException(status_code=404, detail="Source item not found")
     await pool.execute("DELETE FROM source_items WHERE id = $1", item_id)
     return {"deleted": True}
-
-
-# --- Backward-compatible legacy router (delegates to same handlers) ---
-
-@legacy_router.get("")
-async def list_source_items_legacy(
-    philosopher: str | None = Query(None),
-    function: str | None = Query(None, alias="function"),
-    limit: int = Query(50, ge=1, le=500),
-    user: CurrentUser = Depends(get_current_user),
-) -> list[dict]:
-    """Legacy endpoint: list source items."""
-    return await list_source_items(character=philosopher, function=function, limit=limit, user=user)
-
-
-@legacy_router.get("/stats")
-async def source_item_stats_legacy(user: CurrentUser = Depends(get_current_user)) -> dict:
-    """Legacy endpoint: source item stats."""
-    return await source_item_stats(user=user)
-
-
-@legacy_router.post("")
-async def create_source_item_legacy(body: SourceItemCreate, user: CurrentUser = Depends(get_current_user)) -> dict:
-    """Legacy endpoint: create source item."""
-    return await create_source_item(body, user=user)
-
-
-@legacy_router.patch("/{item_id}")
-async def update_source_item_legacy(item_id: str, body: SourceItemUpdate, user: CurrentUser = Depends(get_current_user)) -> dict:
-    """Legacy endpoint: update source item."""
-    return await update_source_item(item_id, body, user=user)
-
-
-@legacy_router.delete("/{item_id}")
-async def delete_source_item_legacy(item_id: str, user: CurrentUser = Depends(get_current_user)) -> dict:
-    """Legacy endpoint: delete source item."""
-    return await delete_source_item(item_id, user=user)

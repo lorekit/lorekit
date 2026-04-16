@@ -19,31 +19,19 @@ from lorekit.models import (
 )
 from lorekit.story.templates import (
     ArcTemplate,
-    UNIVERSAL_ARC,
-    OPTIONAL_BEATS,
     get_arc_template,
     DEFAULT_ARC_TEMPLATE,
 )
-from lorekit.story.prompts.roman import ROMAN_STORY_CONTEXT
-from lorekit.story.prompts.chinese import CHINESE_STORY_CONTEXT
-from lorekit.story.prompts.japanese import JAPANESE_STORY_CONTEXT
-from lorekit.story.prompts.greek import GREEK_STORY_CONTEXT
 from lorekit.story.prompts.dark_masculine import DARK_MASCULINE_STORY_CONTEXT
+from lorekit.story.prompts.ugc_selfie import UGC_SELFIE_STORY_CONTEXT
 from lorekit.story.validator import validate_scenes
 
 logger = logging.getLogger(__name__)
 
-CIVILIZATION_CONTEXTS: dict[str, str] = {
-    "roman": ROMAN_STORY_CONTEXT,
-    "chinese": CHINESE_STORY_CONTEXT,
-    "japanese": JAPANESE_STORY_CONTEXT,
-    "greek": GREEK_STORY_CONTEXT,
-}
-
-# Theme-specific context overrides. When a theme key is present here,
-# its context replaces (or supplements) the civilization context.
+# Theme-specific story context overrides.
 THEME_CONTEXTS: dict[str, str] = {
     "dark_masculine": DARK_MASCULINE_STORY_CONTEXT,
+    "ugc_selfie": UGC_SELFIE_STORY_CONTEXT,
 }
 
 
@@ -74,7 +62,7 @@ def _format_optional_description(arc: ArcTemplate) -> str:
 
 def _build_system_prompt(
     character: Character,
-    civilization_context: str,
+    story_context: str,
     vibe: str,
     arc: ArcTemplate,
 ) -> str:
@@ -97,10 +85,14 @@ def _build_system_prompt(
         max_scene_duration=arc.max_scene_duration,
     )
 
-    return f"""You are a cinematic story director creating scene-by-scene breakdowns for vertical philosophy videos (9:16).
+    character_label = character.name
+    if character.era:
+        character_label += f" ({character.era})"
 
-PHILOSOPHER: {character.name} ({character.era})
-CIVILIZATION: {civilization_context}
+    return f"""You are a story director creating scene-by-scene breakdowns for vertical videos (9:16).
+
+CHARACTER: {character_label}
+WORLD: {story_context}
 
 {arc_rules}
 
@@ -111,14 +103,14 @@ DO describe in visual_description:
 - The ACTION (what is happening? what is the character doing?)
 - The EMOTION and MOOD (what feeling does this scene convey?)
 - PROPS and DETAILS (what objects, architectural elements, nature elements are present?)
-- When the character changes clothes (e.g., "now wearing armor" vs "wearing toga")
+- When the character changes clothes or outfits
 
 DO NOT include in visual_description:
-- The character's physical appearance (face, hair, beard, body type) — this is handled separately by the character reference system. Just say "{character.name}" or "the philosopher" when they appear.
+- The character's physical appearance (face, hair, body type) — this is handled separately by the character reference system. Just say "{character.name}" or "the character" when they appear.
 - Art style or rendering instructions (no "mobile game style", "colorful illustrated", "chunky 3D", etc.) — this is handled by global style settings.
 - Technical quality directives (no "8K", "photorealistic", "high quality", etc.)
 
-CHARACTER PRESENCE: Set "character_present": true when the philosopher physically appears in the scene (speaking, walking, gesturing, etc.). Set "character_present": false for environment-only scenes (establishing shots, landscapes, abstract concepts, close-ups of objects).
+CHARACTER PRESENCE: Set "character_present": true when the character physically appears in the scene (speaking, walking, gesturing, etc.). Set "character_present": false for environment-only scenes (establishing shots, landscapes, abstract concepts, close-ups of objects).
 
 Keep scene descriptions focused and concise (2-4 sentences each). The video generation system will layer the character appearance and art style on top of your scene descriptions automatically."""
 
@@ -173,7 +165,7 @@ Return ONLY valid JSON matching this exact schema — no markdown, no commentary
             "visual_description": "detailed description of what the viewer sees",
             "camera": "camera movement description",
             "text_overlay": "text for this scene (REQUIRED for every scene)",
-            "text_attribution": "— Philosopher Name (only for scenes with direct quotes, null otherwise)",
+            "text_attribution": "— Character Name (only for scenes with direct quotes, null otherwise)",
             "character_present": true,
             "cta_scene": false,
             "audio": {{
@@ -300,6 +292,7 @@ async def generate_story(
     max_retries: int = 2,
     theme: str | None = None,
     arc_template: str | None = None,
+    story_context: str | None = None,
 ) -> Timeline:
     """Generate a full scene-by-scene breakdown using the configured LLM.
 
@@ -307,31 +300,33 @@ async def generate_story(
     Returns a validated Timeline document.
 
     Args:
-        theme: Vibe preset key (e.g. "dark_masculine"). When a theme-specific
-            story context exists, it replaces the default civilization context.
-        arc_template: Arc template ID (e.g. "story", "rapid_montage").
+        theme: Vibe preset key (e.g. "dark_masculine", "ugc_selfie").
+        arc_template: Arc template ID (e.g. "story", "rapid_montage", "ugc_reaction").
             Defaults to ``DEFAULT_ARC_TEMPLATE``.
+        story_context: Free-text world/story context for the LLM. When provided,
+            takes priority over theme-based contexts.
     """
-    settings = get_settings()
-    vibe = settings.video_vibe
+    vibe = ""
 
     # Resolve arc template
-    arc = get_arc_template(arc_template or DEFAULT_ARC_TEMPLATE)
+    arc = await get_arc_template(arc_template or DEFAULT_ARC_TEMPLATE)
 
     # Override target_duration to the arc's midpoint if the caller used the
     # default (35 s), which only makes sense for the "story" arc.
     if target_duration == 35 and arc.id != "story":
         target_duration = int((arc.min_duration + arc.max_duration) / 2)
 
-    # Use theme-specific context if available, otherwise fall back to civilization
-    if theme and theme in THEME_CONTEXTS:
-        civ_context = THEME_CONTEXTS[theme]
+    # Resolve story context: explicit > theme > generic default
+    if story_context:
+        resolved_context = story_context
+    elif theme and theme in THEME_CONTEXTS:
+        resolved_context = THEME_CONTEXTS[theme]
     else:
-        civ_context = CIVILIZATION_CONTEXTS.get(
-            character.group, ROMAN_STORY_CONTEXT
+        resolved_context = (
+            f"Create scenes appropriate to {character.name}'s world and story."
         )
 
-    system_prompt = _build_system_prompt(character, civ_context, vibe, arc)
+    system_prompt = _build_system_prompt(character, resolved_context, vibe, arc)
     user_prompt = _build_user_prompt(hook_quote, truth_quote, target_duration, arc)
 
     last_error: Exception | None = None

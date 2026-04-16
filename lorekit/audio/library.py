@@ -1,7 +1,7 @@
 """Audio asset index and scanner.
 
 Scans the audio assets directory and builds a structured index
-of music beds and SFX organized by civilization and category.
+of music beds and SFX organized by environment and category.
 """
 
 from __future__ import annotations
@@ -67,7 +67,7 @@ def scan_audio_assets(assets_dir: str) -> dict:
 
             for mood_dir in civ_dir.iterdir():
                 if not mood_dir.is_dir():
-                    # Files directly in the civilization dir
+                    # Files directly in the environment dir
                     if mood_dir.suffix.lower() in AUDIO_EXTENSIONS:
                         index["music"][civ_name].setdefault("general", []).append(
                             str(mood_dir)
@@ -97,26 +97,26 @@ def scan_audio_assets(assets_dir: str) -> dict:
     return index
 
 
-def get_music_for_mood(index: dict, civilization: str, mood: str) -> str | None:
-    """Get a music file path for the given civilization and mood.
+def get_music_for_mood(index: dict, environment_key: str, mood: str) -> str | None:
+    """Get a music file path for the given environment and mood.
 
     Falls back through:
-    1. Exact civilization + mood match
-    2. Civilization + "general" category
+    1. Exact environment + mood match
+    2. Environment + "general" category
     3. None
 
     Returns None if no matching asset found.
     """
     music = index.get("music", {})
-    civ_music = music.get(civilization, {})
+    env_music = music.get(environment_key, {})
 
     # Exact match
-    if mood in civ_music and civ_music[mood]:
-        return civ_music[mood][0]
+    if mood in env_music and env_music[mood]:
+        return env_music[mood][0]
 
-    # Try general category for this civilization
-    if "general" in civ_music and civ_music["general"]:
-        return civ_music["general"][0]
+    # Try general category for this environment
+    if "general" in env_music and env_music["general"]:
+        return env_music["general"][0]
 
     return None
 

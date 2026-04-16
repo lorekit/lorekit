@@ -11,7 +11,6 @@ from rich.console import Console
 from rich.table import Table
 
 from lorekit import db
-from lorekit.pipeline import CHARACTERS
 
 console = Console()
 
@@ -31,7 +30,7 @@ def main():
 
 
 @main.command()
-@click.option("--character", type=click.Choice(list(CHARACTERS.keys())), default=None, help="Character ID")
+@click.option("--character", default=None, help="Character ID")
 @click.option("--random", "use_random", is_flag=True, help="Pick a random character")
 @click.option("--count", default=1, help="Number of videos to generate")
 @click.option("--dry-run", is_flag=True, help="Validate pipeline without generating")
@@ -103,11 +102,11 @@ def sources_import(path: str):
 
     Expected format:
     {
-        "philosopher": {"id": "...", "name": "...", "civilization": "...", "era": "..."},
+        "character": {"id": "...", "name": "...", "group": "...", "era": "..."},
         "quotes": [{"text": "...", "theme": "...", "emotional_function": "...", ...}]
     }
 
-    Also accepts the new format with "character" and "source_items" keys.
+    Also accepts legacy format with "philosopher" and "civilization" keys.
     """
     data = json.loads(Path(path).read_text())
     phil = data.get("philosopher", data.get("character", {}))
@@ -170,6 +169,7 @@ def backend(port: int, use_reload: bool):
         host="0.0.0.0",
         port=port,
         reload=use_reload,
+        timeout_graceful_shutdown=1,
     )
 
 
@@ -214,7 +214,8 @@ def dev(backend_port: int, frontend_port: int):
         # Start backend
         procs.append(subprocess.Popen(
             ["uvicorn", "lorekit.server:app", "--host", "0.0.0.0",
-             "--port", str(backend_port), "--reload"],
+             "--port", str(backend_port), "--reload",
+             "--timeout-graceful-shutdown", "1"],
         ))
 
         # Start frontend

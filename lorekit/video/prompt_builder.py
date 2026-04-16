@@ -23,17 +23,27 @@ from lorekit.models import Character, SceneItem as Scene
 
 _THEME_VIDEO_OVERRIDES: dict[str, dict[str, str]] = {
     "dark_masculine": {
-        # Injected right before the vibe text to anchor the video model
         "prefix": (
             "Photorealistic dark cinematic footage. Shot on ARRI Alexa 65. "
             "Real actors, real costumes, real practical lighting. "
             "NOT animation, NOT cartoon, NOT 3D render, NOT illustration, NOT game art. "
         ),
-        # Replaces the generic technical directive
         "technical": (
             "Slow, deliberate motion. Heavy atmosphere. Volumetric fog and haze. "
             "Real camera movement — dolly, crane, steadicam. Film grain. "
             "No text, no subtitles, no watermarks."
+        ),
+    },
+    "ugc_selfie": {
+        "prefix": (
+            "Raw iPhone front-camera selfie video. NOT cinematic, NOT professional, "
+            "NOT DSLR, NOT film camera. Real phone-quality with compression artifacts. "
+        ),
+        "technical": (
+            "Steady handheld shot, minimal movement, one hand holding the camera still. Slight barrel distortion. "
+            "Natural ambient lighting. Digital noise. Computational bokeh. "
+            "No text, no subtitles, no watermarks, no words on screens, no UI elements, "
+            "no phone screens visible, no pop-ups, no notifications."
         ),
     },
 }
@@ -44,7 +54,7 @@ _DEFAULT_TECHNICAL = "Smooth fluid motion. No text, no subtitles, no watermarks.
 def build_video_prompt(
     scene: Scene,
     character: Character,
-    civilization_config: dict,
+    environment_config: dict,
     vibe_text: str,
     skip_character: bool = False,
     theme: str | None = None,
@@ -54,7 +64,7 @@ def build_video_prompt(
     Args:
         scene: The scene to build a prompt for.
         character: The character (provides character descriptions).
-        civilization_config: Civilization preset dict (unused currently, reserved).
+        environment_config: Environment preset dict (unused currently, reserved).
         vibe_text: The active vibe/style prompt text.
         skip_character: If True, omit character description even when character_present.
             Used for Kling i2v animation prompts where the keyframe already

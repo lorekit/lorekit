@@ -17,7 +17,7 @@ interface UniverseState {
 export const useUniverseStore = create<UniverseState>()(
   persist(
     (set, get) => ({
-      activeUniverseId: "philosophywise",
+      activeUniverseId: "",
       universes: [],
       isLoading: false,
 

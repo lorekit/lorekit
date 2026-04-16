@@ -17,7 +17,7 @@ async def stitch_video(
     timeline: Timeline,
     audio_path: str,
     output_path: str,
-    civilization: str,
+    environment_key: str,
     total_duration: float,
     aspect_ratio: str = "9:16",
     color_grade_override: dict | None = None,
@@ -30,7 +30,7 @@ async def stitch_video(
         timeline: The Timeline document containing video track items and materials.
         audio_path: Path to the mixed audio file.
         output_path: Output file path.
-        civilization: Civilization key for color grading.
+        environment_key: Environment key for color grading.
         total_duration: Target duration in seconds.
         aspect_ratio: "9:16" or "16:9".
         color_grade_override: Optional color grade settings dict.
@@ -129,7 +129,7 @@ async def stitch_video(
         video_label = "[v0]"
 
     if color_grade:
-        color_filter = get_color_grade_filter(civilization, color_grade_override=color_grade_override)
+        color_filter = get_color_grade_filter(environment_key, color_grade_override=color_grade_override)
         filter_parts.append(f"{video_label}{color_filter}[graded]")
     else:
         filter_parts.append(f"{video_label}null[graded]")

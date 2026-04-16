@@ -36,13 +36,13 @@ def _parse_source_item(raw: dict[str, Any]) -> SourceItem:
 
 def _parse_character(data: dict[str, Any]) -> Character:
     """Parse a full character JSON file into a Character model."""
-    phil = data["philosopher"]
+    phil = data.get("character", data.get("philosopher", data))
     source_items = [_parse_source_item(q) for q in data["quotes"]]
 
     return Character(
         id=phil["id"],
         name=phil["name"],
-        group=phil["civilization"],
+        group=phil.get("civilization", phil.get("group", "")),
         era=phil["era"],
         character_description=phil["character_description"],
         environment_description=phil.get("environment_description", ""),
@@ -204,11 +204,16 @@ async def select_source_pair(
             character_id,
         )
 
-    if not hook_rows or not truth_rows:
+    if not hook_rows and not truth_rows:
         raise ValueError(
-            f"Not enough source items for {character_id}: "
+            f"No source items for {character_id}: "
             f"{len(hook_rows)} hooks, {len(truth_rows)} truths"
         )
+    # Fall back: if one type is missing, reuse the other
+    if not hook_rows:
+        hook_rows = truth_rows
+    if not truth_rows:
+        truth_rows = hook_rows
 
     def _row_to_source_item(row: asyncpg.Record) -> SourceItem:
         return SourceItem(

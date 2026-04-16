@@ -68,11 +68,9 @@ async def get_unused_source_items(
     character_id: str,
     function: str | None = None,
     limit: int = 5,
-    *,
-    philosopher_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Return source items sorted by least used, optionally filtered by emotional_function."""
-    cid = character_id or philosopher_id
+    cid = character_id
     pool = await get_pool()
     sql = "SELECT * FROM source_items WHERE character_id = $1"
     params: list[Any] = [cid]
@@ -189,31 +187,26 @@ async def upsert_character(
     group_name: str,
     era: str = "",
     character_description: str = "",
+    target_audience: str = "",
+    performance_notes: str = "",
     universe_id: str | None = None,
-    *,
-    philosopher_id: str | None = None,
-    civilization: str | None = None,
 ) -> None:
     """Insert or update a character record."""
-    cid = character_id or philosopher_id
-    gname = group_name or civilization or ""
     if not universe_id:
         raise ValueError("universe_id is required when creating a character")
     pool = await get_pool()
     await pool.execute(
-        """INSERT INTO characters (id, universe_id, name, group_name, era, character_description)
-           VALUES ($1, $2, $3, $4, $5, $6)
+        """INSERT INTO characters (id, universe_id, name, group_name, era, character_description, target_audience, performance_notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            ON CONFLICT(id) DO UPDATE SET
                name=EXCLUDED.name,
                group_name=EXCLUDED.group_name,
                era=EXCLUDED.era,
-               character_description=EXCLUDED.character_description""",
-        cid, universe_id, name, gname, era, character_description,
+               character_description=EXCLUDED.character_description,
+               target_audience=EXCLUDED.target_audience,
+               performance_notes=EXCLUDED.performance_notes""",
+        character_id, universe_id, name, group_name, era, character_description, target_audience, performance_notes,
     )
-
-
-# Backward compatibility alias
-upsert_philosopher = upsert_character
 
 
 async def insert_source_item(
@@ -226,11 +219,9 @@ async def insert_source_item(
     word_count: int = 0,
     read_time_seconds: float = 0.0,
     pair_with_visual: str = "",
-    *,
-    philosopher_id: str | None = None,
 ) -> str:
     """Insert a source item and return its id."""
-    cid = character_id or philosopher_id
+    cid = character_id
     pool = await get_pool()
     item_id = uuid.uuid4().hex[:12]
     await pool.execute(
@@ -251,11 +242,9 @@ insert_quote = insert_source_item
 async def list_source_items(
     character_id: str | None = None,
     function: str | None = None,
-    *,
-    philosopher_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """List source items with optional filters."""
-    cid = character_id or philosopher_id
+    cid = character_id
     pool = await get_pool()
     sql = (
         "SELECT q.*, c.name as character_name "
@@ -293,11 +282,9 @@ async def create_project(
     source_type: str = "quote",
     script_id: str | None = None,
     character_ids_json: str | None = None,
-    *,
-    philosopher_id: str | None = None,
 ) -> dict[str, Any]:
     """Create a new project and return it."""
-    cid = character_id or philosopher_id
+    cid = character_id
     pool = await get_pool()
     now = _now()
     await pool.execute(
@@ -380,6 +367,7 @@ async def update_project(
         "character_image_url", "character_image_path",
         "source_type", "script_id", "character_ids_json",
         "audio_mode", "uploaded_audio_path", "aspect_ratio",
+        "theme",
     }
     sets = ["updated_at = $1"]
     params: list[Any] = [_now()]
@@ -1244,12 +1232,13 @@ async def seed_builtin_video_styles() -> None:
     """Seed built-in video styles from VIBE_PRESETS if they don't exist."""
     from lorekit.config import VIBE_PRESETS
 
-    # Model assignment per style — kontext for stylized, nano_banana_2 for photorealistic
+    # Model assignment per style — nano_banana_2 for photorealistic, kontext for stylized
     _STYLE_MODELS: dict[str, str] = {
         "dark_masculine": "kontext",
         "mobile_game": "kontext",
         "stylized_cinematic": "kontext",
         "cinematic": "nano_banana_2",
+        "ugc_selfie": "nano_banana_2",
     }
 
     pool = await get_pool()
@@ -1273,6 +1262,243 @@ async def seed_builtin_video_styles() -> None:
                 now,
             )
 
+
+
+# ---------------------------------------------------------------------------
+# Arc Templates
+# ---------------------------------------------------------------------------
+
+async def create_arc_template(
+    template_id: str,
+    name: str,
+    description: str = "",
+    beats_json: str = "[]",
+    optional_beats_json: str = "[]",
+    min_duration: float = 30,
+    max_duration: float = 50,
+    min_scenes: int = 5,
+    max_scenes: int = 8,
+    max_scene_duration: float = 8,
+    system_prompt_fragment: str = "",
+    is_builtin: int = 0,
+    organization_id: str = "local",
+) -> dict[str, Any]:
+    """Create an arc template and return it."""
+    pool = await get_pool()
+    now = datetime.now(timezone.utc).isoformat()
+    await pool.execute(
+        """INSERT INTO arc_templates
+           (id, name, description, beats_json, optional_beats_json,
+            min_duration, max_duration, min_scenes, max_scenes, max_scene_duration,
+            system_prompt_fragment, is_builtin, organization_id, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+           ON CONFLICT (id) DO NOTHING""",
+        template_id, name, description, beats_json, optional_beats_json,
+        min_duration, max_duration, min_scenes, max_scenes, max_scene_duration,
+        system_prompt_fragment, is_builtin, organization_id, now,
+    )
+    row = await pool.fetchrow("SELECT * FROM arc_templates WHERE id = $1", template_id)
+    return dict(row) if row else {}
+
+
+async def get_arc_template_db(template_id: str) -> dict[str, Any] | None:
+    """Get an arc template by ID from the database."""
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM arc_templates WHERE id = $1", template_id)
+    return _row_to_dict(row)
+
+
+async def list_arc_templates(
+    organization_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """List arc templates (built-in + org-specific)."""
+    pool = await get_pool()
+    if organization_id:
+        rows = await pool.fetch(
+            "SELECT * FROM arc_templates WHERE is_builtin = 1 OR organization_id = $1 ORDER BY is_builtin DESC, name",
+            organization_id,
+        )
+    else:
+        rows = await pool.fetch("SELECT * FROM arc_templates ORDER BY is_builtin DESC, name")
+    return _rows_to_dicts(rows)
+
+
+async def update_arc_template(
+    template_id: str,
+    **kwargs: Any,
+) -> dict[str, Any] | None:
+    """Update arc template fields. Cannot update built-in templates."""
+    pool = await get_pool()
+    allowed = {"name", "description", "beats_json", "optional_beats_json",
+               "min_duration", "max_duration", "min_scenes", "max_scenes",
+               "max_scene_duration", "system_prompt_fragment"}
+    sets: list[str] = []
+    params: list[Any] = []
+    idx = 1
+    for key, val in kwargs.items():
+        if key in allowed:
+            sets.append(f"{key} = ${idx}")
+            params.append(val)
+            idx += 1
+    if not sets:
+        row = await pool.fetchrow("SELECT * FROM arc_templates WHERE id = $1", template_id)
+        return _row_to_dict(row)
+    params.append(template_id)
+    await pool.execute(
+        f"UPDATE arc_templates SET {', '.join(sets)} WHERE id = ${idx} AND is_builtin = 0",
+        *params,
+    )
+    row = await pool.fetchrow("SELECT * FROM arc_templates WHERE id = $1", template_id)
+    return _row_to_dict(row)
+
+
+async def delete_arc_template(template_id: str) -> bool:
+    """Delete an arc template. Only non-builtin templates can be deleted."""
+    pool = await get_pool()
+    result = await pool.execute(
+        "DELETE FROM arc_templates WHERE id = $1 AND is_builtin = 0", template_id
+    )
+    return result == "DELETE 1"
+
+
+async def seed_builtin_arc_templates() -> None:
+    """Seed built-in arc templates from hardcoded ARC_TEMPLATES if they don't exist."""
+    import json as _json
+    from lorekit.story.templates import ARC_TEMPLATES
+
+    pool = await get_pool()
+    now = datetime.now(timezone.utc).isoformat()
+    for key, tmpl in ARC_TEMPLATES.items():
+        existing = await pool.fetchrow("SELECT id FROM arc_templates WHERE id = $1", key)
+        if not existing:
+            await pool.execute(
+                """INSERT INTO arc_templates
+                   (id, name, description, beats_json, optional_beats_json,
+                    min_duration, max_duration, min_scenes, max_scenes, max_scene_duration,
+                    system_prompt_fragment, is_builtin, organization_id, created_at)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1, 'local', $12)""",
+                key, tmpl.name, tmpl.description,
+                _json.dumps(tmpl.beats), _json.dumps(tmpl.optional_beats),
+                tmpl.min_duration, tmpl.max_duration,
+                tmpl.min_scenes, tmpl.max_scenes, tmpl.max_scene_duration,
+                tmpl.system_prompt_fragment,
+                now,
+            )
+
+
+# ---------------------------------------------------------------------------
+# Story Context Presets
+# ---------------------------------------------------------------------------
+
+async def create_story_context_preset(
+    preset_id: str,
+    name: str,
+    context: str,
+    description: str = "",
+    category: str = "general",
+    is_builtin: int = 0,
+    organization_id: str = "local",
+) -> dict[str, Any]:
+    pool = await get_pool()
+    now = datetime.now(timezone.utc).isoformat()
+    await pool.execute(
+        """INSERT INTO story_context_presets
+           (id, name, description, context, category, is_builtin, organization_id, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ON CONFLICT (id) DO NOTHING""",
+        preset_id, name, description, context, category, is_builtin, organization_id, now,
+    )
+    row = await pool.fetchrow("SELECT * FROM story_context_presets WHERE id = $1", preset_id)
+    return dict(row) if row else {}
+
+
+async def list_story_context_presets(
+    organization_id: str | None = None,
+    category: str | None = None,
+) -> list[dict[str, Any]]:
+    pool = await get_pool()
+    if organization_id and category:
+        rows = await pool.fetch(
+            "SELECT * FROM story_context_presets WHERE (is_builtin = 1 OR organization_id = $1) AND category = $2 ORDER BY is_builtin DESC, category, name",
+            organization_id, category,
+        )
+    elif organization_id:
+        rows = await pool.fetch(
+            "SELECT * FROM story_context_presets WHERE is_builtin = 1 OR organization_id = $1 ORDER BY is_builtin DESC, category, name",
+            organization_id,
+        )
+    else:
+        rows = await pool.fetch("SELECT * FROM story_context_presets ORDER BY is_builtin DESC, category, name")
+    return _rows_to_dicts(rows)
+
+
+async def delete_story_context_preset(preset_id: str) -> bool:
+    pool = await get_pool()
+    result = await pool.execute(
+        "DELETE FROM story_context_presets WHERE id = $1 AND is_builtin = 0", preset_id
+    )
+    return result == "DELETE 1"
+
+
+_BUILTIN_CONTEXT_PRESETS = [
+    # UGC Reactions
+    {"id": "ugc_skeptical_convinced", "name": "Skeptical → Convinced", "category": "ugc",
+     "description": "Starts doubtful, slowly won over",
+     "context": "Person is scrolling with a bored, skeptical expression. They read something, squint doubtfully, then slowly nod with raised eyebrows — quietly impressed. Understated genuine reaction, not theatrical."},
+    {"id": "ugc_shocked_discovery", "name": "Shocked Discovery", "category": "ugc",
+     "description": "Casual scrolling then jaw-drop moment",
+     "context": "Person is casually scrolling, relaxed. They suddenly freeze — eyes go wide, jaw drops, they lean toward the camera in genuine disbelief. The shock is real and immediate."},
+    {"id": "ugc_emotional_relief", "name": "Emotional Relief", "category": "ugc",
+     "description": "Stressed → relieved smile",
+     "context": "Person looks stressed and tired, rubbing their temples or sighing. They see something on screen, expression softens, they exhale with visible relief and break into a gentle, genuine smile. Eyes might glisten slightly."},
+    {"id": "ugc_excited_share", "name": "Excited Share", "category": "ugc",
+     "description": "Gasps then tells a friend",
+     "context": "Person reads something, gasps, then excitedly points at the camera as if grabbing a friend's attention. Mouths something emphatic like 'you NEED this' with big energy. Head shaking in disbelief."},
+    {"id": "ugc_silent_nod", "name": "Silent Nod", "category": "ugc",
+     "description": "Quiet understanding, knowing smirk",
+     "context": "Person reads carefully, expression shifts from neutral to slow understanding. A single deliberate nod, then a knowing smirk — like they just found a secret weapon. Minimal, confident, no theatrics."},
+    {"id": "ugc_double_take", "name": "Double Take", "category": "ugc",
+     "description": "Re-reads in disbelief, laughs",
+     "context": "Person is scrolling casually, does a sharp double-take — head jerks back, eyes dart back to screen. Re-reads with intensity, then breaks into a surprised laugh with mouth wide open. Authentic 'wait WHAT' energy."},
+    {"id": "ugc_mind_blown", "name": "Mind Blown", "category": "ugc",
+     "description": "Slow realization, hands on head",
+     "context": "Person stares at screen processing information. Slow zoom of realization crosses their face — eyebrows climbing, mouth gradually opening. They bring both hands to the sides of their head in a 'mind blown' gesture."},
+    {"id": "ugc_angry_then_impressed", "name": "Angry → Impressed", "category": "ugc",
+     "description": "Why didn't I know about this sooner",
+     "context": "Person looks frustrated or annoyed while reading — furrowed brows, tight lips, shaking head. Then expression shifts to reluctant admiration. They point at camera with a 'why am I just now finding this' energy."},
+    # Cinematic
+    {"id": "cin_resilience", "name": "Theme: Resilience", "category": "cinematic",
+     "description": "Overcoming adversity, rising from ashes",
+     "context": "Focus on the theme of resilience and perseverance. Show the character facing overwhelming odds, a moment of doubt or defeat, then rising with renewed determination. The visual journey should move from darkness to light."},
+    {"id": "cin_solitude_wisdom", "name": "Theme: Solitude & Wisdom", "category": "cinematic",
+     "description": "Quiet contemplation, deep insight",
+     "context": "Focus on solitude as the path to wisdom. Show the character alone in contemplation — writing, walking, observing nature. The atmosphere should be meditative, unhurried. Wisdom emerges from stillness, not action."},
+    {"id": "cin_duty_vs_freedom", "name": "Theme: Duty vs Freedom", "category": "cinematic",
+     "description": "Tension between obligation and desire",
+     "context": "Explore the tension between duty and personal freedom. The character is pulled between what they must do and what they desire. Show this conflict through contrasting environments — structured vs wild, confined vs open."},
+    # Product / General
+    {"id": "prod_reveal", "name": "Product Reveal", "category": "product",
+     "description": "Anticipation building to dramatic reveal",
+     "context": "Build anticipation with close-up details, shadows, and partial reveals. The product emerges dramatically — hero lighting, slow rotation, key features highlighted one by one. End with the full product in its best light."},
+    {"id": "prod_before_after", "name": "Before / After", "category": "product",
+     "description": "Problem state then transformation",
+     "context": "Show the 'before' state — the problem, frustration, mess. Quick transition to the 'after' — clean, solved, satisfying. The contrast should be dramatic and immediate. The product is the turning point."},
+]
+
+
+async def seed_builtin_context_presets() -> None:
+    """Seed built-in story context presets."""
+    pool = await get_pool()
+    now = datetime.now(timezone.utc).isoformat()
+    for p in _BUILTIN_CONTEXT_PRESETS:
+        existing = await pool.fetchrow("SELECT id FROM story_context_presets WHERE id = $1", p["id"])
+        if not existing:
+            await pool.execute(
+                """INSERT INTO story_context_presets
+                   (id, name, description, context, category, is_builtin, organization_id, created_at)
+                   VALUES ($1, $2, $3, $4, $5, 1, 'local', $6)""",
+                p["id"], p["name"], p.get("description", ""), p["context"], p["category"], now,
+            )
 
 
 # ---------------------------------------------------------------------------

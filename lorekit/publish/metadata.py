@@ -1,4 +1,4 @@
-"""Claude-powered YouTube title/description generation."""
+"""LLM-powered YouTube title/description generation."""
 
 from __future__ import annotations
 
@@ -14,17 +14,17 @@ from lorekit.models import Character, SourceItem, Timeline
 logger = logging.getLogger(__name__)
 
 METADATA_SYSTEM_PROMPT = """\
-You are a YouTube Shorts metadata specialist for a philosophy channel called LoreKit.
+You are a YouTube Shorts metadata specialist.
 Generate metadata optimized for discovery and engagement on YouTube Shorts.
 
 Rules:
 - Title MUST be under 60 characters
-- Title MUST include the philosopher's name
+- Title MUST include the character's name
 - Title MUST include an emotional hook
 - Title MUST end with #shorts
-- Description should include the full quote, philosopher bio context, and a call to action
-- Tags should include: shorts, philosophy, the philosopher's name (no spaces), \
-the civilization, relevant themes
+- Description should include the full quote, character bio context, and a call to action
+- Tags should include: shorts, the character's name (no spaces), \
+the content theme, relevant topics
 - Hashtags go at the end of the description
 
 Respond with valid JSON only, no markdown formatting."""
@@ -32,7 +32,7 @@ Respond with valid JSON only, no markdown formatting."""
 METADATA_USER_TEMPLATE = """\
 Generate YouTube Shorts metadata for this video:
 
-Philosopher: {character_name} ({group}, {era})
+Character: {character_name} ({group}, {era})
 Hook Quote: "{hook_quote}"
 Truth Quote: "{truth_quote}"
 Story Theme: {music_theme}
@@ -73,10 +73,7 @@ async def generate_metadata(
     truth_quote: SourceItem,
     story: object,  # Timeline or legacy StoryBreakdown
 ) -> dict:
-    """Generate YouTube-optimized metadata using the configured LLM.
-
-    Supports both Anthropic (Claude) and OpenAI providers.
-    """
+    """Generate YouTube-optimized metadata using the configured LLM."""
     user_message = METADATA_USER_TEMPLATE.format(
         character_name=character.name,
         group=character.group,
@@ -118,7 +115,6 @@ def _validate_metadata(metadata: dict, character: Character) -> dict:
 
     # Truncate if over 60 chars
     if len(title) > 60:
-        # Remove #shorts, truncate, re-add
         base = title.replace(" #shorts", "").replace("#shorts", "")
         max_base = 60 - len(" #shorts")
         if len(base) > max_base:
@@ -129,10 +125,10 @@ def _validate_metadata(metadata: dict, character: Character) -> dict:
 
     # Ensure tags is a list
     if not isinstance(metadata.get("tags"), list):
-        metadata["tags"] = ["shorts", "philosophy", character.name.lower().replace(" ", "")]
+        metadata["tags"] = ["shorts", character.name.lower().replace(" ", "")]
 
     # Ensure required tags
-    required_tags = {"shorts", "philosophy"}
+    required_tags = {"shorts"}
     existing_tags = {t.lower() for t in metadata["tags"]}
     for tag in required_tags:
         if tag not in existing_tags:
@@ -145,30 +141,27 @@ def _fallback_metadata(
     character: Character,
     hook_quote: SourceItem,
     truth_quote: SourceItem,
-    story: object,  # Timeline or legacy StoryBreakdown
+    story: object,
 ) -> dict:
-    """Generate fallback metadata when Claude API fails."""
+    """Generate fallback metadata when LLM API fails."""
     character_tag = character.name.lower().replace(" ", "")
     group_tag = character.group.lower()
 
-    title = f"{character.name}: Ancient Wisdom #shorts"
-    if len(title) > 60:
-        title = f"{character.name} #shorts"
+    title = f"{character.name} #shorts"
 
     description = (
         f'"{hook_quote.text}"\n\n'
         f"\u2014 {character.name}, {character.era}\n\n"
         f'"{truth_quote.text}"\n\n'
-        f"Follow LoreKit for daily ancient wisdom.\n\n"
-        f"#shorts #philosophy #{character_tag} #{group_tag}"
+        f"Follow for more content.\n\n"
+        f"#shorts #{character_tag} #{group_tag}"
     )
 
     return {
         "title": title,
         "description": description,
         "tags": [
-            "shorts", "philosophy", character_tag, group_tag,
-            hook_quote.theme, "wisdom", "ancientwisdom",
+            "shorts", character_tag, group_tag, hook_quote.theme,
         ],
-        "hashtags": f"#shorts #philosophy #{character_tag} #{group_tag}",
+        "hashtags": f"#shorts #{character_tag} #{group_tag}",
     }

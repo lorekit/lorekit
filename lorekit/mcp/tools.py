@@ -43,7 +43,7 @@ _client: httpx.AsyncClient | None = None
 def _get_client() -> httpx.AsyncClient:
     global _client
     if _client is None:
-        _client = httpx.AsyncClient(base_url=API_URL, timeout=120.0)
+        _client = httpx.AsyncClient(base_url=API_URL, timeout=600.0)
     return _client
 
 
@@ -176,11 +176,15 @@ async def character_create(
     group_name: str = "",
     era: str = "",
     character_description: str = "",
+    target_audience: str = "",
+    performance_notes: str = "",
 ) -> str:
     """Create a new character in a universe."""
     data = await _request("POST", f"/api/universes/{universe_id}/characters", json_body={
         "name": name, "group_name": group_name, "era": era,
         "character_description": character_description,
+        "target_audience": target_audience,
+        "performance_notes": performance_notes,
     })
     if isinstance(data, dict) and "id" in data:
         return f"Character created: {data['name']} (id={data['id']})"
@@ -197,13 +201,15 @@ async def character_update(character_id: str, **fields: Any) -> str:
 # Character Images
 # ---------------------------------------------------------------------------
 
-async def character_image_generate(character_id: str, theme: str = "", custom_description: str = "") -> str:
+async def character_image_generate(character_id: str, theme: str = "", custom_description: str = "", view: str = "") -> str:
     """Generate a character portrait image."""
     body: dict[str, Any] = {"character_id": character_id}
     if theme:
         body["theme"] = theme
     if custom_description:
         body["custom_description"] = custom_description
+    if view:
+        body["view"] = view
     data = await _request("POST", "/api/character/generate-for-character", json_body=body)
     return _fmt(data)
 
@@ -211,6 +217,17 @@ async def character_image_generate(character_id: str, theme: str = "", custom_de
 async def character_image_list(character_id: str) -> str:
     """List all generated images for a character."""
     data = await _request("GET", f"/api/character/images/{character_id}")
+    return _fmt(data)
+
+
+async def character_image_delete(character_id: str, theme: str, index: int) -> str:
+    """Delete a character image by theme and index."""
+    data = await _request(
+        "DELETE", f"/api/character/images/{character_id}",
+        json_body={"theme": theme, "index": index},
+    )
+    if isinstance(data, dict) and data.get("deleted"):
+        return f"Image at index {index} deleted from theme '{theme}'."
     return _fmt(data)
 
 
@@ -430,6 +447,7 @@ async def generate_story(
     arc_template: str | None = None,
     aspect_ratio: str = "9:16",
     quote_ids: list[str] | None = None,
+    story_context: str = "",
 ) -> str:
     """Generate a story breakdown for a new video project.
 
@@ -448,6 +466,8 @@ async def generate_story(
         body["arc_template"] = arc_template
     if quote_ids:
         body["quote_ids"] = quote_ids
+    if story_context:
+        body["story_context"] = story_context
     data = await _request("POST", "/api/generate/story", json_body=body)
     if isinstance(data, dict) and "project_id" in data:
         story = data.get("story", {})
@@ -472,13 +492,30 @@ async def generate_clips(project_id: str) -> str:
     return _fmt(data)
 
 
-async def generate_clip(project_id: str, scene_id: int) -> str:
+async def generate_clip(project_id: str, scene_id: int, character_image_url: str | None = None) -> str:
     """Regenerate a single scene's video clip."""
-    data = await _request("POST", "/api/generate/clip", json_body={
-        "project_id": project_id, "scene_id": scene_id,
-    })
+    body: dict = {"project_id": project_id, "scene_id": scene_id}
+    if character_image_url:
+        body["character_image_url"] = character_image_url
+    data = await _request("POST", "/api/generate/clip", json_body=body)
     if isinstance(data, dict) and "job_id" in data:
         return f"Single clip generation started for scene {scene_id}. Job ID: {data['job_id']}"
+    return _fmt(data)
+
+
+async def project_character_image(project_id: str, custom_description: str, label: str = "variation", scene_id: int | None = None) -> str:
+    """Generate a character variation for a project (stored as project material, not on character)."""
+    body: dict = {"project_id": project_id, "custom_description": custom_description, "label": label}
+    if scene_id is not None:
+        body["scene_id"] = scene_id
+    data = await _request("POST", "/api/generate/project-character-image", json_body=body)
+    if isinstance(data, dict) and "image_url" in data:
+        return (
+            f"Character variation '{data.get('label', label)}' generated.\n"
+            f"Image URL: {data['image_url']}\n"
+            f"Material ID: {data.get('material_id', '?')}\n"
+            f"Use this URL as character_image_url when generating clips."
+        )
     return _fmt(data)
 
 
@@ -539,6 +576,73 @@ async def scene_list(project_id: str) -> str:
 async def scene_update(project_id: str, scene_id: int, **fields: Any) -> str:
     """Update a scene's properties (visual_description, camera, duration, etc)."""
     data = await _request("PATCH", f"/api/scenes/{project_id}/{scene_id}", json_body=fields)
+    return _fmt(data)
+
+
+async def scene_add(project_id: str, **fields: Any) -> str:
+    """Add a new scene to a project."""
+    data = await _request("POST", f"/api/scenes/{project_id}", json_body=fields)
+    return _fmt(data)
+
+
+async def scene_delete(project_id: str, scene_id: int) -> str:
+    """Delete a scene from a project."""
+    data = await _request("DELETE", f"/api/scenes/{project_id}/{scene_id}")
+    return _fmt(data)
+
+
+async def scene_reorder(project_id: str, scene_ids: list[int]) -> str:
+    """Reorder scenes in a project."""
+    data = await _request("POST", f"/api/scenes/{project_id}/reorder", json_body={"scene_ids": scene_ids})
+    return _fmt(data)
+
+
+# ---------------------------------------------------------------------------
+# Text Overlays
+# ---------------------------------------------------------------------------
+
+async def text_list(project_id: str) -> str:
+    """List text overlays in a project."""
+    data = await _request("GET", f"/api/scenes/{project_id}")
+    if isinstance(data, dict):
+        items = data.get("text_items", [])
+        if not items:
+            return "No text overlays in this project."
+        return json.dumps(items, indent=2)
+    return _fmt(data)
+
+
+async def text_add(project_id: str, **fields: Any) -> str:
+    """Add a text overlay to a project."""
+    data = await _request("POST", f"/api/scenes/{project_id}/text", json_body=fields)
+    return _fmt(data)
+
+
+async def text_update(project_id: str, text_id: str, **fields: Any) -> str:
+    """Update a text overlay."""
+    data = await _request("PATCH", f"/api/scenes/{project_id}/text/{text_id}", json_body=fields)
+    return _fmt(data)
+
+
+async def text_delete(project_id: str, text_id: str) -> str:
+    """Delete a text overlay."""
+    data = await _request("DELETE", f"/api/scenes/{project_id}/text/{text_id}")
+    return _fmt(data)
+
+
+# ---------------------------------------------------------------------------
+# Transitions
+# ---------------------------------------------------------------------------
+
+async def transition_update(project_id: str, from_scene_id: int, to_scene_id: int, **fields: Any) -> str:
+    """Update or create a transition between two scenes."""
+    data = await _request("PATCH", f"/api/scenes/{project_id}/transition/{from_scene_id}/{to_scene_id}", json_body=fields)
+    return _fmt(data)
+
+
+async def transition_delete(project_id: str, from_scene_id: int, to_scene_id: int) -> str:
+    """Delete a transition (becomes hard cut)."""
+    data = await _request("DELETE", f"/api/scenes/{project_id}/transition/{from_scene_id}/{to_scene_id}")
     return _fmt(data)
 
 
@@ -623,6 +727,77 @@ async def vibe_presets() -> str:
 async def arc_templates() -> str:
     """List available story arc templates."""
     data = await _request("GET", "/api/settings/arc-templates")
+    return _fmt(data)
+
+
+async def arc_template_create(
+    name: str,
+    description: str = "",
+    beats_json: str = "[]",
+    optional_beats_json: str = "[]",
+    min_duration: float = 30,
+    max_duration: float = 50,
+    min_scenes: int = 5,
+    max_scenes: int = 8,
+    max_scene_duration: float = 8,
+    system_prompt_fragment: str = "",
+) -> str:
+    """Create a custom arc template."""
+    data = await _request("POST", "/api/settings/arc-templates", json_body={
+        "name": name, "description": description,
+        "beats_json": beats_json, "optional_beats_json": optional_beats_json,
+        "min_duration": min_duration, "max_duration": max_duration,
+        "min_scenes": min_scenes, "max_scenes": max_scenes,
+        "max_scene_duration": max_scene_duration,
+        "system_prompt_fragment": system_prompt_fragment,
+    })
+    if isinstance(data, dict) and "id" in data:
+        return f"Arc template created: {data['name']} (id={data['id']})"
+    return _fmt(data)
+
+
+async def arc_template_update(template_id: str, **fields: Any) -> str:
+    """Update a custom arc template."""
+    data = await _request("PATCH", f"/api/settings/arc-templates/{template_id}", json_body=fields)
+    return _fmt(data)
+
+
+async def arc_template_delete(template_id: str) -> str:
+    """Delete a custom arc template."""
+    data = await _request("DELETE", f"/api/settings/arc-templates/{template_id}")
+    if isinstance(data, dict) and data.get("deleted"):
+        return f"Arc template {template_id} deleted."
+    return _fmt(data)
+
+
+async def context_presets(category: str = "") -> str:
+    """List story context presets (built-in + custom)."""
+    params: dict[str, str] = {}
+    if category:
+        params["category"] = category
+    data = await _request("GET", "/api/settings/context-presets", params=params)
+    if isinstance(data, dict) and "presets" in data:
+        presets = data["presets"]
+        lines = [f"- [{p.get('category', '')}] {p['name']}: {p.get('context', '')[:80]}... (id={p['id']})" for p in presets]
+        return f"Found {len(presets)} context presets:\n" + "\n".join(lines) if lines else "No presets."
+    return _fmt(data)
+
+
+async def context_preset_create(name: str, context: str, description: str = "", category: str = "general") -> str:
+    """Create a custom story context preset."""
+    data = await _request("POST", "/api/settings/context-presets", json_body={
+        "name": name, "context": context, "description": description, "category": category,
+    })
+    if isinstance(data, dict) and "id" in data:
+        return f"Context preset created: {data['name']} (id={data['id']})"
+    return _fmt(data)
+
+
+async def context_preset_delete(preset_id: str) -> str:
+    """Delete a custom context preset."""
+    data = await _request("DELETE", f"/api/settings/context-presets/{preset_id}")
+    if isinstance(data, dict) and data.get("deleted"):
+        return f"Preset {preset_id} deleted."
     return _fmt(data)
 
 

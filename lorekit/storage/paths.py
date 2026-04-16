@@ -55,11 +55,22 @@ def project_frame_path(
     return _base(org_id, "projects", project_id, "frames", f"scene_{scene_id:03d}_{ts_label}.png")
 
 
-def character_image_path(
-    character_id: str, theme: str, org_id: str | None = None
+def project_character_image_path(
+    project_id: str, label: str, org_id: str | None = None
 ) -> str:
-    """Path for a character portrait: characters/{id}/images/{theme}.png"""
-    return _base(org_id, "characters", character_id, "images", f"{theme}.png")
+    """Path for a project-scoped character variation: projects/{id}/characters/{label}.png"""
+    return _base(org_id, "projects", project_id, "characters", f"{label}.png")
+
+
+def character_image_path(
+    character_id: str, theme: str, view: str = "default", org_id: str | None = None
+) -> str:
+    """Path for a character portrait: characters/{id}/images/{theme}_{view}.png"""
+    if view and view != "default":
+        filename = f"{theme}_{view}.png"
+    else:
+        filename = f"{theme}.png"
+    return _base(org_id, "characters", character_id, "images", filename)
 
 
 def character_reference_path(

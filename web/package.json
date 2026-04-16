@@ -4,17 +4,23 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:cloud": "dotenv -e ../.env.dev -- next dev --port 3002",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:dev": "dotenv -e ../.env.dev -- drizzle-kit migrate --config=drizzle-dev.config.ts",
     "db:deploy": "drizzle-kit generate && drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:deploy:dev": "drizzle-kit generate && dotenv -e ../.env.dev -- drizzle-kit migrate --config=drizzle-dev.config.ts",
+    "db:studio": "drizzle-kit studio",
+    "db:studio:dev": "dotenv -e ../.env.dev -- drizzle-kit studio --config=drizzle-dev.config.ts"
   },
   "dependencies": {
-    "better-auth": "^1.5.6",
+    "@better-auth/oauth-provider": "^1.6.2",
+    "@better-auth/stripe": "^1.6.2",
+    "better-auth": "^1.6.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
@@ -24,6 +30,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-resizable-panels": "^4.8.0",
+    "stripe": "^20.4.1",
     "tailwind-merge": "^3.5.0",
     "zustand": "^5.0.12"
   },
@@ -36,6 +43,7 @@
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv-cli": "^11.0.0",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",

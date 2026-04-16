@@ -73,7 +73,7 @@ _STORY_BEATS: list[BeatTemplate] = [
     {
         "beat": "stillness",
         "duration_range": [4, 7],
-        "purpose": "Philosopher alone. Writing, thinking, teaching. Contrast with chaos.",
+        "purpose": "Character alone. Writing, thinking, teaching. Contrast with chaos.",
     },
     {
         "beat": "truth",
@@ -186,23 +186,150 @@ Think: dark sculpture photography slideshow set to heavy bass.""",
 )
 
 
+# ── UGC Reaction Arc ─────────────────────────────────────────────────────
+
+_UGC_REACTION_BEATS: list[BeatTemplate] = [
+    {
+        "beat": "reaction",
+        "duration_range": [3, 5],
+        "purpose": (
+            "A selfie reaction clip. Person reacting naturally — subtle shifts "
+            "in expression, not exaggerated cartoon faces. "
+            "One continuous take from a fixed selfie camera angle."
+        ),
+    },
+    {
+        "beat": "callout",
+        "duration_range": [3, 5],
+        "purpose": (
+            "Optional: person gestures toward a specific area of the frame "
+            "(points up, glances to the side, nods toward camera) to direct "
+            "attention where text/graphics will be placed in post-production. "
+            "Subtle, natural gesture — not exaggerated pointing."
+        ),
+    },
+    {
+        "beat": "lifestyle",
+        "duration_range": [3, 5],
+        "purpose": (
+            "Optional: person in a different setting/outfit that shows their "
+            "lifestyle — gym, car, kitchen, walking outside. Same selfie angle. "
+            "Can be a different environment and clothing than earlier scenes."
+        ),
+    },
+    {
+        "beat": "closer",
+        "duration_range": [3, 5],
+        "purpose": (
+            "Optional: final moment — person gives a knowing look, subtle nod, "
+            "or slight smile directly into camera. The 'trust me' beat."
+        ),
+    },
+]
+
+UGC_REACTION_ARC = ArcTemplate(
+    id="ugc_reaction",
+    name="UGC Reaction",
+    description="1-4 scene selfie reaction clips for ad hooks",
+    beats=_UGC_REACTION_BEATS,
+    optional_beats=[],
+    min_duration=3,
+    max_duration=20,
+    min_scenes=1,
+    max_scenes=4,
+    max_scene_duration=5,
+    system_prompt_fragment="""\
+FORMAT: UGC REACTION — selfie-style reaction clips for ad hooks.
+
+RULES:
+1. 1 to 4 scenes, each {min_duration}-5 seconds. Use beats: "reaction", "callout", "lifestyle", "closer" in any order as directed by the story_context.
+2. character_present MUST be true
+3. Camera: STATIC selfie angle — phone held at arm's length, slightly above eye level. NO camera movement. Steady shot, no shake.
+4. NATURAL, SUBTLE reactions only. Think real person, not actor. Small shifts: a slight eyebrow raise, a knowing smirk, a slow nod, eyes narrowing then relaxing, a quiet "huh" expression. Do NOT write exaggerated reactions like jaw dropping, eyes popping wide, mouth hanging open, lunging at camera — those read as fake AI content. Match the energy to the character's personality.
+5. visual_description MUST describe ONLY: the person's facial expression, body language, and their immediate real-world environment (room, car, desk, etc). DO NOT describe what they are reacting to. DO NOT put text, words, screens, apps, notifications, pop-ups, or UI elements in the visual description. The reaction content will be added separately by the user in their video editor.
+6. text_overlay MUST be empty string ""
+7. Environment should feel like a real place — bedroom, living room, car, office, gym, balcony. Simple background, nothing distracting.
+8. DO NOT describe cinematic elements — this is raw iPhone selfie footage
+9. cta_scene MUST be false
+10. NO props in hands. The person is NOT holding a phone. Their hands may gesture but no objects.
+11. For "callout" scenes: the person gestures naturally toward an area of the frame (glances up, points up casually, nods toward one side) to direct viewer attention where text will be placed in post-production. One arm extended toward camera holding the phone steady. Keep it subtle.
+12. For "lifestyle" scenes: the person can be in a completely different setting and outfit. Describe the new environment and clothing explicitly. Same selfie framing.
+13. Each scene is a SEPARATE continuous shot. Do NOT describe scene changes within a single scene.""",
+)
+
+
 # ── Template Registry ─────────────────────────────────────────────────────
 
 ARC_TEMPLATES: dict[str, ArcTemplate] = {
-    t.id: t for t in [STORY_ARC, RAPID_MONTAGE_ARC]
+    t.id: t for t in [STORY_ARC, RAPID_MONTAGE_ARC, UGC_REACTION_ARC]
 }
 
 DEFAULT_ARC_TEMPLATE = "story"
 
 
-def get_arc_template(template_id: str) -> ArcTemplate:
-    """Look up an arc template by ID. Raises KeyError if not found."""
-    if template_id not in ARC_TEMPLATES:
+async def get_arc_template(template_id: str) -> ArcTemplate:
+    """Look up an arc template by ID.
+
+    Checks hardcoded builtins first, then falls back to the database
+    for user-created custom templates. Raises KeyError if not found.
+    """
+    if template_id in ARC_TEMPLATES:
+        return ARC_TEMPLATES[template_id]
+
+    # Fall back to DB for custom templates
+    import json as _json
+    from lorekit import db
+
+    row = await db.get_arc_template_db(template_id)
+    if not row:
         raise KeyError(
             f"Unknown arc template {template_id!r}. "
-            f"Choose from: {list(ARC_TEMPLATES)}"
+            f"Choose from: {list(ARC_TEMPLATES)} + custom templates in DB"
         )
-    return ARC_TEMPLATES[template_id]
+
+    beats = _json.loads(row.get("beats_json") or "[]")
+    optional_beats = _json.loads(row.get("optional_beats_json") or "[]")
+
+    # Register beats so the validator accepts them
+    for b in beats + optional_beats:
+        VALID_BEATS.add(b["beat"])
+        BEAT_DURATION_RANGES[b["beat"]] = (
+            b["duration_range"][0],
+            b["duration_range"][1],
+        )
+
+    return ArcTemplate(
+        id=row["id"],
+        name=row["name"],
+        description=row.get("description", ""),
+        beats=beats,
+        optional_beats=optional_beats,
+        min_duration=row.get("min_duration", 30),
+        max_duration=row.get("max_duration", 50),
+        min_scenes=row.get("min_scenes", 5),
+        max_scenes=row.get("max_scenes", 8),
+        max_scene_duration=row.get("max_scene_duration", 8),
+        system_prompt_fragment=row.get("system_prompt_fragment") or _default_system_prompt_fragment(row),
+    )
+
+
+def _default_system_prompt_fragment(row: dict) -> str:
+    """Auto-generate a system prompt fragment for custom templates without one."""
+    import json as _json
+    beats = _json.loads(row.get("beats_json") or "[]")
+    beat_desc = "\n".join(
+        f"- {b['beat']}: {b['purpose']} ({b['duration_range'][0]}-{b['duration_range'][1]}s)"
+        for b in beats
+    )
+    return f"""\
+STORY ARC:
+{beat_desc}
+
+RULES:
+1. Total duration MUST be {row.get('min_duration', 30)}-{row.get('max_duration', 50)} seconds, {row.get('min_scenes', 5)}-{row.get('max_scenes', 8)} scenes, no scene exceeds {row.get('max_scene_duration', 8)} seconds
+2. Something visually new every 3 seconds
+3. EVERY scene MUST have a text_overlay
+4. Camera movements: slow push-in, orbital, crane, tracking shots"""
 
 
 # ── Backwards-compatible exports ──────────────────────────────────────────

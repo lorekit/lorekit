@@ -17,8 +17,8 @@ from lorekit.auth.user import get_current_user, CurrentUser
 from lorekit.config import get_settings
 
 logger = logging.getLogger(__name__)
-from lorekit.api.characters_routes import router as characters_router, legacy_router as philosophers_router
-from lorekit.api.sources_routes import router as sources_router, legacy_router as quotes_router
+from lorekit.api.characters_routes import router as characters_router
+from lorekit.api.sources_routes import router as sources_router
 from lorekit.api.projects import router as projects_router
 from lorekit.api.generate import router as generate_router
 from lorekit.api.scenes import router as scenes_router
@@ -61,6 +61,8 @@ async def _lorekit_lifespan(app: FastAPI):
     settings.ensure_dirs()
     await db.init_pool()
     await db.seed_builtin_video_styles()
+    await db.seed_builtin_arc_templates()
+    await db.seed_builtin_context_presets()
     from lorekit.auth.user import _user_provider
     if _user_provider is None:
         logger.warning(

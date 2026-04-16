@@ -148,7 +148,7 @@ export default function NewUniversePage() {
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. PhilosophyWise, FinanceBros, FutbolLegends"
+              placeholder="e.g. MoneyLock, CookingStudio, FutbolLegends"
               className="max-w-md"
               autoFocus
             />

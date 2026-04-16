@@ -16,14 +16,14 @@ logger = logging.getLogger(__name__)
 async def build_audio_timeline(
     scenes: list[Scene],
     total_duration: float,
-    civilization: str,
+    environment_key: str,
     assets_dir: str,
     output_dir: str | None = None,
 ) -> str:
     """Build a complete audio mix as a single WAV file.
 
     Process:
-    1. Select a music bed based on civilization + dominant scene mood
+    1. Select a music bed based on environment + dominant scene mood
     2. Trim/loop music to total_duration
     3. Apply volume automation per scene (louder on conflict, softer on stillness)
     4. Layer SFX at their specified timestamps
@@ -50,7 +50,7 @@ async def build_audio_timeline(
     index = scan_audio_assets(assets_dir)
     dominant_mood = _get_dominant_mood(scenes)
 
-    music_path = select_music_bed(civilization, dominant_mood, assets_dir, index)
+    music_path = select_music_bed(environment_key, dominant_mood, assets_dir, index)
     if not music_path:
         logger.warning("No music bed found, generating silent audio")
         await _generate_silence(total_duration, output_path)
@@ -93,7 +93,7 @@ async def build_audio_timeline(
 
 
 def select_music_bed(
-    civilization: str,
+    environment_key: str,
     mood: str,
     assets_dir: str,
     index: dict | None = None,
@@ -102,15 +102,15 @@ def select_music_bed(
     if index is None:
         index = scan_audio_assets(assets_dir)
 
-    path = get_music_for_mood(index, civilization, mood)
+    path = get_music_for_mood(index, environment_key, mood)
     if path:
-        logger.info("Selected music bed: %s (civ=%s, mood=%s)", path, civilization, mood)
+        logger.info("Selected music bed: %s (env=%s, mood=%s)", path, environment_key, mood)
         return path
 
-    # Fallback: try any mood for this civilization
+    # Fallback: try any mood for this environment
     music_index: dict = index.get("music", {})
-    music_civ = music_index.get(civilization, {})
-    for mood_files in music_civ.values():
+    music_env = music_index.get(environment_key, {})
+    for mood_files in music_env.values():
         if mood_files:
             fallback = mood_files[0]
             logger.info("Fallback music bed: %s", fallback)

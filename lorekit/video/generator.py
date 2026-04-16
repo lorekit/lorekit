@@ -43,13 +43,13 @@ POLL_INTERVAL = 5.0
 
 
 def _resolve_vibe(theme: str | None) -> str:
-    """Return the vibe prompt text for a theme, falling back to settings default."""
+    """Return the vibe prompt text for a theme, falling back to mobile_game default."""
+    from lorekit.config import VIBE_PRESETS
     if theme:
-        from lorekit.config import VIBE_PRESETS
         preset = VIBE_PRESETS.get(theme)
         if preset and preset.get("prompt"):
             return preset["prompt"]
-    return get_settings().video_vibe
+    return VIBE_PRESETS.get("mobile_game", {}).get("prompt", "")
 
 
 def _aspect_composition(aspect_ratio: str) -> str:
@@ -64,6 +64,7 @@ async def generate_scene_clips(
     character: Character,
     project_id: str,
     character_image_url: str | None = None,
+    character_ref_urls: list[str] | None = None,
     theme: str | None = None,
     aspect_ratio: str = "9:16",
 ) -> list[str]:
@@ -82,8 +83,8 @@ async def generate_scene_clips(
         return []
 
     settings = get_settings()
-    from lorekit.config import get_civilization
-    civ_config = get_civilization(character.group)
+    from lorekit.config import get_environment
+    env_config = get_environment(character.group)
     vibe_text = _resolve_vibe(theme)
 
     first_scene = scenes[0]
@@ -92,13 +93,13 @@ async def generate_scene_clips(
 
     # --- Step 1: Generate scene 1's keyframe ---
     first_prompt = build_video_prompt(
-        first_scene, character, civ_config.model_dump(), vibe_text, theme=theme,
+        first_scene, character, env_config.model_dump(), vibe_text, theme=theme,
     )
     has_char_first = first_scene.character_present and character_image_url
 
     if has_char_first:
-        hook_keyframe_url = await _generate_keyframe_from_portrait(
-            first_prompt, settings.fal_key, character_image_url,  # type: ignore
+        hook_keyframe_url = await _generate_keyframe_kontext(
+            first_prompt, settings.fal_key, [character_image_url],  # type: ignore
             aspect_ratio=aspect_ratio,
         )
     else:
@@ -111,14 +112,16 @@ async def generate_scene_clips(
     # --- Step 2: Generate scene 1 video (using the keyframe we already made) ---
     first_clip_path = await _generate_clip_with_keyframe(
         first_scene, character, project_id, settings,
-        civ_config.model_dump(), character_image_url,
+        env_config.model_dump(), character_image_url,
+        character_ref_urls=character_ref_urls,
         keyframe_url=hook_keyframe_url,
         theme=theme, aspect_ratio=aspect_ratio,
     )
 
     # --- Step 3: Generate middle scenes in parallel ---
+    # Pass hook keyframe as anchor so all scenes maintain the same face
     middle_tasks = [
-        generate_single_clip(scene, character, project_id, character_image_url, theme=theme, aspect_ratio=aspect_ratio)
+        generate_single_clip(scene, character, project_id, character_image_url, character_ref_urls=character_ref_urls, theme=theme, aspect_ratio=aspect_ratio, anchor_keyframe_url=hook_keyframe_url)
         for scene in middle_scenes
     ]
     middle_results = await asyncio.gather(*middle_tasks, return_exceptions=True)
@@ -133,7 +136,9 @@ async def generate_scene_clips(
     if last_scene:
         last_clip_path = await generate_single_clip(
             last_scene, character, project_id, character_image_url,
+            character_ref_urls=character_ref_urls,
             end_image_url=hook_keyframe_url, theme=theme, aspect_ratio=aspect_ratio,
+            anchor_keyframe_url=hook_keyframe_url,
         )
 
     # Assemble in order
@@ -151,10 +156,12 @@ async def generate_single_clip(
     character: Character,
     project_id: str,
     character_image_url: str | None = None,
+    character_ref_urls: list[str] | None = None,
     end_image_url: str | None = None,
     theme: str | None = None,
     keyframe_url: str | None = None,
     aspect_ratio: str = "9:16",
+    anchor_keyframe_url: str | None = None,
 ) -> str:
     """Generate one video clip.
 
@@ -166,22 +173,27 @@ async def generate_single_clip(
     If keyframe_url is provided, skips keyframe generation (already previewed).
     If end_image_url is provided (loop scene), passes it to Kling so the
     video transitions toward that ending frame.
+    If anchor_keyframe_url is provided, uses it as a face reference when
+    generating keyframes for character consistency across scenes.
 
     Retries up to 3 times with exponential backoff.
     Returns storage path to downloaded clip.
     """
-    from lorekit.config import get_civilization
+    from lorekit.config import get_environment
 
-    civ_config = get_civilization(character.group)
+    env_config = get_environment(character.group)
     settings = get_settings()
 
-    return await _generate_clip_with_keyframe(
+    result = await _generate_clip_with_keyframe(
         scene, character, project_id, settings,
-        civ_config.model_dump(), character_image_url,
+        env_config.model_dump(), character_image_url,
+        character_ref_urls=character_ref_urls,
         keyframe_url=keyframe_url,
         end_image_url=end_image_url,
         theme=theme, aspect_ratio=aspect_ratio,
+        anchor_keyframe_url=anchor_keyframe_url,
     )
+    return result
 
 
 async def _generate_clip_with_keyframe(
@@ -189,19 +201,21 @@ async def _generate_clip_with_keyframe(
     character: Character,
     project_id: str,
     settings: object,
-    civ_config: dict,
+    env_config: dict,
     character_image_url: str | None = None,
+    character_ref_urls: list[str] | None = None,
     keyframe_url: str | None = None,
     end_image_url: str | None = None,
     theme: str | None = None,
     aspect_ratio: str = "9:16",
+    anchor_keyframe_url: str | None = None,
 ) -> str:
     """Core clip generation — optionally reuses a pre-generated keyframe.
 
     If keyframe_url is provided, skips keyframe generation.
     If end_image_url is provided, passes it to Kling for loop support.
 
-    Returns the storage-relative path to the downloaded clip.
+    Returns (clip_storage_path, keyframe_url) tuple.
     """
     store = get_file_store()
     storage_path = project_clip_path(project_id, scene.scene_id)
@@ -209,10 +223,10 @@ async def _generate_clip_with_keyframe(
     vibe_text = _resolve_vibe(theme)
 
     full_prompt = build_video_prompt(
-        scene, character, civ_config, vibe_text, theme=theme,
+        scene, character, env_config, vibe_text, theme=theme,
     )
     anim_prompt = build_video_prompt(
-        scene, character, civ_config, vibe_text, skip_character=True, theme=theme,
+        scene, character, env_config, vibe_text, skip_character=True, theme=theme,
     )
 
     has_character = scene.character_present and character_image_url
@@ -237,10 +251,12 @@ async def _generate_clip_with_keyframe(
                 video_url = await _generate_character_scene(
                     full_prompt, anim_prompt, scene.duration,
                     settings.fal_key, character_image_url,  # type: ignore
+                    character_ref_urls=character_ref_urls,
                     scene_id_hint=scene.scene_id,
                     keyframe_url=keyframe_url,
                     end_image_url=end_image_url,
                     aspect_ratio=aspect_ratio,
+                    anchor_keyframe_url=anchor_keyframe_url,
                 )
             elif scene.character_present:
                 video_url = await _generate_character_scene_no_ref(
@@ -263,8 +279,16 @@ async def _generate_clip_with_keyframe(
             logger.info("Scene %d generated in %.1fs via %s", scene.scene_id, elapsed, route)
 
             await _download_clip(video_url, store, storage_path, settings.fal_key)  # type: ignore
+
+            # Store keyframe alongside the clip
+            keyframe_path: str | None = None
+            if keyframe_url:
+                from lorekit.storage.paths import project_keyframe_path
+                keyframe_path = project_keyframe_path(project_id, scene.scene_id)
+                await _download_image(keyframe_url, store, keyframe_path)
+
             _log_cost(scene.scene_id, scene.duration, route)
-            return storage_path
+            return storage_path, keyframe_path, keyframe_url
 
         except Exception as exc:
             last_error = exc
@@ -422,7 +446,7 @@ async def _generate_keyframe_kontext(
 
     payload: dict = {
         "prompt": image_prompt,
-        "image_urls": reference_image_urls[:5],
+        "image_urls": reference_image_urls[:4],
         "aspect_ratio": aspect_ratio,
         "output_format": "png",
         "safety_tolerance": 6,
@@ -443,21 +467,36 @@ async def _generate_character_scene(
     duration: float,
     fal_key: str,
     character_image_url: str,
+    character_ref_urls: list[str] | None = None,
     scene_id_hint: int | None = None,
     keyframe_url: str | None = None,
     end_image_url: str | None = None,
     aspect_ratio: str = "9:16",
+    anchor_keyframe_url: str | None = None,
 ) -> str:
     """Character scene with portrait: Flux keyframe → Kling V3 Pro i2v + elements."""
     headers = _fal_headers(fal_key)
 
-    # Generate keyframe if not provided
+    # Generate keyframe if not provided — always use Kontext for character scenes
+    # Kontext is an editing model that preserves identity; Nano Banana is a generation
+    # model that creates from scratch and faces drift between scenes.
     if not keyframe_url:
-        logger.info("Scene %s — generating Flux keyframe from portrait", scene_id_hint or "?")
-        keyframe_url = await _generate_keyframe_from_portrait(full_prompt, fal_key, character_image_url, aspect_ratio=aspect_ratio)
+        ref_urls_for_keyframe = [character_image_url]
+        if anchor_keyframe_url:
+            # Scene 2+: include scene 1's keyframe for extra face consistency
+            ref_urls_for_keyframe = [anchor_keyframe_url, character_image_url]
+            logger.info("Scene %s — generating Kontext keyframe with anchor for face consistency", scene_id_hint or "?")
+        else:
+            logger.info("Scene %s — generating Kontext keyframe from portrait", scene_id_hint or "?")
+        keyframe_url = await _generate_keyframe_kontext(
+            full_prompt, fal_key, ref_urls_for_keyframe, aspect_ratio=aspect_ratio,
+        )
 
     duration_str = str(max(3, min(15, int(round(duration)))))
     element_prompt = anim_prompt.rstrip(". ") + ". @Element1 is the main character."
+
+    # Build reference URLs: portrait + any additional reference angles (deduped, max 5)
+    ref_urls = list(dict.fromkeys([character_image_url] + (character_ref_urls or [])))[:5]
 
     payload: dict = {
         "start_image_url": keyframe_url,
@@ -469,7 +508,7 @@ async def _generate_character_scene(
         "elements": [
             {
                 "frontal_image_url": character_image_url,
-                "reference_image_urls": [character_image_url],
+                "reference_image_urls": ref_urls,
             }
         ],
     }
@@ -681,6 +720,15 @@ async def _submit_and_get_image(
     image_url = images[0]["url"]
     logger.info("%s generated: %s", label, image_url)
     return image_url
+
+
+async def _download_image(url: str, store, storage_path: str) -> None:
+    """Download an image from a URL and write it via the file store."""
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.get(url)
+        resp.raise_for_status()
+        await store.write(storage_path, resp.content)
+    logger.info("Downloaded image to store: %s", storage_path)
 
 
 async def _download_clip(url: str, store, storage_path: str, fal_key: str) -> None:

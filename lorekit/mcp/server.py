@@ -94,11 +94,18 @@ async def lorekit_character_create(
     universe_id: str,
     name: str,
     character_description: str = "",
+    target_audience: str = "",
+    performance_notes: str = "",
     group_name: str = "",
     era: str = "",
 ) -> str:
-    """Create a new character in a universe. Provide a rich character_description for best video results."""
-    return await tools.character_create(universe_id, name, group_name, era, character_description)
+    """Create a new character in a universe.
+
+    character_description: Physical appearance only (face, hair, build, clothing).
+    target_audience: Who this character represents / speaks to.
+    performance_notes: Reaction choreography, mannerisms, acting direction for video.
+    """
+    return await tools.character_create(universe_id, name, group_name, era, character_description, target_audience, performance_notes)
 
 
 @mcp.tool
@@ -108,9 +115,15 @@ async def lorekit_character_update(
     character_description: str | None = None,
     era: str | None = None,
     group: str | None = None,
+    target_audience: str | None = None,
+    performance_notes: str | None = None,
 ) -> str:
-    """Update a character's properties."""
-    fields = {k: v for k, v in {"name": name, "character_description": character_description, "era": era, "group": group}.items() if v is not None}
+    """Update a character's properties.
+
+    performance_notes: Reaction choreography, mannerisms, acting direction for video.
+    target_audience: Who this character represents / speaks to.
+    """
+    fields = {k: v for k, v in {"name": name, "character_description": character_description, "era": era, "group": group, "target_audience": target_audience, "performance_notes": performance_notes}.items() if v is not None}
     return await tools.character_update(character_id, **fields)
 
 
@@ -123,15 +136,28 @@ async def lorekit_character_image_generate(
     character_id: str,
     theme: str = "",
     custom_description: str = "",
+    view: str = "",
 ) -> str:
-    """Generate a portrait image for a character. Optionally specify a theme (e.g. 'dark_masculine')."""
-    return await tools.character_image_generate(character_id, theme, custom_description)
+    """Generate a portrait image for a character. Optionally specify a theme (e.g. 'dark_masculine').
+
+    Use 'view' to generate additional images of the same character in different
+    settings or angles (e.g. 'work_truck', 'apartment_balcony', 'gym').
+    Each view is stored separately — the default portrait is not overwritten.
+    Pass 'custom_description' to control the scene/setting for the view.
+    """
+    return await tools.character_image_generate(character_id, theme, custom_description, view)
 
 
 @mcp.tool
 async def lorekit_character_image_list(character_id: str) -> str:
     """List all generated portrait images for a character."""
     return await tools.character_image_list(character_id)
+
+
+@mcp.tool
+async def lorekit_character_image_delete(character_id: str, theme: str, index: int) -> str:
+    """Delete a character image by theme and index. Use lorekit_character_image_list to see indices."""
+    return await tools.character_image_delete(character_id, theme, index)
 
 
 # ---------------------------------------------------------------------------
@@ -327,14 +353,21 @@ async def lorekit_generate_story(
     arc_template: str | None = None,
     aspect_ratio: str = "9:16",
     quote_ids: list[str] | None = None,
+    story_context: str = "",
 ) -> str:
     """Generate a story breakdown for a new video. Creates a project with scene-by-scene plan.
 
     This is step 1 of video creation. After this, use generate_clips() then generate_render().
     aspect_ratio: '9:16' for YouTube Shorts/TikTok, '16:9' for landscape.
+    story_context: Free-text creative direction for the LLM. Describe the mood, reaction style,
+    scenario, or any specific direction. Character performance_notes are auto-injected.
+    Examples:
+    - UGC: 'Person discovers a finance app. Starts skeptical, slowly becomes convinced.'
+    - Cartoon: 'Whimsical adventure through a candy factory. Bright colors, exaggerated physics.'
+    - Product: 'Sleek product reveal with dramatic lighting and hero shots.'
     """
     return await tools.generate_story(
-        character_id, universe_id, target_duration, theme, arc_template, aspect_ratio, quote_ids,
+        character_id, universe_id, target_duration, theme, arc_template, aspect_ratio, quote_ids, story_context,
     )
 
 
@@ -345,9 +378,30 @@ async def lorekit_generate_clips(project_id: str) -> str:
 
 
 @mcp.tool
-async def lorekit_generate_clip(project_id: str, scene_id: int) -> str:
-    """Regenerate a single scene's video clip."""
-    return await tools.generate_clip(project_id, scene_id)
+async def lorekit_generate_clip(project_id: str, scene_id: int, character_image_url: str | None = None) -> str:
+    """Regenerate a single scene's video clip.
+
+    character_image_url: Override the character portrait for this clip (e.g., gym view).
+    Use character_image_list() to find available views.
+    """
+    return await tools.generate_clip(project_id, scene_id, character_image_url=character_image_url)
+
+
+@mcp.tool
+async def lorekit_project_character_image(
+    project_id: str,
+    custom_description: str,
+    label: str = "variation",
+    scene_id: int | None = None,
+) -> str:
+    """Generate a character variation for this project (e.g., gym outfit, different setting).
+
+    Edits the base portrait using Kontext Max — changes clothing/background while keeping face identical.
+    Stored as a project material (visible in Media Gallery), NOT on the character.
+    Pass scene_id to auto-set as reference image on that scene.
+    Use the returned image_url as character_image_url in generate_clip().
+    """
+    return await tools.project_character_image(project_id, custom_description, label, scene_id)
 
 
 @mcp.tool
@@ -396,6 +450,139 @@ async def lorekit_scene_update(
     """Edit a scene's visual description, camera angle, text overlay, or duration."""
     fields = {k: v for k, v in {"visual_description": visual_description, "camera": camera, "text_overlay": text_overlay, "duration": duration}.items() if v is not None}
     return await tools.scene_update(project_id, scene_id, **fields)
+
+
+@mcp.tool
+async def lorekit_scene_add(
+    project_id: str,
+    visual_description: str = "",
+    camera: str = "",
+    beat: str = "reaction",
+    duration: float = 5.0,
+    character_present: bool = True,
+    text_overlay: str = "",
+    after_scene_id: int | None = None,
+) -> str:
+    """Add a new scene to a project. Inserts after after_scene_id (or appends at end).
+
+    Auto-adds transitions between scenes. Use generate_clip() after to produce video.
+    """
+    fields: dict = {
+        "visual_description": visual_description,
+        "camera": camera,
+        "beat": beat,
+        "duration": duration,
+        "character_present": character_present,
+        "text_overlay": text_overlay,
+    }
+    if after_scene_id is not None:
+        fields["after_scene_id"] = after_scene_id
+    return await tools.scene_add(project_id, **fields)
+
+
+@mcp.tool
+async def lorekit_scene_delete(project_id: str, scene_id: int) -> str:
+    """Delete a scene and its adjacent transitions. Renumbers remaining scenes."""
+    return await tools.scene_delete(project_id, scene_id)
+
+
+@mcp.tool
+async def lorekit_scene_reorder(project_id: str, scene_ids: list[int]) -> str:
+    """Reorder scenes. Pass all scene_ids in desired order."""
+    return await tools.scene_reorder(project_id, scene_ids)
+
+
+# ---------------------------------------------------------------------------
+# Text Overlays
+# ---------------------------------------------------------------------------
+
+@mcp.tool
+async def lorekit_text_list(project_id: str) -> str:
+    """List all text overlays in a project."""
+    return await tools.text_list(project_id)
+
+
+@mcp.tool
+async def lorekit_text_add(
+    project_id: str,
+    text: str,
+    from_frame: int = 0,
+    duration_frames: int = 150,
+    font_family: str = "Cinzel",
+    font_size: int = 48,
+    color: str = "#FFFFFF",
+    position_x: float = 0.5,
+    position_y: float = 0.5,
+    width: float = 0.8,
+) -> str:
+    """Add a text overlay to a project timeline.
+
+    Position: x/y are normalized 0-1 (0.5 = center). Duration in frames (30fps, so 150 = 5s).
+    """
+    return await tools.text_add(project_id, text=text, from_frame=from_frame,
+        duration_frames=duration_frames, font_family=font_family,
+        font_size=font_size, color=color,
+        position={"x": position_x, "y": position_y}, width=width)
+
+
+@mcp.tool
+async def lorekit_text_update(
+    project_id: str,
+    text_id: str,
+    text: str | None = None,
+    font_family: str | None = None,
+    font_size: int | None = None,
+    color: str | None = None,
+    from_frame: int | None = None,
+    duration_frames: int | None = None,
+    position_x: float | None = None,
+    position_y: float | None = None,
+    width: float | None = None,
+    enabled: bool | None = None,
+) -> str:
+    """Update a text overlay's properties."""
+    fields: dict = {k: v for k, v in {
+        "text": text, "font_family": font_family, "font_size": font_size,
+        "color": color, "from_frame": from_frame, "duration_frames": duration_frames,
+        "width": width, "enabled": enabled,
+    }.items() if v is not None}
+    if position_x is not None or position_y is not None:
+        fields["position"] = {"x": position_x or 0.5, "y": position_y or 0.5}
+    return await tools.text_update(project_id, text_id, **fields)
+
+
+@mcp.tool
+async def lorekit_text_delete(project_id: str, text_id: str) -> str:
+    """Delete a text overlay from a project."""
+    return await tools.text_delete(project_id, text_id)
+
+
+# ---------------------------------------------------------------------------
+# Transitions
+# ---------------------------------------------------------------------------
+
+@mcp.tool
+async def lorekit_transition_update(
+    project_id: str,
+    from_scene_id: int,
+    to_scene_id: int,
+    transition_type: str | None = None,
+    prompt: str | None = None,
+    duration: float | None = None,
+    speed: float | None = None,
+) -> str:
+    """Update or create a transition between two scenes."""
+    fields = {k: v for k, v in {
+        "transition_type": transition_type, "prompt": prompt,
+        "duration": duration, "speed": speed,
+    }.items() if v is not None}
+    return await tools.transition_update(project_id, from_scene_id, to_scene_id, **fields)
+
+
+@mcp.tool
+async def lorekit_transition_delete(project_id: str, from_scene_id: int, to_scene_id: int) -> str:
+    """Delete a transition between two scenes (becomes hard cut)."""
+    return await tools.transition_delete(project_id, from_scene_id, to_scene_id)
 
 
 # ---------------------------------------------------------------------------
@@ -466,8 +653,95 @@ async def lorekit_vibe_presets() -> str:
 
 @mcp.tool
 async def lorekit_arc_templates() -> str:
-    """List available story arc templates (narrative structures like 'story', 'rapid_montage', etc)."""
+    """List available story arc templates (narrative structures like 'story', 'rapid_montage', etc).
+    Includes both built-in and custom templates."""
     return await tools.arc_templates()
+
+
+@mcp.tool
+async def lorekit_arc_template_create(
+    name: str,
+    description: str = "",
+    beats_json: str = "[]",
+    optional_beats_json: str = "[]",
+    min_duration: float = 30,
+    max_duration: float = 50,
+    min_scenes: int = 5,
+    max_scenes: int = 8,
+    max_scene_duration: float = 8,
+    system_prompt_fragment: str = "",
+) -> str:
+    """Create a custom arc template (narrative structure for video generation).
+
+    beats_json: JSON array of beat definitions, e.g. [{"beat": "hook", "duration_range": [3, 5], "purpose": "Stop the scroll"}]
+    system_prompt_fragment: Optional LLM prompt fragment injected during story generation. Auto-generated if empty.
+    """
+    return await tools.arc_template_create(
+        name, description, beats_json, optional_beats_json,
+        min_duration, max_duration, min_scenes, max_scenes,
+        max_scene_duration, system_prompt_fragment,
+    )
+
+
+@mcp.tool
+async def lorekit_arc_template_update(
+    template_id: str,
+    name: str | None = None,
+    description: str | None = None,
+    beats_json: str | None = None,
+    min_duration: float | None = None,
+    max_duration: float | None = None,
+    min_scenes: int | None = None,
+    max_scenes: int | None = None,
+    max_scene_duration: float | None = None,
+    system_prompt_fragment: str | None = None,
+) -> str:
+    """Update a custom arc template. Built-in templates cannot be edited."""
+    fields = {k: v for k, v in {
+        "name": name, "description": description, "beats_json": beats_json,
+        "min_duration": min_duration, "max_duration": max_duration,
+        "min_scenes": min_scenes, "max_scenes": max_scenes,
+        "max_scene_duration": max_scene_duration,
+        "system_prompt_fragment": system_prompt_fragment,
+    }.items() if v is not None}
+    return await tools.arc_template_update(template_id, **fields)
+
+
+@mcp.tool
+async def lorekit_arc_template_delete(template_id: str) -> str:
+    """Delete a custom arc template. Built-in templates cannot be deleted."""
+    return await tools.arc_template_delete(template_id)
+
+
+@mcp.tool
+async def lorekit_context_presets(category: str = "") -> str:
+    """List story context presets — reusable creative directions for video generation.
+
+    Categories: 'ugc', 'cinematic', 'product', 'general'. Leave empty for all.
+    Use a preset's `context` value as the `story_context` parameter in lorekit_generate_story.
+    """
+    return await tools.context_presets(category)
+
+
+@mcp.tool
+async def lorekit_context_preset_create(
+    name: str,
+    context: str,
+    description: str = "",
+    category: str = "general",
+) -> str:
+    """Create a custom story context preset for reuse across video generations.
+
+    context: The creative direction text (e.g. 'Person starts skeptical, slowly becomes convinced').
+    category: 'ugc', 'cinematic', 'product', or 'general'.
+    """
+    return await tools.context_preset_create(name, context, description, category)
+
+
+@mcp.tool
+async def lorekit_context_preset_delete(preset_id: str) -> str:
+    """Delete a custom context preset. Built-in presets cannot be deleted."""
+    return await tools.context_preset_delete(preset_id)
 
 
 @mcp.tool
