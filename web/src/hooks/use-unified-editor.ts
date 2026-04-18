@@ -769,6 +769,7 @@ export function useUnifiedEditor(projectId: string, universeId: string) {
   return {
     // Project state
     project,
+    setProject,
     scenes,
     transitions,
     textItems,

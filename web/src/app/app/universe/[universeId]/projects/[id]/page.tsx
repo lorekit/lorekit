@@ -192,6 +192,11 @@ export default function ProjectEditorPage({
         universeId={universeId}
         projectId={id}
         projectName={editor.project.name}
+        onRenameProject={async (name) => {
+          const { updateProject } = await import("@/lib/api");
+          await updateProject(id, { name });
+          editor.setProject({ ...editor.project!, name });
+        }}
         clipsGenerated={editor.clipsGenerated}
         totalScenes={editor.scenes.length}
         totalDuration={actualTotalDuration ?? editor.totalDuration}
