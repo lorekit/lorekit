@@ -12,14 +12,8 @@ from typing import Any
 from lorekit.mcp.tools import _request, _fmt
 
 
-async def workflow_create(
-    project_id: str, template: str | None = None, name: str = "", template_params: str = "{}",
-) -> str:
-    body: dict[str, Any] = {"project_id": project_id, "name": name}
-    if template:
-        body["template"] = template
-        body["template_params"] = json.loads(template_params) if template_params else {}
-    return _fmt(await _request("POST", "/api/workflow", json_body=body))
+async def workflow_create(project_id: str, name: str = "") -> str:
+    return _fmt(await _request("POST", "/api/workflow", json_body={"project_id": project_id, "name": name}))
 
 
 async def workflow_get(project_id: str) -> str:
@@ -70,10 +64,6 @@ async def workflow_execute(project_id: str) -> str:
 
 async def workflow_retry_node(project_id: str, node_id: str) -> str:
     return _fmt(await _request("POST", "/api/workflow/retry", json_body={"workflow_id": project_id, "node_id": node_id}))
-
-
-async def workflow_templates() -> str:
-    return _fmt(await _request("GET", "/api/workflow/templates"))
 
 
 async def workflow_node_types() -> str:

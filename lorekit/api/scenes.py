@@ -122,10 +122,9 @@ def _scene_to_response(scene: SceneItem, timeline: Timeline) -> dict:
             for mid in scene.reference_image_ids
             if (m := _resolve_material(timeline, mid))
         ],
-        "quote_id": scene.quote_id,
         "enabled": scene.enabled,
-        "source_start_frame": scene.source_start_frame,
-        "source_duration_frames": scene.source_duration_frames,
+        "keyframe_node_id": scene.keyframe_node_id,
+        "clip_node_id": scene.clip_node_id,
     }
 
 
@@ -229,6 +228,8 @@ class TransitionUpdate(BaseModel):
     prompt: str | None = None
     duration: float | None = None
     speed: float | None = None
+    start_image_url: str | None = None
+    end_image_url: str | None = None
 
 
 class CopyKeyframeRequest(BaseModel):
@@ -345,6 +346,86 @@ async def update_scene(
     return _scene_to_response(scene, timeline)
 
 
+class SceneAdd(BaseModel):
+    visual_description: str = ""
+    camera: str = "STATIC selfie angle — phone held at arm's length, slightly above eye level. NO camera movement."
+    beat: str = "reaction"
+    duration: float = 5.0  # seconds
+    character_present: bool = True
+    text_overlay: str = ""
+    after_scene_id: int | None = None  # None = append at end
+
+
+@router.post("/{project_id}")
+async def add_scene(
+    project_id: str, body: SceneAdd,
+    user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """Add a new scene to a project timeline."""
+    project = await db.get_project(project_id, org_id=user.org_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    timeline = _load_timeline(project)
+    video_track = timeline.get_video_track()
+
+    # Determine next scene_id
+    existing_ids = [i.scene_id for i in video_track.items if isinstance(i, SceneItem)]
+    next_id = max(existing_ids) + 1 if existing_ids else 1
+
+    # Create the new scene
+    new_scene = SceneItem(
+        scene_id=next_id,
+        beat=body.beat,
+        visual_description=body.visual_description,
+        camera=body.camera,
+        character_present=body.character_present,
+        text_overlay=body.text_overlay,
+        duration_frames=_seconds_to_frames(max(3, min(15, body.duration))),
+    )
+
+    # Find insertion point
+    if body.after_scene_id is not None:
+        target = _find_scene(timeline, body.after_scene_id)
+        if not target:
+            raise HTTPException(status_code=404, detail=f"Scene {body.after_scene_id} not found")
+        idx = video_track.items.index(target)
+        # Skip past any transition after the target scene
+        insert_at = idx + 1
+        if insert_at < len(video_track.items) and isinstance(video_track.items[insert_at], TransitionItem):
+            insert_at += 1
+    else:
+        insert_at = len(video_track.items)
+
+    # Insert transition before new scene (if there's a scene before it)
+    prev_is_scene = insert_at > 0 and isinstance(
+        video_track.items[insert_at - 1], SceneItem
+    )
+    if prev_is_scene:
+        trans = TransitionItem(
+            prompt="Smooth natural transition",
+            duration_frames=_seconds_to_frames(3.0),
+        )
+        video_track.items.insert(insert_at, trans)
+        insert_at += 1
+
+    # Insert the new scene
+    video_track.items.insert(insert_at, new_scene)
+
+    # If there's a scene after, add a transition
+    next_idx = insert_at + 1
+    if next_idx < len(video_track.items) and isinstance(video_track.items[next_idx], SceneItem):
+        trans = TransitionItem(
+            prompt="Smooth natural transition",
+            duration_frames=_seconds_to_frames(3.0),
+        )
+        video_track.items.insert(next_idx, trans)
+
+    _recalc_frames(timeline)
+    await _save_timeline(project_id, timeline, org_id=user.org_id)
+    return _scene_to_response(new_scene, timeline)
+
+
 @router.delete("/{project_id}/{scene_id}")
 async def delete_scene(
     project_id: str, scene_id: int,
@@ -378,13 +459,6 @@ async def delete_scene(
         to_remove.add(idx + 1)
 
     video_track.items = [item for i, item in enumerate(video_track.items) if i not in to_remove]
-
-    # Renumber remaining scenes sequentially
-    new_id = 0
-    for item in video_track.items:
-        if isinstance(item, SceneItem):
-            item.scene_id = new_id
-            new_id += 1
 
     # Clean up orphaned materials
     used_mids = set()
@@ -424,28 +498,49 @@ async def reorder_scenes(
     video_track = timeline.get_video_track()
 
     # Build maps
-    scene_map = {}
-    transitions = []
+    scene_map: dict[int, SceneItem] = {}
+    transition_map: dict[tuple[int, int], TransitionItem] = {}
+    prev_scene_id: int | None = None
     for item in video_track.items:
         if isinstance(item, SceneItem):
+            if prev_scene_id is not None:
+                pass  # transition_map already populated below
+            prev_scene_id = item.scene_id
             scene_map[item.scene_id] = item
-        elif isinstance(item, TransitionItem):
-            transitions.append(item)
+        elif isinstance(item, TransitionItem) and prev_scene_id is not None:
+            # Find the next scene to build the (from, to) key
+            next_idx = video_track.items.index(item) + 1
+            for j in range(next_idx, len(video_track.items)):
+                if isinstance(video_track.items[j], SceneItem):
+                    transition_map[(prev_scene_id, video_track.items[j].scene_id)] = item
+                    break
 
-    # Rebuild video track in new order (scenes only, transitions stripped)
-    reordered = []
-    for new_idx, sid in enumerate(body.scene_ids):
-        if sid not in scene_map:
-            raise HTTPException(status_code=400, detail=f"Scene {sid} not found")
-        scene = scene_map[sid]
-        scene.scene_id = new_idx
-        reordered.append(scene)
+    # Rebuild video track with scenes in new order + preserve transitions
+    # DON'T renumber scene_ids — they are stable identifiers, not positions
+    reordered_items: list = []
+    ordered_old_ids = list(body.scene_ids)
+    for i, old_sid in enumerate(ordered_old_ids):
+        if old_sid not in scene_map:
+            raise HTTPException(status_code=400, detail=f"Scene {old_sid} not found")
+        scene = scene_map[old_sid]
+        reordered_items.append(scene)
 
-    video_track.items = reordered
+        # Insert transition between this and next scene if one existed
+        if i < len(ordered_old_ids) - 1:
+            next_old_sid = ordered_old_ids[i + 1]
+            trans = transition_map.get((old_sid, next_old_sid))
+            if not trans:
+                trans = TransitionItem(
+                    prompt="Smooth natural transition",
+                    duration_frames=_seconds_to_frames(3.0),
+                )
+            reordered_items.append(trans)
+
+    video_track.items = reordered_items
     _recalc_frames(timeline)
     await _save_timeline(project_id, timeline, org_id=user.org_id)
 
-    return {"scenes": [_scene_to_response(s, timeline) for s in reordered]}
+    return {"scenes": [_scene_to_response(s, timeline) for s in reordered_items if isinstance(s, SceneItem)]}
 
 
 @router.post("/{project_id}/copy-keyframe")

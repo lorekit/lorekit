@@ -2,33 +2,29 @@
 
 import React from "react";
 import {
-  ScrollText,
-  SlidersHorizontal,
   Music,
   Image as ImageIcon,
   Upload,
   Volume2,
-  Play,
   Trash2,
   Clapperboard,
   Download,
   Type,
   Plus,
 } from "lucide-react";
-import type { Scene, Transition, RenderRecord, TextItem } from "@/lib/api";
+import type { Scene, RenderRecord, TextItem } from "@/lib/api";
 import { clipUrl, API_BASE } from "@/lib/api";
-import { cn, BEAT_TEXT_COLORS, formatDuration } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
 /*  Tab types                                                          */
 /* ------------------------------------------------------------------ */
 
-export type LeftPanelTab = "script" | "audio" | "media" | "renders" | "text";
+export type LeftPanelTab = "media" | "audio" | "renders" | "text";
 
 const TABS: Array<{ key: LeftPanelTab; label: string; icon: React.ElementType }> = [
-  { key: "script", label: "Script", icon: ScrollText },
-  { key: "audio", label: "Audio", icon: Music },
   { key: "media", label: "Media", icon: ImageIcon },
+  { key: "audio", label: "Audio", icon: Music },
   { key: "renders", label: "Renders", icon: Clapperboard },
   { key: "text", label: "Text", icon: Type },
 ];
@@ -39,38 +35,17 @@ const TABS: Array<{ key: LeftPanelTab; label: string; icon: React.ElementType }>
 
 interface LeftPanelProps {
   scenes: Scene[];
-  selectedSceneId: string | null;
-  onSelectScene: (id: string) => void;
-
-  // Full video
-  isFullVideoSelected?: boolean;
-  onSelectFullVideo?: () => void;
-  totalDuration?: number;
-
-  // Transitions
-  selectedTransition?: Transition | null;
-  onSelectTransition?: (fromSceneId: number, toSceneId: number) => void;
-  transitionClips?: Record<string, { clip_path?: string; prompt?: string }>;
-
-  // Scene/transition deletion
-  onDeleteScene?: (sceneId: string, sceneNum: number) => void;
-  onDeleteTransition?: (fromSceneId: number, toSceneId: number) => void;
-
-  // Characters (for script tab display)
-  characters?: Array<{ name: string; imageUrl: string | null }>;
 
   // Audio
   audioFilename?: string;
 
   // Media
   characterPortraitUrl?: string | null;
+  characterImages?: Array<{ url: string | null; path: string | null; label: string }>;
 
   // Active tab (controlled)
   activeTab: LeftPanelTab;
   onTabChange: (tab: LeftPanelTab) => void;
-
-  // View properties callback (switches to right panel)
-  onViewProperties?: () => void;
 
   // Render history
   renders?: RenderRecord[];
@@ -91,22 +66,11 @@ interface LeftPanelProps {
 
 export function LeftPanel({
   scenes,
-  selectedSceneId,
-  onSelectScene,
-  isFullVideoSelected,
-  onSelectFullVideo,
-  totalDuration,
-  characters,
-  onDeleteScene,
-  onDeleteTransition,
-  selectedTransition,
-  onSelectTransition,
-  transitionClips,
   audioFilename,
   characterPortraitUrl,
+  characterImages,
   activeTab,
   onTabChange,
-  onViewProperties,
   renders,
   onDownloadRender,
   onDeleteRender,
@@ -140,24 +104,6 @@ export function LeftPanel({
 
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        {activeTab === "script" && (
-          <ScriptTab
-            scenes={scenes}
-            selectedSceneId={selectedSceneId}
-            selectedTransition={selectedTransition}
-            onSelectScene={onSelectScene}
-            onSelectTransition={onSelectTransition}
-            onDeleteScene={onDeleteScene}
-            onDeleteTransition={onDeleteTransition}
-            onViewProperties={onViewProperties}
-            characters={characters}
-            transitionClips={transitionClips}
-            isFullVideoSelected={isFullVideoSelected}
-            onSelectFullVideo={onSelectFullVideo}
-            totalDuration={totalDuration}
-          />
-        )}
-
         {activeTab === "audio" && (
           <AudioTab
             audioFilename={audioFilename}
@@ -168,6 +114,7 @@ export function LeftPanel({
           <MediaTab
             scenes={scenes}
             characterPortraitUrl={characterPortraitUrl}
+            characterImages={characterImages}
           />
         )}
 
@@ -234,226 +181,6 @@ export function LeftPanel({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Scenes Tab                                                         */
-/* ------------------------------------------------------------------ */
-
-function ScriptTab({
-  scenes,
-  selectedSceneId,
-  selectedTransition,
-  onSelectScene,
-  onSelectTransition,
-  onDeleteScene,
-  onDeleteTransition,
-  onViewProperties,
-  characters,
-  transitionClips,
-  isFullVideoSelected,
-  onSelectFullVideo,
-  totalDuration,
-}: {
-  scenes: Scene[];
-  selectedSceneId: string | null;
-  selectedTransition?: Transition | null;
-  onSelectScene: (id: string) => void;
-  onSelectTransition?: (fromSceneId: number, toSceneId: number) => void;
-  onDeleteScene?: (sceneId: string, sceneNum: number) => void;
-  onDeleteTransition?: (fromSceneId: number, toSceneId: number) => void;
-  onViewProperties?: () => void;
-  characters?: Array<{ name: string; imageUrl: string | null }>;
-  transitionClips?: Record<string, { clip_path?: string; prompt?: string }>;
-  isFullVideoSelected?: boolean;
-  onSelectFullVideo?: () => void;
-  totalDuration?: number;
-}) {
-  // Only show beat badges when scenes have varied beats (not all IMPACT, etc.)
-  const showBeats = new Set(scenes.map(s => s.beat).filter(Boolean)).size > 1;
-
-  if (scenes.length === 0) {
-    return (
-      <div className="p-4 text-center text-sm text-slate-500">
-        No scenes yet
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-2">
-      {/* Characters */}
-      {characters && characters.length > 0 && (
-        <div className="mb-3 space-y-1.5">
-          <p className="text-[10px] text-slate-500 uppercase tracking-wider font-medium">Characters</p>
-          <div className="flex gap-2 flex-wrap">
-            {characters.map((char) => (
-              <div key={char.name} className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2.5 py-1.5 border border-slate-700/50">
-                {char.imageUrl ? (
-                  <img src={char.imageUrl} alt={char.name} className="w-7 h-7 rounded object-cover border border-slate-600" />
-                ) : (
-                  <div className="w-7 h-7 rounded bg-slate-700 flex items-center justify-center text-slate-500 text-xs">?</div>
-                )}
-                <span className="text-xs text-slate-300 font-medium">{char.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Full Video row */}
-      {onSelectFullVideo && (
-        <div
-          onClick={onSelectFullVideo}
-          className={cn(
-            "rounded-lg border transition-all border-l-2 cursor-pointer mb-2",
-            isFullVideoSelected
-              ? "border-amber-500/70 bg-amber-500/10 border-l-amber-500"
-              : "border-slate-700/50 bg-slate-900 hover:border-slate-600 border-l-amber-500/60"
-          )}
-        >
-          <div className="flex items-center px-2.5 py-2 gap-2">
-            <Play className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="text-[11px] font-semibold text-slate-300 flex-1">Full Video</span>
-            {totalDuration != null && totalDuration > 0 && (
-              <span className="text-[10px] text-slate-500 shrink-0">
-                {formatDuration(totalDuration)}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Scenes & transitions (nested under Full Video) */}
-      <div className="space-y-1 ml-3">
-        {scenes.map((scene, idx) => {
-          const sceneNum = scene.scene_id ?? idx + 1;
-          const isSelected = scene.id === selectedSceneId && !isFullVideoSelected;
-
-          return (
-            <React.Fragment key={scene.id}>
-            <div
-              onClick={() => onSelectScene(scene.id)}
-              className={cn(
-                "rounded-lg border transition-all border-l-2 cursor-pointer",
-                isSelected
-                  ? "border-amber-500/70 bg-amber-500/10 border-l-amber-500"
-                  : "border-slate-700/50 bg-slate-900 hover:border-slate-600 border-l-amber-500/60"
-              )}
-            >
-              <div className="flex items-center px-2.5 py-1.5 gap-2 group/scene">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-semibold text-slate-300">
-                      Scene {sceneNum}
-                    </span>
-                    {showBeats && scene.beat && (
-                      <span className={cn(
-                        "text-[9px] px-1.5 py-0.5 rounded-full border font-medium uppercase",
-                        BEAT_TEXT_COLORS[scene.beat] || "bg-slate-800 text-slate-400 border-slate-700"
-                      )}>
-                        {scene.beat}
-                      </span>
-                    )}
-                    <span className={cn("w-1.5 h-1.5 rounded-full", scene.clip_url ? "bg-emerald-500" : "bg-slate-600")} title={scene.clip_url ? "Clip generated" : "No clip yet"} />
-                    <span className="ml-auto text-[10px] text-slate-500 shrink-0">
-                      {formatDuration(scene.duration)}
-                    </span>
-                  </div>
-                  {onViewProperties && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); onSelectScene(scene.id); onViewProperties(); }}
-                      className="flex items-center gap-1 text-[10px] text-amber-400/60 hover:text-amber-400 transition-colors mt-0.5"
-                    >
-                      <SlidersHorizontal className="w-3 h-3" /> View Properties
-                    </button>
-                  )}
-                </div>
-
-                {onDeleteScene && scenes.length > 2 && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteScene(scene.id, sceneNum);
-                    }}
-                    className="p-1 text-slate-600 hover:text-red-400 opacity-0 group-hover/scene:opacity-100 transition-all cursor-pointer shrink-0"
-                    title="Delete scene"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Transition row between scenes */}
-            {idx < scenes.length - 1 && (() => {
-              const nextScene = scenes[idx + 1];
-              const nextSceneNum = nextScene.scene_id ?? idx + 2;
-              const transKey = `${sceneNum}_${nextSceneNum}`;
-              const transClip = transitionClips?.[transKey];
-              const hasClip = !!transClip?.clip_path;
-              const bothClipsExist = !!scene.clip_url && !!nextScene.clip_url;
-
-              const isTransSelected = !isFullVideoSelected && selectedTransition?.from_scene_id === sceneNum && selectedTransition?.to_scene_id === nextSceneNum;
-
-              return (
-                <div
-                  onClick={() => bothClipsExist && onSelectTransition?.(sceneNum, nextSceneNum)}
-                  className={cn(
-                    "group/trans rounded-lg border px-2.5 py-1.5 flex items-center justify-between ml-3 my-0.5 border-l-2",
-                    bothClipsExist && "cursor-pointer",
-                    isTransSelected
-                      ? "border-amber-500/70 bg-amber-500/10 border-l-amber-500"
-                      : hasClip
-                      ? "border-emerald-500/30 bg-emerald-900/20 border-l-emerald-500/60"
-                      : "border-dashed border-slate-600 bg-slate-800/50 border-l-violet-500/40"
-                  )}
-                >
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[10px] font-medium text-slate-500">
-                      Transition {sceneNum} → {nextSceneNum}
-                    </span>
-                    {bothClipsExist && onViewProperties ? (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); onSelectTransition?.(sceneNum, nextSceneNum); onViewProperties(); }}
-                        className="flex items-center gap-1 text-[10px] text-amber-400/60 hover:text-amber-400 transition-colors mt-0.5"
-                      >
-                        <SlidersHorizontal className="w-3 h-3" /> View Properties
-                      </button>
-                    ) : !bothClipsExist ? (
-                      <p className="text-[10px] text-slate-600 mt-0.5">
-                        Generate both clips first
-                      </p>
-                    ) : null}
-                  </div>
-                  {hasClip && onDeleteTransition && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteTransition(sceneNum, nextSceneNum);
-                      }}
-                      className="p-1 text-slate-600 hover:text-red-400 opacity-0 group-hover/trans:opacity-100 transition-all cursor-pointer shrink-0"
-                      title="Remove transition"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-              );
-            })()}
-          </React.Fragment>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-
-/* ------------------------------------------------------------------ */
-
-/* ------------------------------------------------------------------ */
 /*  Audio Tab                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -506,9 +233,11 @@ function AudioTab({
 function MediaTab({
   scenes,
   characterPortraitUrl,
+  characterImages,
 }: {
   scenes: Scene[];
   characterPortraitUrl?: string | null;
+  characterImages?: Array<{ url: string | null; path: string | null; label: string }>;
 }) {
   // Collect all keyframes (current + history), deduplicated
   const seen = new Set<string>();
@@ -538,7 +267,32 @@ function MediaTab({
       }))
   );
 
-  const hasAny = !!(characterPortraitUrl || allKeyframes.length || extractedFrames.length);
+  // Collect character variations (reference images from scenes)
+  const characterVariations: Array<{ url: string; label: string }> = [];
+  for (const s of scenes) {
+    for (const ref of s.reference_images ?? []) {
+      const refUrl = typeof ref === "string" ? ref : ref.url || ref.path;
+      if (refUrl && !seen.has(refUrl)) {
+        seen.add(refUrl);
+        characterVariations.push({
+          url: refUrl.startsWith("/files/") ? refUrl : `/files/${refUrl}`,
+          label: `Scene ${s.scene_id ?? "?"}`,
+        });
+      }
+    }
+  }
+
+  // Merge character images from API
+  const charImgs = (characterImages ?? []).filter((img) => img.url || img.path);
+
+  const hasAny = !!(charImgs.length || allKeyframes.length || extractedFrames.length || characterVariations.length);
+
+  const resolveImgSrc = (img: { url: string | null; path: string | null }) => {
+    const raw = img.path || img.url || "";
+    if (raw.startsWith("http")) return raw;
+    const normalized = raw.startsWith("/") ? raw : `/${raw}`;
+    return clipUrl(normalized.startsWith("/files/") ? normalized : `/files${normalized}`);
+  };
 
   return (
     <div className="p-3 space-y-4 overflow-y-auto">
@@ -546,7 +300,7 @@ function MediaTab({
         Media Gallery
       </p>
       <p className="text-[11px] text-slate-500">
-        All generated keyframes, extracted frames, and character images. Use the Keyframe tab to select reference images per scene.
+        Drag images onto the canvas to use them as reference nodes.
       </p>
 
       {!hasAny && (
@@ -557,20 +311,58 @@ function MediaTab({
         </div>
       )}
 
-      {characterPortraitUrl && (
+      {charImgs.length > 0 && (
         <div>
-          <p className="text-[11px] font-medium text-slate-500 mb-1.5">Character Portrait</p>
+          <p className="text-[11px] font-medium text-slate-500 mb-1.5">Character Images</p>
           <div className="grid grid-cols-3 gap-1.5">
-            <div className="relative rounded-lg overflow-hidden border border-slate-800">
-              <img
-                src={characterPortraitUrl.startsWith("http") ? characterPortraitUrl : clipUrl(characterPortraitUrl)}
-                alt="Portrait"
-                className="w-full aspect-[9/16] object-cover"
-              />
-              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-1 py-0.5">
-                <span className="text-[9px] text-white/80">Portrait</span>
+            {charImgs.map((img, idx) => {
+              const src = resolveImgSrc(img);
+              const dragUrl = img.path || img.url || "";
+              return (
+                <div
+                  key={`char-${idx}`}
+                  className="relative rounded-lg overflow-hidden border border-slate-800 cursor-grab active:cursor-grabbing hover:border-amber-500/50 transition-colors"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("application/workflow-image", JSON.stringify({
+                      type: "character_ref",
+                      image_url: dragUrl,
+                      label: img.label || `Ref ${idx + 1}`,
+                    }));
+                    e.dataTransfer.effectAllowed = "copy";
+                  }}
+                >
+                  <img
+                    src={src}
+                    alt={img.label}
+                    className="w-full aspect-square object-cover"
+                  />
+                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-1 py-0.5">
+                    <span className="text-[9px] text-white/80">{img.label}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {characterVariations.length > 0 && (
+        <div>
+          <p className="text-[11px] font-medium text-slate-500 mb-1.5">Character Variations</p>
+          <div className="grid grid-cols-3 gap-1.5">
+            {characterVariations.map(({ url, label }, idx) => (
+              <div key={`cv-${idx}`} className="relative rounded-lg overflow-hidden border border-slate-800">
+                <img
+                  src={url.startsWith("http") ? url : clipUrl(url)}
+                  alt={label}
+                  className="w-full aspect-[9/16] object-cover"
+                />
+                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-1 py-0.5">
+                  <span className="text-[9px] text-white/80">{label}</span>
+                </div>
               </div>
-            </div>
+            ))}
           </div>
         </div>
       )}

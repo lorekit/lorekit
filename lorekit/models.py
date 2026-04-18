@@ -105,7 +105,6 @@ class BaseItem(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
     from_frame: int = 0
     duration_frames: int = 0
-    locked: bool = False
     enabled: bool = True
 
 
@@ -117,20 +116,18 @@ class SceneItem(BaseItem):
     visual_description: str = ""
     camera: str = ""
     text_overlay: str = ""
-    text_attribution: str | None = None
     character_present: bool = False
     speed: float = 1.0
     # Material references (IDs into Timeline.materials)
     clip_material_id: str | None = None
     keyframe_material_id: str | None = None
-    keyframe_history: list[str] = []  # material IDs of previous keyframes
+    keyframe_history: list[str] = []
     end_keyframe_material_id: str | None = None
-    extracted_frame_ids: list[str] = []  # material IDs of extracted frames
-    reference_image_ids: list[str] = []  # material IDs of reference images
-    quote_id: str | None = None
-    # Source range: which portion of the source clip to use (enables trimming)
-    source_start_frame: int = 0
-    source_duration_frames: int = 0  # 0 = use full clip
+    extracted_frame_ids: list[str] = []
+    reference_image_ids: list[str] = []
+    # Workflow node IDs — permanently link this scene to its generation nodes
+    keyframe_node_id: str | None = None
+    clip_node_id: str | None = None
 
     @property
     def duration(self) -> float:
@@ -157,6 +154,8 @@ class TransitionItem(BaseItem):
     in_offset: int = 0   # frames overlapping with preceding clip
     out_offset: int = 0  # frames overlapping with following clip
     clip_material_id: str | None = None
+    start_image_url: str | None = None  # optional override for morph start frame
+    end_image_url: str | None = None    # optional override for morph end frame
 
 
 class TextItem(BaseItem):

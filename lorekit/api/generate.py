@@ -359,37 +359,9 @@ async def generate_story_endpoint(body: StoryRequest, user: CurrentUser = Depend
         hook_quote_id=body.hook_quote_id,
         truth_quote_id=body.truth_quote_id,
     )
-    # Build workflow graph from the story scenes
-    from lorekit.workflow.templates import from_story as build_workflow_from_story
-    from lorekit.api.character import get_character_image_url as _get_char_img, _load_ref_urls
-
-    char_image = await _get_char_img(body.character_id, theme=body.theme)
-    char_refs = await _load_ref_urls(body.character_id)
-
-    # Extract scenes from the timeline for the workflow
-    video_track = story.get_video_track()
-    scene_dicts = [
-        {
-            "scene_id": item.scene_id,
-            "beat": item.beat,
-            "visual_description": item.visual_description,
-            "camera": item.camera,
-            "duration": item.duration,
-            "text_overlay": item.text_overlay,
-            "character_present": item.character_present,
-        }
-        for item in video_track.items
-        if hasattr(item, "scene_id")
-    ]
-
-    workflow = build_workflow_from_story(
-        project_id=project_id,
-        scenes=scene_dicts,
-        character_image_url=char_image,
-        character_ref_urls=char_refs,
-        aspect_ratio=body.aspect_ratio,
-        theme=body.theme,
-    )
+    # Create empty workflow — nodes will be added by Claude skills or the user
+    from lorekit.workflow.models import Workflow
+    workflow = Workflow(project_id=project_id, name="Story Pipeline")
 
     await db.update_project(
         project_id,
@@ -1236,41 +1208,51 @@ async def _generate_transition_task(
 
         await db.update_job(job_id, status="running", message="Extracting frames from clips...")
 
-        # Resolve clip paths to local files
-        from_path = store.base_dir / from_mat.path if hasattr(store, "base_dir") else None
-        to_path = store.base_dir / to_mat.path if hasattr(store, "base_dir") else None
+        # Check for user-provided keyframe overrides on the transition item
+        trans_item = _find_transition_item(timeline, from_scene_id, to_scene_id)
+        override_start = trans_item.start_image_url if trans_item and trans_item.start_image_url else None
+        override_end = trans_item.end_image_url if trans_item and trans_item.end_image_url else None
 
-        if not from_path or not from_path.exists() or not to_path or not to_path.exists():
-            await db.update_job(job_id, status="failed", message="Clip files not found on disk")
-            return
+        if override_start and override_end:
+            # Both frames provided — skip extraction
+            last_frame_url = override_start
+            first_frame_url = override_end
+        else:
+            # Extract frames from clips
+            from_path = store.base_dir / from_mat.path if hasattr(store, "base_dir") else None
+            to_path = store.base_dir / to_mat.path if hasattr(store, "base_dir") else None
 
-        # Extract last frame of clip A and first frame of clip B using ffmpeg
-        with tempfile.TemporaryDirectory() as tmpdir:
-            last_frame = f"{tmpdir}/last_frame.png"
-            first_frame = f"{tmpdir}/first_frame.png"
+            if not from_path or not from_path.exists() or not to_path or not to_path.exists():
+                await db.update_job(job_id, status="failed", message="Clip files not found on disk")
+                return
 
-            # Last frame of from_clip
-            subprocess.run([
-                "ffmpeg", "-y", "-sseof", "-0.1", "-i", str(from_path),
-                "-frames:v", "1", "-q:v", "2", last_frame,
-            ], capture_output=True, check=True)
+            with tempfile.TemporaryDirectory() as tmpdir:
+                import fal_client
+                import os
+                if not os.environ.get("FAL_KEY"):
+                    os.environ["FAL_KEY"] = settings.fal_key
 
-            # First frame of to_clip
-            subprocess.run([
-                "ffmpeg", "-y", "-i", str(to_path),
-                "-frames:v", "1", "-q:v", "2", first_frame,
-            ], capture_output=True, check=True)
+                if override_start:
+                    last_frame_url = override_start
+                else:
+                    last_frame = f"{tmpdir}/last_frame.png"
+                    subprocess.run([
+                        "ffmpeg", "-y", "-sseof", "-0.1", "-i", str(from_path),
+                        "-frames:v", "1", "-q:v", "2", last_frame,
+                    ], capture_output=True, check=True)
+                    with open(last_frame, "rb") as f:
+                        last_frame_url = fal_client.upload(f.read(), content_type="image/png")
 
-            # Upload frames to fal CDN
-            import fal_client
-            import os
-            if not os.environ.get("FAL_KEY"):
-                os.environ["FAL_KEY"] = settings.fal_key
-
-            with open(last_frame, "rb") as f:
-                last_frame_url = fal_client.upload(f.read(), content_type="image/png")
-            with open(first_frame, "rb") as f:
-                first_frame_url = fal_client.upload(f.read(), content_type="image/png")
+                if override_end:
+                    first_frame_url = override_end
+                else:
+                    first_frame = f"{tmpdir}/first_frame.png"
+                    subprocess.run([
+                        "ffmpeg", "-y", "-i", str(to_path),
+                        "-frames:v", "1", "-q:v", "2", first_frame,
+                    ], capture_output=True, check=True)
+                    with open(first_frame, "rb") as f:
+                        first_frame_url = fal_client.upload(f.read(), content_type="image/png")
 
         await db.update_job(job_id, status="running", message="Generating AI transition...")
 

@@ -201,21 +201,16 @@ def _seconds_to_frames(seconds: float) -> int:
 
 def _parse_scene(raw: dict[str, Any], character_name: str) -> SceneItem:
     """Parse a raw scene dict from Claude's response into a SceneItem."""
-    text_attr = raw.get("text_attribution")
-    if text_attr is None and raw.get("text_overlay"):
-        text_attr = f"\u2014 {character_name}"
-
     duration_sec = float(raw["duration"])
     duration_sec = max(3.0, min(15.0, duration_sec))
 
     return SceneItem(
-        scene_id=raw["scene_id"],
+        scene_id=max(1, int(raw.get("scene_id", 1))),
         beat=raw["beat"],
         duration_frames=_seconds_to_frames(duration_sec),
         visual_description=raw["visual_description"],
         camera=raw["camera"],
         text_overlay=raw.get("text_overlay") or "",
-        text_attribution=text_attr,
         character_present=raw.get("character_present", False),
     )
 

@@ -57,12 +57,11 @@ export interface Scene {
   end_keyframe_url?: string | null;
   extracted_frames?: Array<{ url: string | null; path: string | null }> | null;
   reference_images?: string[] | null;
-  quote_id: string | null;
   character_present?: boolean;
-  speed?: number;              // playback speed multiplier (default 1.0)
+  speed?: number;
   enabled?: boolean;
-  source_start_frame?: number;
-  source_duration_frames?: number;
+  keyframe_node_id?: string | null;
+  clip_node_id?: string | null;
 }
 
 export interface Transition {
@@ -81,6 +80,8 @@ export interface Transition {
   clip_path?: string | null;  // generated clip file path (ai_morph only)
   clip_url?: string | null;   // generated clip URL (ai_morph only)
   enabled?: boolean;
+  start_image_url?: string | null;  // optional override for morph start frame
+  end_image_url?: string | null;    // optional override for morph end frame
 }
 
 export interface TextItem {
@@ -946,3 +947,66 @@ export interface BillingAnalytics {
   burn_rate: number;
   days_remaining: number | null;
 }
+
+// --- Workflow Types ---
+
+export interface WorkflowNode {
+  id: string;
+  type: string;
+  label: string;
+  params: Record<string, any>;
+  inputs: Record<string, string>;
+  outputs: Record<string, any>;
+  status: "pending" | "running" | "completed" | "failed" | "skipped";
+  error: string | null;
+  cost: number;
+  position: { x: number; y: number };
+}
+
+export interface Workflow {
+  id: string;
+  project_id: string;
+  name: string;
+  nodes: Record<string, WorkflowNode>;
+  status: "draft" | "running" | "completed" | "failed" | "partial";
+}
+
+// --- Workflow API ---
+
+export const getWorkflow = (projectId: string) =>
+  fetchAPI<Workflow>(`/api/workflow/${projectId}`);
+
+export const createWorkflow = (data: { project_id: string; name?: string }) =>
+  fetchAPI<Workflow>("/api/workflow", { method: "POST", body: JSON.stringify(data) });
+
+export const updateWorkflowFull = (projectId: string, workflow: Workflow) =>
+  fetchAPI<Workflow>(`/api/workflow/${projectId}`, { method: "PUT", body: JSON.stringify(workflow) });
+
+export const addWorkflowNode = (data: {
+  workflow_id: string;
+  type: string;
+  label?: string;
+  params?: Record<string, any>;
+  inputs?: Record<string, string>;
+}) =>
+  fetchAPI<{ node_id: string; workflow: Workflow }>("/api/workflow/node", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const executeWorkflow = (workflowId: string) =>
+  fetchAPI<{ job_id: string }>("/api/workflow/execute", {
+    method: "POST",
+    body: JSON.stringify({ workflow_id: workflowId }),
+  });
+
+export const getWorkflowNodeTypes = () =>
+  fetchAPI<{
+    node_types: Array<{
+      type: string;
+      category: string;
+      label: string;
+      input_keys: string[];
+      output_keys: string[];
+    }>;
+  }>("/api/workflow/node-types");

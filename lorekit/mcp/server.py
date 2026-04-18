@@ -756,15 +756,9 @@ async def lorekit_tts_models() -> str:
 # ---------------------------------------------------------------------------
 
 @mcp.tool
-async def lorekit_workflow_create(
-    project_id: str, template: str | None = None, name: str = "", template_params: str = "{}",
-) -> str:
-    """Create a workflow for a project, optionally from a template.
-
-    Templates: "ugc_reaction", "multi_scene", "face_swap_ugc".
-    template_params is a JSON string of template-specific parameters.
-    """
-    return await wf_tools.workflow_create(project_id, template, name, template_params)
+async def lorekit_workflow_create(project_id: str, name: str = "") -> str:
+    """Create an empty workflow for a project. Then add nodes with lorekit_workflow_add_node."""
+    return await wf_tools.workflow_create(project_id, name)
 
 
 @mcp.tool
@@ -818,12 +812,6 @@ async def lorekit_workflow_execute(project_id: str) -> str:
 async def lorekit_workflow_retry_node(project_id: str, node_id: str) -> str:
     """Retry a failed node. Resets it to pending and re-executes the workflow."""
     return await wf_tools.workflow_retry_node(project_id, node_id)
-
-
-@mcp.tool
-async def lorekit_workflow_templates() -> str:
-    """List available workflow templates (pre-built pipeline patterns)."""
-    return await wf_tools.workflow_templates()
 
 
 @mcp.tool
