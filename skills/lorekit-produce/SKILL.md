@@ -211,50 +211,179 @@ lorekit_scene_update(
 
 Build the generation pipeline by adding nodes and connecting them. Use `lorekit_workflow_add_node` to add nodes and `lorekit_workflow_connect` to wire outputs to inputs. Include `scene_id` in params to auto-link nodes to timeline scenes.
 
-#### Node Type Reference
+#### Node Reference
 
-**Image Generation:**
+Every node takes `params` (JSON string of config) and `inputs` (JSON string mapping input names to upstream `<node_id>.outputs.<key>` references).
 
-| Type | What It Does | Key Params | Cost |
-|------|-------------|------------|------|
-| `kontext_keyframe` | Generate image from prompt + reference photos | `prompt`, `reference_images` (up to 4 URLs), `aspect_ratio`, `scene_id` | $0.04 |
-| `kontext_edit` | Edit a single image (change outfit, background) | `prompt`, `image` (input URL), `aspect_ratio` | $0.04 |
-| `nano_banana` | Fast image gen with up to 14 reference images | `prompt`, `image_urls`, `aspect_ratio` | $0.04 |
+---
 
-**Video Generation:**
+**`kontext_keyframe`** — Generate image from prompt + up to 4 reference photos. Best for creating consistent character keyframes. $0.04
 
-| Type | What It Does | Key Params | Cost |
-|------|-------------|------------|------|
-| `kling_v3_pro` | Character-focused video from keyframe | `prompt`, `duration` (3-15s), `elements` (character refs), `scene_id` | $0.14/s |
-| `kling_o3` | Cinematic/environment video | `prompt`, `duration` | $0.10/s |
-| `transition` | Smooth morph between two clips | `prompt`, `duration`, needs `start_image` + `end_image` or `from_clip` + `to_clip` | $0.14/s |
+Params: `prompt` (scene description), `reference_images` (list of up to 4 URLs), `aspect_ratio` ("9:16" or "16:9"), `scene_id` (links to timeline)
+Inputs: `ref_1` through `ref_4` (upstream image URLs, alternative to `reference_images` in params)
+Output: `url` (generated image)
 
-**Transform:**
+When to use: Starting point for any scene. Describe the exact shot — character position, expression, lighting, setting. The more specific the prompt, the better. Reference images anchor the character's face/body across generations.
 
-| Type | What It Does | Key Params | Cost |
-|------|-------------|------------|------|
-| `face_swap` | Swap a face onto a target image | needs `source_face` + `target_image` inputs | $0.05 |
-| `upscale` | Upscale image 2x or 4x (Real-ESRGAN) | `scale` (2 or 4), needs `image` input | $0.02 |
-| `bg_remove` | Remove background from image | needs `image` input | $0.02 |
+---
 
-**Audio:**
+**`kontext_edit`** — Edit a single existing image. Change clothing, background, lighting, add/remove objects while keeping the person identical. $0.04
 
-| Type | What It Does | Key Params | Cost |
-|------|-------------|------------|------|
-| `tts_minimax` | Fast text-to-speech | `text`, `voice_id` | $0.06 |
-| `tts_orpheus` | Voice cloning TTS | `text`, `voice_id`, `reference_audio` | $0.06 |
-| `tts_elevenlabs` | Multilingual TTS | `text`, `voice_id` | $0.06 |
+Params: `prompt` (edit instruction, NOT full scene description), `aspect_ratio`
+Inputs: `image` (source image to edit)
+Output: `url` (edited image)
 
-**Local/FFmpeg:**
+When to use: Creating character views (same person, different setting), product placement into existing scenes, style transfers. Write edit instructions like "Change the background to a modern office" not full descriptions.
 
-| Type | What It Does | Key Params | Cost |
-|------|-------------|------------|------|
-| `download` | Download a URL to local storage | `url`, `dest_path` | Free |
-| `extract_frames` | Extract PNG frames from video | `video_path`, `timestamps` (list of seconds) | Free |
-| `video_stitch` | Concatenate clips into one video | `clip_1`, `clip_2`, ... (input refs) | Free |
-| `ffmpeg_grade` | Apply color grading | `environment_key`, needs `video` input | Free |
-| `ffmpeg_overlay` | Burn text onto video | `text`, `font_size`, `color`, `position` (center/top/bottom) | Free |
-| `character_ref` | Pass-through for character image | `image_url` in params | Free |
+---
+
+**`nano_banana`** — Fast image generation with up to 14 reference images. Good for style-consistent generation with many references. $0.04
+
+Params: `prompt`, `image_urls` (list of up to 14 URLs), `aspect_ratio`
+Output: `url`
+
+When to use: When you need more than 4 reference images for style consistency, or want faster generation than Kontext.
+
+---
+
+**`kling_v3_pro`** — Generate 3-15 second video from a keyframe image. Best for character-focused scenes with identity preservation. $0.14/sec
+
+Params: `prompt` (motion/action description), `duration` (3-15 seconds), `scene_id` (links to timeline), `cfg_scale` (guidance strength, default 0.5 — lower = more creative, higher = more prompt-adherent), `negative_prompt` (what to avoid)
+Inputs: `start_image` (keyframe), `end_image` (optional — for seamless loops)
+Output: `url` (video)
+
+Character consistency via `elements` param:
+```json
+"elements": [{"frontal_image_url": "face.png", "reference_image_urls": ["angle1.png", "angle2.png"]}]
+```
+This tells Kling to maintain the character's face throughout the video. Use the character's portrait as `frontal_image_url` and additional angle photos as references.
+
+Prompt tips: Describe MOTION, not appearance. "Man slowly turns to camera, raises eyebrow, slight smirk" not "handsome man in suit." The keyframe already establishes appearance.
+
+---
+
+**`kling_o3`** — Generate 3-15 second cinematic/environment video. Better for landscapes, architecture, wide shots without specific character focus. $0.10/sec
+
+Params: `prompt`, `duration`
+Inputs: `image_url` or `start_image` (keyframe), `end_image` (optional)
+Output: `url` (video)
+
+When to use: Establishing shots, transitions between scenes, nature/city b-roll, any shot where character face consistency isn't critical. Cheaper than V3 Pro.
+
+---
+
+**`transition`** — Generate a smooth morph video between two clips. Extracts end frame of clip A and start frame of clip B, then generates a transition between them. $0.14/sec
+
+Params: `prompt` (transition style description, default "Smooth cinematic transition"), `duration` (3-15s, default 3)
+Inputs: `start_image` + `end_image` (preferred — explicit frame URLs), OR `from_clip` + `to_clip` (video paths — frames auto-extracted via ffmpeg)
+Output: `url` (transition video)
+
+When to use: Between any two clips that need a smooth connection. Short durations (3-5s) work best. Prompt can describe the transition style: "Camera pans right revealing the next scene" or "Dissolve through particles."
+
+---
+
+**`face_swap`** — Replace the face in a target image with a source face. $0.05
+
+Inputs: `source_face` (photo of the face to paste in), `target_image` (image to modify)
+Output: `url` (swapped image)
+
+When to use: Making yourself appear in AI-generated keyframes, replacing actors in existing content, creating consistent character across different generated scenes. Chain with `kling_v3_pro` to animate the swapped result.
+
+---
+
+**`upscale`** — Enlarge an image 2x or 4x using Real-ESRGAN. $0.02
+
+Params: `scale` (2 or 4, default 2)
+Inputs: `image` (image to upscale)
+Output: `url` (upscaled image)
+
+When to use: Before final render when source keyframes are too low-res, or for print/thumbnail output. 4x on a 512px image → 2048px.
+
+---
+
+**`bg_remove`** — Remove background from an image, producing a transparent PNG. $0.02
+
+Inputs: `image` (image to process)
+Output: `url` (transparent PNG)
+
+When to use: Isolating characters or products for compositing, creating stickers, preparing assets for `kontext_edit` product placement.
+
+---
+
+**`tts_minimax`** — Fast text-to-speech via MiniMax. $0.06
+
+Params: `text` (speech content), `voice_id` (optional)
+Output: `url` (audio file)
+
+---
+
+**`tts_orpheus`** — Voice cloning TTS. Can clone a voice from a reference audio sample. $0.06
+
+Params: `text`, `voice_id`, `reference_audio` (URL to voice sample for cloning)
+Output: `url`
+
+---
+
+**`tts_elevenlabs`** — High-quality multilingual TTS. $0.06
+
+Params: `text`, `voice_id`
+Output: `url`
+
+---
+
+**`download`** — Fetch any URL to local storage. Free.
+
+Inputs: `url` (any HTTP URL)
+Params: `dest_path` (optional storage path)
+Output: `path` (local file path), `url` (original URL)
+
+When to use: Import videos from the internet for remixing, fetch reference images, pull audio files.
+
+---
+
+**`extract_frames`** — Pull PNG frames from a video at specific timestamps. Free.
+
+Inputs: `video_path` (local video file)
+Params: `timestamps` (list of seconds, e.g. `[0, 2.5, 5, 10]`)
+Output: `frames` (list of PNG paths)
+
+When to use: Pulling frames for face swap, creating thumbnails, extracting key moments from imported video for re-animation.
+
+---
+
+**`video_stitch`** / **`ffmpeg_stitch`** — Concatenate multiple clips into one video. Free.
+
+Inputs: `clip_1`, `clip_2`, `clip_3`, ... (video URLs or paths, sorted by key name). Can also include `transition_1_2`, `transition_2_3` between clips.
+Output: `path` (stitched video)
+
+When to use: Final assembly of all generated clips + transitions into one continuous video.
+
+---
+
+**`ffmpeg_grade`** — Apply color grading to a video. Free.
+
+Inputs: `video` (video path)
+Params: `environment_key` (grading profile name)
+Output: `path` (graded video)
+
+---
+
+**`ffmpeg_overlay`** — Burn text onto a video. Free.
+
+Inputs: `video` (video path)
+Params: `text` (content), `font_size` (default 48), `color` (default "white"), `position` ("center", "top", or "bottom")
+Output: `path` (video with text)
+
+When to use: Adding CTAs, watermarks, captions, branded text to final clips.
+
+---
+
+**`character_ref`** — Pass-through node that holds a character image URL. Free.
+
+Params: `image_url` (character portrait path or URL)
+Output: `url` (same image)
+
+When to use: Anchor node that other keyframe nodes reference. Drag character images from the media gallery onto the canvas to create these automatically.
 
 #### Building a Workflow
 
