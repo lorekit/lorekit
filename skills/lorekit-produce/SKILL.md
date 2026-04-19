@@ -29,6 +29,7 @@ You are producing video content with LoreKit via MCP tools. Follow this guide fo
 | **Jobs** | `lorekit_job_status` |
 | **Voices** | `lorekit_voice_get`, `lorekit_voice_set`, `lorekit_tts_models` |
 | **Arc Templates** | `lorekit_arc_templates`, `lorekit_arc_template_create`, `lorekit_arc_template_update`, `lorekit_arc_template_delete` |
+| **Workflow** | `lorekit_workflow_create`, `lorekit_workflow_get`, `lorekit_workflow_add_node`, `lorekit_workflow_update_node`, `lorekit_workflow_remove_node`, `lorekit_workflow_connect`, `lorekit_workflow_execute`, `lorekit_workflow_retry_node`, `lorekit_workflow_node_types` |
 | **Config** | `lorekit_settings`, `lorekit_vibe_presets` |
 
 ---
@@ -208,37 +209,81 @@ lorekit_scene_update(
 
 ### Step 7: Build Workflow & Generate Clips
 
-Build the generation pipeline by adding nodes. Each scene needs a keyframe node + clip node:
+Build the generation pipeline by adding nodes and connecting them. Use `lorekit_workflow_add_node` to add nodes and `lorekit_workflow_connect` to wire outputs to inputs. Include `scene_id` in params to auto-link nodes to timeline scenes.
+
+#### Node Type Reference
+
+**Image Generation:**
+
+| Type | What It Does | Key Params | Cost |
+|------|-------------|------------|------|
+| `kontext_keyframe` | Generate image from prompt + reference photos | `prompt`, `reference_images` (up to 4 URLs), `aspect_ratio`, `scene_id` | $0.04 |
+| `kontext_edit` | Edit a single image (change outfit, background) | `prompt`, `image` (input URL), `aspect_ratio` | $0.04 |
+| `nano_banana` | Fast image gen with up to 14 reference images | `prompt`, `image_urls`, `aspect_ratio` | $0.04 |
+
+**Video Generation:**
+
+| Type | What It Does | Key Params | Cost |
+|------|-------------|------------|------|
+| `kling_v3_pro` | Character-focused video from keyframe | `prompt`, `duration` (3-15s), `elements` (character refs), `scene_id` | $0.14/s |
+| `kling_o3` | Cinematic/environment video | `prompt`, `duration` | $0.10/s |
+| `transition` | Smooth morph between two clips | `prompt`, `duration`, needs `start_image` + `end_image` or `from_clip` + `to_clip` | $0.14/s |
+
+**Transform:**
+
+| Type | What It Does | Key Params | Cost |
+|------|-------------|------------|------|
+| `face_swap` | Swap a face onto a target image | needs `source_face` + `target_image` inputs | $0.05 |
+| `upscale` | Upscale image 2x or 4x (Real-ESRGAN) | `scale` (2 or 4), needs `image` input | $0.02 |
+| `bg_remove` | Remove background from image | needs `image` input | $0.02 |
+
+**Audio:**
+
+| Type | What It Does | Key Params | Cost |
+|------|-------------|------------|------|
+| `tts_minimax` | Fast text-to-speech | `text`, `voice_id` | $0.06 |
+| `tts_orpheus` | Voice cloning TTS | `text`, `voice_id`, `reference_audio` | $0.06 |
+| `tts_elevenlabs` | Multilingual TTS | `text`, `voice_id` | $0.06 |
+
+**Local/FFmpeg:**
+
+| Type | What It Does | Key Params | Cost |
+|------|-------------|------------|------|
+| `download` | Download a URL to local storage | `url`, `dest_path` | Free |
+| `extract_frames` | Extract PNG frames from video | `video_path`, `timestamps` (list of seconds) | Free |
+| `video_stitch` | Concatenate clips into one video | `clip_1`, `clip_2`, ... (input refs) | Free |
+| `ffmpeg_grade` | Apply color grading | `environment_key`, needs `video` input | Free |
+| `ffmpeg_overlay` | Burn text onto video | `text`, `font_size`, `color`, `position` (center/top/bottom) | Free |
+| `character_ref` | Pass-through for character image | `image_url` in params | Free |
+
+#### Building a Workflow
 
 ```
-# For each scene, add a keyframe generator
-lorekit_workflow_add_node(
-  project_id="...",
-  type="kontext_keyframe",
-  label="Scene 1",
-  params='{"prompt": "...", "scene_id": 1, "reference_images": ["..."], "aspect_ratio": "9:16"}'
-)
+# 1. Create workflow
+lorekit_workflow_create(project_id="...")
 
-# Add a video generator connected to the keyframe
-lorekit_workflow_add_node(
-  project_id="...",
-  type="kling_v3_pro",
-  label="Clip 1",
+# 2. Add character reference node
+lorekit_workflow_add_node(project_id="...", type="character_ref", label="Character",
+  params='{"image_url": "path/to/character.png"}')
+
+# 3. For each scene, add keyframe + clip
+lorekit_workflow_add_node(project_id="...", type="kontext_keyframe", label="Scene 1",
+  params='{"prompt": "...", "scene_id": 1, "reference_images": ["..."], "aspect_ratio": "9:16"}')
+
+lorekit_workflow_add_node(project_id="...", type="kling_v3_pro", label="Clip 1",
   params='{"prompt": "...", "duration": 5, "scene_id": 1}',
-  inputs='{"start_image": "<keyframe_node_id>.outputs.url"}'
-)
-```
+  inputs='{"start_image": "<keyframe_node_id>.outputs.url"}')
 
-Include `scene_id` in params to auto-link nodes to timeline scenes.
+# 4. Connect character ref to keyframes
+lorekit_workflow_connect(project_id="...",
+  from_node="<char_ref_id>", output_key="url",
+  to_node="<keyframe_id>", input_key="ref_1")
 
-Available node types: `kontext_keyframe`, `kontext_edit`, `nano_banana`, `kling_v3_pro`, `kling_o3`, `face_swap`, `video_stitch`, `ffmpeg_stitch`, `tts_minimax`, `tts_orpheus`, `tts_elevenlabs`
-
-Execute the workflow:
-```
+# 5. Execute
 lorekit_workflow_execute(project_id="...")
 ```
 
-Or use the legacy per-scene generation:
+#### Legacy Per-Scene Generation (still works)
 ```
 lorekit_generate_clips(project_id="...")
 lorekit_generate_clip(project_id="...", scene_id=1)
@@ -337,6 +382,30 @@ lorekit_generate_story(character_id="...", universe_id="...",
 2. Character: product spokesperson or animated mascot
 3. `story_context`: "Walkthrough of the app's key features with enthusiasm"
 4. Different `story_context` per video for feature highlights
+
+### Clone Yourself (AI Avatar)
+1. Upload 3-5 reference photos of the person via `lorekit_character_reference_image_upload`
+2. Workflow: `character_ref` → `kontext_keyframe` (with all refs) → `kling_v3_pro`
+3. For face-perfect results: add `face_swap` node between keyframe and video — use a real photo as `source_face`, keyframe output as `target_image`
+
+### Person Replacement in Existing Video
+1. `download` node to fetch the source video
+2. `extract_frames` to pull key frames
+3. `face_swap` on each frame with the target person's face
+4. `kling_v3_pro` to animate each swapped frame
+5. `video_stitch` to reassemble
+
+### Product Placement
+1. `kontext_edit` — take a scene image, prompt: "Add a [product] on the table, natural lighting"
+2. `kling_v3_pro` — animate the edited image into video
+3. `ffmpeg_overlay` — add product name/CTA text
+
+### Import & Remix
+1. `download` — fetch any video URL
+2. `extract_frames` — pull timestamps you want
+3. `kontext_edit` — modify extracted frames (change style, add elements)
+4. `kling_v3_pro` — re-animate modified frames
+5. `video_stitch` + `ffmpeg_grade` — assemble and color-match
 
 ### Batch Production Pattern
 For any content type, the formula is:
