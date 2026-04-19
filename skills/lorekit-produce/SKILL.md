@@ -34,6 +34,42 @@ You are producing video content with LoreKit via MCP tools. Follow this guide fo
 
 ---
 
+## Before You Start: Ask the User
+
+Before building anything, have a conversation with the user to understand what they want. Don't assume — ask. Cover these topics:
+
+**Universe & Character:**
+- Are we working in an existing universe or creating a new one? → `lorekit_universe_list` to show options
+- New character or existing? → `lorekit_character_list` to show what's available
+- Do they have reference images for the character? How many views (front, side, 3/4)?
+- What's the character's personality, look, vibe?
+
+**Content & Story:**
+- What's the video about? (ad, narrative, reaction hook, explainer, montage)
+- How long? (3-5s hook, 15-30s short, 60s+ full)
+- How many scenes?
+- What's the narration / script? Or should we generate one?
+
+**Voice & Audio:**
+- Should the character speak? → if yes, we'll add TTS + lip sync nodes
+- Which TTS model / voice? → `lorekit_tts_models` to show options, or use the character's saved voice
+- Background music? → they can upload audio or we use auto mode
+
+**Visual Style:**
+- What vibe/style? → `lorekit_vibe_presets` to show options
+- Aspect ratio? (9:16 vertical for social, 16:9 horizontal for YouTube)
+- Any specific visual references or mood?
+
+**Pipeline decisions based on answers:**
+- Character speaks → add `tts_*` + `lipsync` nodes per scene
+- No voice → skip TTS and lip sync, just keyframe + video
+- Multiple characters → add multiple `character_ref` nodes, set `character_id` per TTS node
+- Background music → set `audio_mode: "uploaded"` on project + upload audio file
+
+Only proceed to building once you have enough context. It's better to ask one extra question than to generate the wrong thing.
+
+---
+
 ## Production Workflow
 
 ### Step 1: Create a Universe
@@ -329,6 +365,17 @@ Output: `url`
 Params: `text`, `voice_id`
 Output: `url`
 
+All TTS nodes support `scene_id` (auto-loads narration from scene) and `character_id` (auto-resolves voice from character's global voice config set in the Characters tab). When `character_id` is set and `voice_id` is omitted, the executor looks up the character's saved voice preference.
+
+---
+
+**`lipsync`** — Sync a character's lip movements to audio. Takes a video and audio input, outputs a new video with synced lips. $0.13/sec
+
+Inputs: `video` (video URL — from a clip generation node), `audio` (audio URL — from a TTS node)
+Output: `url` (synced video)
+
+When to use: After generating both a video clip and TTS narration for a scene. The lip sync node is the final step that makes the character appear to speak the narration naturally. Always add this when a scene has both video and narration.
+
 ---
 
 **`download`** — Fetch any URL to local storage. Free.
@@ -387,6 +434,8 @@ When to use: Anchor node that other keyframe nodes reference. Drag character ima
 
 #### Building a Workflow
 
+For each scene, build the full pipeline: **keyframe → video + TTS → lip sync**. If the scene has narration, always include TTS and lip sync nodes.
+
 ```
 # 1. Create workflow
 lorekit_workflow_create(project_id="...")
@@ -395,13 +444,25 @@ lorekit_workflow_create(project_id="...")
 lorekit_workflow_add_node(project_id="...", type="character_ref", label="Character",
   params='{"image_url": "path/to/character.png"}')
 
-# 3. For each scene, add keyframe + clip
-lorekit_workflow_add_node(project_id="...", type="kontext_keyframe", label="Scene 1",
-  params='{"prompt": "...", "scene_id": 1, "reference_images": ["..."], "aspect_ratio": "9:16"}')
+# 3. For each scene, add the full pipeline:
 
-lorekit_workflow_add_node(project_id="...", type="kling_v3_pro", label="Clip 1",
+# 3a. Keyframe (image generation)
+lorekit_workflow_add_node(project_id="...", type="kontext_keyframe", label="Scene 1 Keyframe",
+  params='{"prompt": "...", "scene_id": 1, "aspect_ratio": "9:16"}')
+
+# 3b. Video clip (from keyframe)
+lorekit_workflow_add_node(project_id="...", type="kling_v3_pro", label="Scene 1 Video",
   params='{"prompt": "...", "duration": 5, "scene_id": 1}',
   inputs='{"start_image": "<keyframe_node_id>.outputs.url"}')
+
+# 3c. TTS narration (with character_id for auto voice resolution)
+lorekit_workflow_add_node(project_id="...", type="tts_minimax", label="Scene 1 TTS",
+  params='{"scene_id": 1, "character_id": "<character_id>"}')
+
+# 3d. Lip sync (combines video + audio)
+lorekit_workflow_add_node(project_id="...", type="lipsync", label="Scene 1 Lip Sync",
+  params='{"scene_id": 1}',
+  inputs='{"video": "<video_node_id>.outputs.url", "audio": "<tts_node_id>.outputs.url"}')
 
 # 4. Connect character ref to keyframes
 lorekit_workflow_connect(project_id="...",

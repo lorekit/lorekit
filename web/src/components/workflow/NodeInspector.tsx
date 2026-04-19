@@ -1608,7 +1608,8 @@ export function NodeInspector({
   const isTransition = node.type === "transition";
   // Clip/video generation nodes (kling, wan, etc.) — NOT TTS
   const isTTS = node.type.startsWith("tts_");
-  const isClip = !isKeyframe && !isCharacterRef && !isKontextEdit && !isTTS && (node.type.includes("kling") || node.type.includes("wan") || node.type === "lipsync");
+  const isLipSync = node.type === "lipsync";
+  const isClip = !isKeyframe && !isCharacterRef && !isKontextEdit && !isTTS && !isLipSync && (node.type.includes("kling") || node.type.includes("wan"));
   const isGeneration = !isKeyframe && !isCharacterRef && !isClip && !isKontextEdit && !isTTS && node.type.includes("nano_banana");
 
   // Find matching scene for keyframe, clip, and TTS nodes
@@ -1672,6 +1673,8 @@ export function NodeInspector({
           <ClipInspector node={node} scene={matchingScene} />
         ) : isTTS ? (
           <TTSInspector node={node} scene={matchingScene} universeId={universeId} />
+        ) : isLipSync ? (
+          <GenerationInspector node={node} />
         ) : isTransition ? (
           <TransitionInspector node={node} />
         ) : isGeneration ? (
