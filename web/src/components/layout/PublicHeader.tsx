@@ -188,7 +188,7 @@ export function PublicHeader() {
       {/* ─── Desktop: Product mega-menu ─── */}
       {openDropdown === "product" && (
         <div
-          className="hidden md:block absolute left-0 right-0 top-full border-t border-slate-800/50 bg-slate-950/95 backdrop-blur-sm z-30"
+          className="hidden md:block absolute left-0 right-0 top-full border-t border-slate-800/50 bg-slate-900/98 backdrop-blur-xl shadow-2xl shadow-black/40 z-30"
           onMouseEnter={() => handleEnter("product")}
           onMouseLeave={handleLeave}
         >
@@ -244,7 +244,7 @@ export function PublicHeader() {
       {/* ─── Desktop: Solutions mega-menu ─── */}
       {openDropdown === "solutions" && (
         <div
-          className="hidden md:block absolute left-0 right-0 top-full border-t border-slate-800/50 bg-slate-950/95 backdrop-blur-sm z-30"
+          className="hidden md:block absolute left-0 right-0 top-full border-t border-slate-800/50 bg-slate-900/98 backdrop-blur-xl shadow-2xl shadow-black/40 z-30"
           onMouseEnter={() => handleEnter("solutions")}
           onMouseLeave={handleLeave}
         >
@@ -291,7 +291,7 @@ export function PublicHeader() {
 
       {/* ─── Mobile menu ─── */}
       {menuOpen && (
-        <div className="md:hidden border-t border-slate-800/50 bg-slate-950/95 backdrop-blur-sm">
+        <div className="md:hidden border-t border-slate-800/50 bg-slate-900/98 backdrop-blur-xl shadow-2xl shadow-black/40">
           <nav className="max-w-7xl mx-auto px-4 py-3 flex flex-col gap-1">
             {/* Product section */}
             <button
