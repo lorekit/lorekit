@@ -180,18 +180,18 @@ export function DocCallout({ type = "info", children }: { type?: "info" | "warni
 /*  DocCard — link card for overview pages                             */
 /* ------------------------------------------------------------------ */
 
-export function DocCard({ href, title, description, icon: Icon }: {
+export function DocCard({ href, title, description, icon }: {
   href: string;
   title: string;
   description: string;
-  icon?: React.ElementType;
+  icon?: React.ReactNode;
 }) {
   return (
     <a
       href={href}
       className="block rounded-xl border border-slate-800 bg-slate-900/50 p-5 hover:border-slate-700 hover:bg-slate-900 transition-colors group"
     >
-      {Icon && <Icon className="w-5 h-5 text-amber-400 mb-3" />}
+      {icon && <div className="mb-3">{icon}</div>}
       <h3 className="text-sm font-semibold text-white mb-1 group-hover:text-amber-400 transition-colors">{title}</h3>
       <p className="text-xs text-slate-400 leading-relaxed">{description}</p>
     </a>

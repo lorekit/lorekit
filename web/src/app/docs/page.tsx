@@ -38,31 +38,31 @@ export default function DocsOverviewPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <DocCard
             href="/docs/getting-started"
-            icon={Terminal}
+            icon={<Terminal className="w-5 h-5 text-cyan-400" />}
             title="Getting Started"
             description="Connect Claude via MCP or use the web app. Setup instructions for Claude Code, Claude Desktop, and the HTTP endpoint."
           />
           <DocCard
             href="/docs/mcp-tools"
-            icon={BookOpen}
+            icon={<BookOpen className="w-5 h-5 text-amber-400" />}
             title="MCP Tools Reference"
             description={`${TOTAL_TOOLS} tools across 12 categories — universes, characters, generation, scenes, and more.`}
           />
           <DocCard
             href="/docs/nodes"
-            icon={Boxes}
+            icon={<Boxes className="w-5 h-5 text-purple-400" />}
             title="Workflow Nodes"
             description="19 node types for image generation, video creation, face swap, audio, and local ffmpeg operations."
           />
           <DocCard
             href="/docs/self-hosting"
-            icon={Server}
+            icon={<Server className="w-5 h-5 text-emerald-400" />}
             title="Self-Hosting Guide"
             description="Run LoreKit locally with your own API keys. Prerequisites, setup, and database configuration."
           />
           <DocCard
             href="/app"
-            icon={Globe}
+            icon={<Globe className="w-5 h-5 text-amber-400" />}
             title="Open the App"
             description="Jump straight into creating universes, characters, and videos."
           />
