@@ -10,7 +10,6 @@ import {
   Palette,
   ScrollText,
   FolderOpen,
-  ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUniverseStore } from "@/stores/universe-store";
@@ -56,15 +55,6 @@ export function Sidebar() {
 
   return (
     <aside className="flex h-full w-60 flex-col border-r border-slate-800 bg-slate-900">
-      {/* Back to universes */}
-      <Link
-        href="/app/universe"
-        className="flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-slate-950 bg-amber-500 hover:bg-amber-400 transition-colors"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" />
-        Universe
-      </Link>
-
       {/* Universe name + vibe */}
       <div className="px-4 py-4 border-b border-slate-800 space-y-2.5">
         <div className="flex items-center gap-2.5">

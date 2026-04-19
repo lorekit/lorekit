@@ -14,6 +14,7 @@ import {
   generateCharacterForCharacter,
   getCharacterVoice,
   uploadAudio,
+  createArcTemplate,
   clipUrl,
 } from "@/lib/api";
 import type { Character, SourceItem, VibePreset, ArcTemplate, CharacterImage, Universe, Script, CharacterVoice, AudioAnalysis } from "@/lib/api";
@@ -36,6 +37,7 @@ import {
   Mic,
   Upload,
   VolumeX,
+  Plus,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -584,6 +586,7 @@ function StepFormatAndCreate({
   generating,
   error,
   onGenerate,
+  onTemplatesChange,
 }: {
   character: Character;
   selectedItem: SourceItem | null;
@@ -608,7 +611,16 @@ function StepFormatAndCreate({
   generating: boolean;
   error: string | null;
   onGenerate: () => void;
+  onTemplatesChange?: () => void;
 }) {
+  const [showCreateArc, setShowCreateArc] = useState(false);
+  const [newArcName, setNewArcName] = useState("");
+  const [newArcDesc, setNewArcDesc] = useState("");
+  const [newArcMinDuration, setNewArcMinDuration] = useState(30);
+  const [newArcMaxDuration, setNewArcMaxDuration] = useState(50);
+  const [newArcMinScenes, setNewArcMinScenes] = useState(5);
+  const [newArcMaxScenes, setNewArcMaxScenes] = useState(8);
+  const [creatingArc, setCreatingArc] = useState(false);
   const vibeLabel = vibePresets[selectedTheme]?.name ?? selectedTheme;
   const arcLabel = arcTemplates[selectedArc]?.name ?? selectedArc;
 
@@ -684,6 +696,86 @@ function StepFormatAndCreate({
               </button>
             );
           })}
+
+          {/* Create custom template card */}
+          {!showCreateArc ? (
+            <button
+              type="button"
+              onClick={() => setShowCreateArc(true)}
+              className="rounded-xl border border-dashed border-slate-700 p-5 text-left transition-all bg-slate-900/50 hover:border-slate-500 flex items-center justify-center gap-2"
+            >
+              <Plus className="w-5 h-5 text-slate-500" />
+              <span className="text-sm text-slate-400">Custom Template</span>
+            </button>
+          ) : (
+            <div className="rounded-xl border border-slate-700 p-5 bg-slate-900 space-y-3 col-span-full">
+              <p className="text-sm font-medium text-white">Create Custom Template</p>
+              <input
+                type="text"
+                placeholder="Template name"
+                value={newArcName}
+                onChange={(e) => setNewArcName(e.target.value)}
+                className="w-full text-sm bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500"
+              />
+              <input
+                type="text"
+                placeholder="Description"
+                value={newArcDesc}
+                onChange={(e) => setNewArcDesc(e.target.value)}
+                className="w-full text-sm bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500"
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-slate-500">Duration (seconds)</label>
+                  <div className="flex items-center gap-2">
+                    <input type="number" value={newArcMinDuration} onChange={(e) => setNewArcMinDuration(+e.target.value)} className="w-full text-sm bg-slate-800 border border-slate-700 rounded px-2 py-1 text-white" />
+                    <span className="text-slate-500">–</span>
+                    <input type="number" value={newArcMaxDuration} onChange={(e) => setNewArcMaxDuration(+e.target.value)} className="w-full text-sm bg-slate-800 border border-slate-700 rounded px-2 py-1 text-white" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-500">Scenes</label>
+                  <div className="flex items-center gap-2">
+                    <input type="number" value={newArcMinScenes} onChange={(e) => setNewArcMinScenes(+e.target.value)} className="w-full text-sm bg-slate-800 border border-slate-700 rounded px-2 py-1 text-white" />
+                    <span className="text-slate-500">–</span>
+                    <input type="number" value={newArcMaxScenes} onChange={(e) => setNewArcMaxScenes(+e.target.value)} className="w-full text-sm bg-slate-800 border border-slate-700 rounded px-2 py-1 text-white" />
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button
+                  size="sm"
+                  disabled={!newArcName || creatingArc}
+                  onClick={async () => {
+                    setCreatingArc(true);
+                    try {
+                      const created = await createArcTemplate({
+                        name: newArcName,
+                        description: newArcDesc,
+                        min_duration: newArcMinDuration,
+                        max_duration: newArcMaxDuration,
+                        min_scenes: newArcMinScenes,
+                        max_scenes: newArcMaxScenes,
+                      });
+                      onSelectArc(created.id);
+                      onTemplatesChange?.();
+                      setShowCreateArc(false);
+                      setNewArcName("");
+                      setNewArcDesc("");
+                    } finally {
+                      setCreatingArc(false);
+                    }
+                  }}
+                >
+                  {creatingArc ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Plus className="w-4 h-4 mr-1" />}
+                  Create
+                </Button>
+                <button onClick={() => setShowCreateArc(false)} className="text-sm text-slate-400 hover:text-white">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1285,6 +1377,10 @@ export default function GenerateWizardPage({
             generating={generatingStory}
             error={generateError}
             onGenerate={handleGenerateStory}
+            onTemplatesChange={async () => {
+              const arcData = await getArcTemplates();
+              setArcTemplates(arcData.templates);
+            }}
           />
         )}
       </div>

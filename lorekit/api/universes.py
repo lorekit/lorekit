@@ -103,14 +103,29 @@ async def list_universe_characters(universe_id: str, user: CurrentUser = Depends
     uni = await db.get_universe(universe_id, org_id=user.org_id)
     if not uni:
         raise HTTPException(status_code=404, detail="Universe not found")
-    return await db.list_characters_by_universe(universe_id)
+    chars = await db.list_characters_by_universe(universe_id)
+    # Resolve default image from character_styles_json (first image in first theme)
+    for char in chars:
+        if char.get("character_styles_json"):
+            try:
+                styles = json.loads(char["character_styles_json"])
+                for theme_data in styles.values():
+                    imgs = theme_data.get("images", [])
+                    if imgs and imgs[0].get("url"):
+                        char["character_image_url"] = imgs[0]["url"]
+                        break
+            except (json.JSONDecodeError, TypeError):
+                pass
+    return chars
 
 
 class CharacterCreate(BaseModel):
     name: str
     group_name: str = ""
     era: str = ""
-    character_description: str = ""
+    character_description: str = ""  # appearance only
+    target_audience: str = ""
+    performance_notes: str = ""
 
 
 @router.post("/{universe_id}/characters")
@@ -126,9 +141,21 @@ async def create_universe_character(universe_id: str, body: CharacterCreate, use
         group_name=body.group_name,
         era=body.era,
         character_description=body.character_description,
+        target_audience=body.target_audience,
+        performance_notes=body.performance_notes,
         universe_id=universe_id,
     )
     pool = await db.get_pool()
+
+    # Auto-populate theme-specific description from universe vibe preset
+    vibe_preset = uni.get("video_vibe_preset") or ""
+    if vibe_preset and body.character_description:
+        styles = {vibe_preset: {"description": body.character_description}}
+        await pool.execute(
+            "UPDATE characters SET character_styles_json = $1 WHERE id = $2",
+            json.dumps(styles), character_id,
+        )
+
     row = await pool.fetchrow("SELECT * FROM characters WHERE id = $1", character_id)
     return dict(row) if row else {}
 

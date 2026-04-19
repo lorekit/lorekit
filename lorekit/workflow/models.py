@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 def _new_id() -> str:
@@ -39,6 +39,21 @@ class WorkflowNode(BaseModel):
     error: str | None = None               # error message if failed
     cost: float = 0.0                      # actual cost after completion
     position: dict[str, float] = {}        # {x, y} for React Flow layout
+
+    @model_validator(mode="before")
+    @classmethod
+    def _default_position(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            pos = data.get("position")
+            if isinstance(pos, dict):
+                data["position"] = {
+                    k: float(v) if v is not None else 0.0
+                    for k, v in pos.items()
+                }
+            elif not pos:
+                data["position"] = {"x": 0.0, "y": 0.0}
+        return data
+
     created_at: str = Field(default_factory=_now)
     started_at: str | None = None
     completed_at: str | None = None

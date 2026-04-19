@@ -15,6 +15,9 @@ import {
   Check,
   X,
   Upload,
+  ChevronLeft,
+  ChevronRight,
+  Star,
 } from "lucide-react";
 import {
   getCharacter,
@@ -40,11 +43,14 @@ import {
   getCharacterReferenceImages,
   uploadCharacterReferenceImage,
   deleteCharacterReferenceImage,
+  deleteCharacterImage,
+  setDefaultCharacterImage,
 } from "@/lib/api";
-import type { Character, SourceItem, CharacterImage, CharacterDocument, CharacterVoice, TTSModel, VibePreset, Universe } from "@/lib/api";
+import type { Character, SourceItem, CharacterImageTheme, CharacterDocument, CharacterVoice, TTSModel, VibePreset, Universe } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const THEME_COLORS: Record<string, string> = {
   mortality: "bg-red-500/20 text-red-400 border-red-500/30",
@@ -396,7 +402,7 @@ export default function StudioCharacterProfilePage({
   const { universeId, id } = use(params);
   const [character, setCharacter] = useState<Character | null>(null);
   const [sourceItems, setSourceItems] = useState<SourceItem[]>([]);
-  const [charImages, setCharImages] = useState<CharacterImage[]>([]);
+  const [charImages, setCharImages] = useState<CharacterImageTheme[]>([]);
   const [universe, setUniverse] = useState<Universe | null>(null);
   const [vibePresets, setVibePresets] = useState<Record<string, VibePreset>>({});
   const [loading, setLoading] = useState(true);
@@ -421,17 +427,25 @@ export default function StudioCharacterProfilePage({
   const [uploadingRef, setUploadingRef] = useState(false);
   const refFileInput = useRef<HTMLInputElement>(null);
   const [descriptionStyle, setDescriptionStyle] = useState<string | null>(null); // null = not initialized yet
+  const [showAddView, setShowAddView] = useState(false);
+  const [newViewName, setNewViewName] = useState("");
+  const [newViewDescription, setNewViewDescription] = useState("");
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const [deleteImageConfirm, setDeleteImageConfirm] = useState<{ theme: string; index: number; label: string } | null>(null);
 
   const refreshCharImages = useCallback(async () => {
     try {
       const data = await getCharacterImages(id);
-      // Add cache-buster to each image URL so the browser fetches fresh
       const bust = Date.now();
-      const images = data.images.map((img) => ({
-        ...img,
-        url: img.url ? img.url + (img.url.includes("?") ? "&" : "?") + "t=" + bust : img.url,
+      // Add cache-buster to all image URLs
+      const themes = data.themes.map((t) => ({
+        ...t,
+        images: t.images.map((img) => ({
+          ...img,
+          url: img.url ? img.url + (img.url.includes("?") ? "&" : "?") + "t=" + bust : img.url,
+        })),
       }));
-      setCharImages(images);
+      setCharImages(themes);
     } catch {}
   }, [id]);
 
@@ -441,7 +455,7 @@ export default function StudioCharacterProfilePage({
     Promise.all([
       getCharacter(id),
       getSourceItems({ character_id: id, limit: 500 }),
-      getCharacterImages(id).catch(() => ({ images: [] as CharacterImage[] })),
+      getCharacterImages(id).catch(() => ({ themes: [] as CharacterImageTheme[] })),
       getUniverse(universeId),
       getVibePresets().catch(() => ({ presets: {} as Record<string, VibePreset> })),
       getCharacterDocuments(universeId, id).catch(() => [] as CharacterDocument[]),
@@ -453,7 +467,7 @@ export default function StudioCharacterProfilePage({
         if (cancelled) return;
         setCharacter(char);
         setSourceItems(items);
-        setCharImages(charData.images);
+        setCharImages(charData.themes);
         setUniverse(uni);
         setVibePresets(vibeData.presets);
         setDescriptionStyle(uni.video_vibe_preset || "base");
@@ -481,17 +495,24 @@ export default function StudioCharacterProfilePage({
     filter === "all" ? sourceItems : sourceItems.filter((q) => q.theme === filter);
 
   const handleGenerateImage = useCallback(
-    async (theme: string, force = false) => {
+    async (theme: string, force = false, view?: string, customDescription?: string) => {
       if (!character) return;
       setGeneratingImage(true);
       setGeneratingTheme(theme);
       try {
-        const data = await generateCharacterForCharacter(character.id, { theme, force });
+        const data = await generateCharacterForCharacter(character.id, {
+          theme,
+          force,
+          view: view || undefined,
+          custom_description: customDescription || undefined,
+        });
         // Append cache-buster so the browser fetches the new image
         const bustUrl = data.image_url + (data.image_url.includes("?") ? "&" : "?") + "t=" + Date.now();
-        setCharacter((prev) =>
-          prev ? { ...prev, character_image_url: bustUrl } : prev
-        );
+        if (!view || view === "default") {
+          setCharacter((prev) =>
+            prev ? { ...prev, character_image_url: bustUrl } : prev
+          );
+        }
         // Refresh the gallery
         await refreshCharImages();
       } catch (err) {
@@ -633,24 +654,107 @@ export default function StudioCharacterProfilePage({
 
       {/* Hero section */}
       <div className="flex flex-col md:flex-row gap-6">
-        {/* Character image — uses selected style */}
-        <div className="shrink-0 space-y-4">
+        {/* Character image carousel — default + all views */}
+        <div className="shrink-0 space-y-3">
           {(() => {
             const activeVibe = descriptionStyle && descriptionStyle !== "base" ? descriptionStyle : (universe?.video_vibe_preset ?? "mobile_game");
-            const activeImage = charImages.find((ci) => ci.theme === activeVibe && ci.url);
+            const activeImage = charImages.find((ci) => ci.theme === activeVibe);
             const themeName = vibePresets[activeVibe]?.name || activeVibe.replace(/_/g, " ");
             const isGeneratingThis = generatingImage && generatingTheme === activeVibe;
 
-            if (activeImage?.url) {
+            // Build flat list from theme's images array
+            const activeTheme = charImages.find((ci) => ci.theme === activeVibe);
+            const allImages = (activeTheme?.images ?? [])
+              .filter((img) => img.url)
+              .map((img, i) => ({ url: img.url!, label: img.label?.replace(/_/g, " ") || "portrait", theme: activeVibe, index: i }));
+
+            if (allImages.length === 0) {
               return (
-                <div className="space-y-2">
+                <div className="w-48 h-64 rounded-xl border border-dashed border-slate-700 bg-slate-900/50 flex flex-col items-center justify-center gap-3">
+                  <ImageIcon className="w-10 h-10 text-slate-600" />
+                  <p className="text-[11px] text-slate-500 text-center px-3">
+                    No <span className="text-slate-300">{themeName}</span> image
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => handleGenerateImage(activeVibe, false)}
+                    disabled={generatingImage}
+                  >
+                    {isGeneratingThis ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-4 h-4 mr-2" />
+                    )}
+                    Generate
+                  </Button>
+                </div>
+              );
+            }
+
+            const safeIndex = Math.min(carouselIndex, allImages.length - 1);
+            const current = allImages[safeIndex];
+
+            return (
+              <div className="space-y-2">
+                {/* Main image */}
+                <div className="relative w-48 group">
                   <img
-                    src={clipUrl(activeImage.url)}
-                    alt={`${character.name} — ${themeName}`}
+                    src={clipUrl(current.url)}
+                    alt={`${character.name} — ${current.label}`}
                     className="w-48 rounded-xl border border-slate-700 shadow-lg"
                   />
+                  {/* Image actions */}
+                  <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    {safeIndex === 0 ? (
+                      <div
+                        title="Default image"
+                        className="w-6 h-6 rounded-full bg-black/60 flex items-center justify-center text-amber-400"
+                      >
+                        <Star className="w-3.5 h-3.5 fill-amber-400" />
+                      </div>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          await setDefaultCharacterImage(character.id, current.theme, current.index);
+                          await refreshCharImages();
+                          setCarouselIndex(0);
+                        }}
+                        title="Set as default"
+                        className="w-6 h-6 rounded-full bg-black/60 flex items-center justify-center text-slate-300 hover:text-amber-400 transition-colors"
+                      >
+                        <Star className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setDeleteImageConfirm({ theme: current.theme, index: current.index, label: current.label })}
+                      className="w-6 h-6 rounded-full bg-black/60 flex items-center justify-center text-slate-300 hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  {/* Prev/Next arrows */}
+                  {allImages.length > 1 && (
+                    <>
+                      <button
+                        onClick={() => setCarouselIndex((safeIndex - 1 + allImages.length) % allImages.length)}
+                        className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setCarouselIndex((safeIndex + 1) % allImages.length)}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+                </div>
+                {/* Label + dots + regenerate */}
+                <div className="w-48 space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-slate-500">{themeName} style</span>
+                    <span className="text-[11px] text-slate-500 truncate">{current.label}</span>
                     <button
                       onClick={() => handleGenerateImage(activeVibe, true)}
                       disabled={generatingImage}
@@ -664,32 +768,80 @@ export default function StudioCharacterProfilePage({
                       Regenerate
                     </button>
                   </div>
-                </div>
-              );
-            }
-
-            return (
-              <div className="w-48 h-64 rounded-xl border border-dashed border-slate-700 bg-slate-900/50 flex flex-col items-center justify-center gap-3">
-                <ImageIcon className="w-10 h-10 text-slate-600" />
-                <p className="text-[11px] text-slate-500 text-center px-3">
-                  No <span className="text-slate-300">{themeName}</span> image
-                </p>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => handleGenerateImage(activeVibe, false)}
-                  disabled={generatingImage}
-                >
-                  {isGeneratingThis ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Sparkles className="w-4 h-4 mr-2" />
+                  {/* Dot indicators */}
+                  {allImages.length > 1 && (
+                    <div className="flex justify-center gap-1">
+                      {allImages.map((_, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setCarouselIndex(i)}
+                          className={cn(
+                            "w-1.5 h-1.5 rounded-full transition-colors",
+                            i === safeIndex ? "bg-amber-400" : "bg-slate-600 hover:bg-slate-400"
+                          )}
+                        />
+                      ))}
+                    </div>
                   )}
-                  Generate
-                </Button>
+                </div>
               </div>
             );
           })()}
+
+          {/* Add View */}
+          {!showAddView ? (
+            <button
+              onClick={() => setShowAddView(true)}
+              className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-white transition-colors"
+            >
+              <Plus className="w-3 h-3" />
+              Add View
+            </button>
+          ) : (
+            <div className="w-48 space-y-2 p-2 border border-slate-700 rounded-lg bg-slate-900/50">
+              <input
+                type="text"
+                placeholder="Label (e.g. coffee_shop)"
+                value={newViewName}
+                onChange={(e) => setNewViewName(e.target.value.replace(/\s+/g, "_").toLowerCase())}
+                className="w-full text-xs bg-slate-800 border border-slate-700 rounded px-2 py-1 text-white placeholder-slate-500"
+              />
+              <textarea
+                placeholder="Edit instruction (e.g. 'Change background to a gym. Same person, athletic tank top.')"
+                value={newViewDescription}
+                onChange={(e) => setNewViewDescription(e.target.value)}
+                rows={3}
+                className="w-full text-xs bg-slate-800 border border-slate-700 rounded px-2 py-1 text-white placeholder-slate-500 resize-none"
+              />
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={!newViewName || generatingImage}
+                  onClick={async () => {
+                    const vibe = descriptionStyle && descriptionStyle !== "base" ? descriptionStyle : (universe?.video_vibe_preset ?? "mobile_game");
+                    await handleGenerateImage(vibe, false, newViewName, newViewDescription || undefined);
+                    setShowAddView(false);
+                    setNewViewName("");
+                    setNewViewDescription("");
+                  }}
+                >
+                  {generatingImage ? (
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-3 h-3 mr-1" />
+                  )}
+                  Generate
+                </Button>
+                <button
+                  onClick={() => { setShowAddView(false); setNewViewName(""); setNewViewDescription(""); }}
+                  className="text-[11px] text-slate-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
 
         </div>
 
@@ -714,46 +866,37 @@ export default function StudioCharacterProfilePage({
           </div>
 
           {/* Style-aware character description */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <select
-                value={descriptionStyle ?? "base"}
-                onChange={(e) => setDescriptionStyle(e.target.value)}
-                className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-300 focus:outline-none focus:border-amber-500"
-              >
-                <option value="base">Base Description</option>
-                {Object.entries(vibePresets)
-                  .filter(([key]) => key !== "custom")
-                  .map(([key, preset]) => (
-                    <option key={key} value={key}>{preset.name}</option>
-                  ))}
-              </select>
-            </div>
-            {!descriptionStyle || descriptionStyle === "base" ? (
-              <InlineTextarea
-                value={character.character_description}
-                onSave={(v) => saveCharacterField("character_description", v)}
-                className="text-slate-300 leading-relaxed"
-              />
-            ) : (
-              <InlineTextarea
-                key={descriptionStyle}
-                value={(() => {
-                  try {
-                    const styles = character.character_styles_json ? JSON.parse(character.character_styles_json) : {};
-                    return styles[descriptionStyle]?.description || "";
-                  } catch { return ""; }
-                })()}
-                onSave={async (v) => {
-                  const styles = character.character_styles_json ? JSON.parse(character.character_styles_json) : {};
-                  const updated = { ...styles, [descriptionStyle]: { ...(styles[descriptionStyle] || {}), description: v } };
-                  await updateCharacter(character.id, { character_styles_json: updated } as never);
-                  setCharacter({ ...character, character_styles_json: JSON.stringify(updated) });
-                }}
-                className="text-slate-300 leading-relaxed"
-                placeholder={`No ${vibePresets[descriptionStyle]?.name || descriptionStyle} description yet. Click to write one.`}
-              />
-            )}
+          {/* Appearance */}
+          <div className="space-y-1">
+            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Appearance</span>
+            <InlineTextarea
+              value={character.character_description}
+              onSave={(v) => saveCharacterField("character_description", v)}
+              className="text-slate-300 leading-relaxed"
+              placeholder="Physical appearance — face, hair, build, clothing..."
+            />
+          </div>
+
+          {/* Target Audience */}
+          <div className="space-y-1">
+            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Target Audience</span>
+            <InlineTextarea
+              value={(character as Record<string, string>).target_audience || ""}
+              onSave={(v) => saveCharacterField("target_audience", v)}
+              className="text-slate-400 leading-relaxed text-sm"
+              placeholder="Who this character represents / speaks to..."
+            />
+          </div>
+
+          {/* Performance Notes */}
+          <div className="space-y-1">
+            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Performance Notes</span>
+            <InlineTextarea
+              value={(character as Record<string, string>).performance_notes || ""}
+              onSave={(v) => saveCharacterField("performance_notes", v)}
+              className="text-slate-400 leading-relaxed text-sm"
+              placeholder="Reaction choreography, mannerisms, acting direction..."
+            />
           </div>
 
           {/* Stats */}
@@ -1211,6 +1354,27 @@ export default function StudioCharacterProfilePage({
           )}
         </div>
       )}
+
+      {/* Delete image confirmation */}
+      <ConfirmDialog
+        open={deleteImageConfirm !== null}
+        onOpenChange={(open) => { if (!open) setDeleteImageConfirm(null); }}
+        title={`Delete "${deleteImageConfirm?.label}" image?`}
+        description="This will permanently remove the generated image. You can regenerate it later."
+        confirmLabel="Delete Image"
+        variant="danger"
+        onConfirm={async () => {
+          if (!deleteImageConfirm || !character) return;
+          try {
+            await deleteCharacterImage(character.id, deleteImageConfirm.theme, deleteImageConfirm.index);
+            await refreshCharImages();
+            setCarouselIndex(0);
+          } catch (err) {
+            console.error("Failed to delete image:", err);
+          }
+          setDeleteImageConfirm(null);
+        }}
+      />
     </div>
   );
 }

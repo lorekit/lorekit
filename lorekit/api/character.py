@@ -741,7 +741,7 @@ async def set_default_character_image(
 
 _ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 _MAX_REF_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
-_MAX_REF_IMAGES = 5  # Max reference images per character (fal.ai Kontext Max limit)
+_MAX_REF_IMAGES = 4  # Max reference images per character (fal.ai Kontext Max Multi limit)
 
 # Image magic bytes for content validation
 _IMAGE_MAGIC = [

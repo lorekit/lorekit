@@ -43,6 +43,16 @@ class CreditProvider(Protocol):
 
     async def get_balance(self, org_id: str) -> int: ...
 
+    async def add_credits(
+        self,
+        org_id: str,
+        amount: int,
+        source: str,
+        ref_id: str | None = None,
+        desc: str | None = None,
+        monthly_allowance: int | None = None,
+    ) -> int: ...
+
     async def refund(
         self,
         org_id: str,
@@ -73,6 +83,17 @@ class UnlimitedCredits:
     async def get_balance(self, org_id: str) -> int:
         return -1  # unlimited sentinel
 
+    async def add_credits(
+        self,
+        org_id: str,
+        amount: int,
+        source: str,
+        ref_id: str | None = None,
+        desc: str | None = None,
+        monthly_allowance: int | None = None,
+    ) -> int:
+        return -1  # unlimited sentinel
+
     async def refund(
         self,
         org_id: str,
@@ -94,6 +115,11 @@ def set_credit_provider(provider: CreditProvider) -> None:
     global _provider
     with _lock:
         _provider = provider  # type: ignore[assignment]
+
+
+def get_credit_provider() -> CreditProvider:
+    """Return the current credit provider instance."""
+    return _provider  # type: ignore[return-value]
 
 
 async def check_credits(org_id: str, amount: int) -> bool:
@@ -134,6 +160,7 @@ __all__ = [
     "UnlimitedCredits",
     "InsufficientCreditsError",
     "set_credit_provider",
+    "get_credit_provider",
     "check_credits",
     "deduct_credits",
     "get_balance",

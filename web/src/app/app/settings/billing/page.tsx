@@ -16,16 +16,14 @@ import {
 import {
   getSubscription,
   getUsageHistory,
-  createCheckout,
   createPaygCheckout,
-  createPortalSession,
   updateAutoRefill,
   getBillingAnalytics,
   type Subscription,
   type LedgerEntry,
   type BillingAnalytics,
 } from "@/lib/api";
-import { isCloud } from "@/lib/auth-client";
+import { authClient, isCloud } from "@/lib/auth-client";
 
 const SOURCE_LABELS: Record<string, string> = {
   subscription_refill: "Monthly Refill",
@@ -99,8 +97,11 @@ export default function BillingPage() {
 
   async function handlePortal() {
     try {
-      const { url } = await createPortalSession();
-      window.location.href = url;
+      await (authClient as any).subscription.billingPortal({
+        customerType: "organization",
+        returnUrl: window.location.href,
+        disableRedirect: false,
+      });
     } catch {
       alert("Failed to open billing portal");
     }

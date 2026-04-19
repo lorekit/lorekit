@@ -14,9 +14,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from lorekit.auth.user import get_current_user, CurrentUser
-from lorekit.config import VIBE_PRESETS, get_settings
+from lorekit.config import get_settings
 from lorekit import db
-from lorekit.story.templates import ARC_TEMPLATES
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -173,23 +172,172 @@ async def duplicate_video_style(style_id: str, user: CurrentUser = Depends(get_c
     return style
 
 
+# --- Arc Template CRUD ---
+
+
+class ArcTemplateCreate(BaseModel):
+    name: str
+    description: str = ""
+    beats_json: str = "[]"
+    optional_beats_json: str = "[]"
+    min_duration: float = 30
+    max_duration: float = 50
+    min_scenes: int = 5
+    max_scenes: int = 8
+    max_scene_duration: float = 8
+    system_prompt_fragment: str = ""
+
+
+class ArcTemplateUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    beats_json: str | None = None
+    optional_beats_json: str | None = None
+    min_duration: float | None = None
+    max_duration: float | None = None
+    min_scenes: int | None = None
+    max_scenes: int | None = None
+    max_scene_duration: float | None = None
+    system_prompt_fragment: str | None = None
+
+
 @router.get("/arc-templates")
 async def get_arc_templates(user: CurrentUser = Depends(get_current_user)) -> dict:
-    """Return available arc (video format) templates."""
-    return {
-        "templates": {
-            tid: {
-                "id": t.id,
-                "name": t.name,
-                "description": t.description,
-                "min_duration": t.min_duration,
-                "max_duration": t.max_duration,
-                "min_scenes": t.min_scenes,
-                "max_scenes": t.max_scenes,
-            }
-            for tid, t in ARC_TEMPLATES.items()
+    """Return available arc templates (built-in + custom). Seeds builtins on first call."""
+    await db.seed_builtin_arc_templates()
+    templates = await db.list_arc_templates(organization_id=user.org_id)
+    # Return both the legacy dict format and the full list
+    result = {}
+    for t in templates:
+        result[t["id"]] = {
+            "id": t["id"],
+            "name": t["name"],
+            "description": t.get("description", ""),
+            "min_duration": t.get("min_duration", 30),
+            "max_duration": t.get("max_duration", 50),
+            "min_scenes": t.get("min_scenes", 5),
+            "max_scenes": t.get("max_scenes", 8),
+            "is_builtin": bool(t.get("is_builtin")),
         }
-    }
+    return {"templates": result}
+
+
+@router.post("/arc-templates")
+async def create_arc_template(body: ArcTemplateCreate, user: CurrentUser = Depends(get_current_user)) -> dict:
+    """Create a custom arc template."""
+    template_id = uuid.uuid4().hex[:12]
+    template = await db.create_arc_template(
+        template_id=template_id,
+        name=body.name,
+        description=body.description,
+        beats_json=body.beats_json,
+        optional_beats_json=body.optional_beats_json,
+        min_duration=body.min_duration,
+        max_duration=body.max_duration,
+        min_scenes=body.min_scenes,
+        max_scenes=body.max_scenes,
+        max_scene_duration=body.max_scene_duration,
+        system_prompt_fragment=body.system_prompt_fragment,
+        is_builtin=0,
+        organization_id=user.org_id or "local",
+    )
+    return template
+
+
+@router.patch("/arc-templates/{template_id}")
+async def update_arc_template(template_id: str, body: ArcTemplateUpdate, user: CurrentUser = Depends(get_current_user)) -> dict:
+    """Update a custom arc template. Built-in templates cannot be edited."""
+    existing = await db.get_arc_template_db(template_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Template not found")
+    if existing.get("is_builtin"):
+        raise HTTPException(status_code=403, detail="Built-in templates cannot be edited. Duplicate to create a custom variant.")
+    updates = body.model_dump(exclude_none=True)
+    if not updates:
+        return existing
+    result = await db.update_arc_template(template_id, **updates)
+    return result or existing
+
+
+@router.delete("/arc-templates/{template_id}")
+async def delete_arc_template(template_id: str, user: CurrentUser = Depends(get_current_user)) -> dict:
+    """Delete a custom arc template. Built-in templates cannot be deleted."""
+    existing = await db.get_arc_template_db(template_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Template not found")
+    if existing.get("is_builtin"):
+        raise HTTPException(status_code=403, detail="Built-in templates cannot be deleted")
+    deleted = await db.delete_arc_template(template_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return {"deleted": True}
+
+
+@router.post("/arc-templates/{template_id}/duplicate")
+async def duplicate_arc_template(template_id: str, user: CurrentUser = Depends(get_current_user)) -> dict:
+    """Duplicate an arc template (built-in or custom) to create a new custom variant."""
+    existing = await db.get_arc_template_db(template_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Template not found")
+    new_id = uuid.uuid4().hex[:12]
+    template = await db.create_arc_template(
+        template_id=new_id,
+        name=f"{existing['name']} (Copy)",
+        description=existing.get("description", ""),
+        beats_json=existing.get("beats_json", "[]"),
+        optional_beats_json=existing.get("optional_beats_json", "[]"),
+        min_duration=existing.get("min_duration", 30),
+        max_duration=existing.get("max_duration", 50),
+        min_scenes=existing.get("min_scenes", 5),
+        max_scenes=existing.get("max_scenes", 8),
+        max_scene_duration=existing.get("max_scene_duration", 8),
+        system_prompt_fragment=existing.get("system_prompt_fragment", ""),
+        is_builtin=0,
+        organization_id=user.org_id or "local",
+    )
+    return template
+
+
+# --- Story Context Presets CRUD ---
+
+
+class ContextPresetCreate(BaseModel):
+    name: str
+    context: str
+    description: str = ""
+    category: str = "general"
+
+
+@router.get("/context-presets")
+async def list_context_presets(user: CurrentUser = Depends(get_current_user), category: str | None = None) -> dict:
+    """List story context presets (built-in + custom). Optionally filter by category."""
+    await db.seed_builtin_context_presets()
+    presets = await db.list_story_context_presets(organization_id=user.org_id, category=category)
+    return {"presets": presets}
+
+
+@router.post("/context-presets")
+async def create_context_preset(body: ContextPresetCreate, user: CurrentUser = Depends(get_current_user)) -> dict:
+    """Create a custom story context preset."""
+    preset_id = uuid.uuid4().hex[:12]
+    return await db.create_story_context_preset(
+        preset_id=preset_id,
+        name=body.name,
+        context=body.context,
+        description=body.description,
+        category=body.category,
+        is_builtin=0,
+        organization_id=user.org_id or "local",
+    )
+
+
+@router.delete("/context-presets/{preset_id}")
+async def delete_context_preset(preset_id: str, user: CurrentUser = Depends(get_current_user)) -> dict:
+    """Delete a custom context preset. Built-in presets cannot be deleted."""
+    deleted = await db.delete_story_context_preset(preset_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Preset not found or is built-in")
+    return {"deleted": True}
 
 
 @router.patch("")

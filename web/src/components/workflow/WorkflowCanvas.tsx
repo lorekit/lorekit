@@ -419,7 +419,7 @@ export function WorkflowCanvas({ onNodesChange, onExecuteNode, onDropImage }: Wo
       return {
         id: wn.id,
         type: "workflowNode",
-        position: wn.position,
+        position: { x: wn.position?.x ?? 0, y: wn.position?.y ?? 0 },
         selected: wn.id === selectedNodeId,
         data: {
           workflowNode: wn,
@@ -628,6 +628,8 @@ export function WorkflowCanvas({ onNodesChange, onExecuteNode, onDropImage }: Wo
     [onDropImage]
   );
 
+  const [flowReady, setFlowReady] = useState(false);
+
   if (!workflow) return null;
 
   return (
@@ -652,13 +654,16 @@ export function WorkflowCanvas({ onNodesChange, onExecuteNode, onDropImage }: Wo
         }}
         proOptions={{ hideAttribution: true }}
         className="bg-slate-950"
+        onInit={() => setFlowReady(true)}
       >
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={20}
-          size={1}
-          color="#1e293b"
-        />
+        {flowReady && (
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={20}
+            size={1}
+            color="#1e293b"
+          />
+        )}
         <Controls
           className="!bg-slate-900 !border-slate-700 !rounded-lg !shadow-lg [&>button]:!bg-slate-800 [&>button]:!border-slate-700 [&>button]:!text-slate-400 [&>button:hover]:!bg-slate-700"
         />
