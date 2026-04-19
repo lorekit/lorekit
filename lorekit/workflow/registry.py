@@ -72,7 +72,17 @@ _register(
     endpoint="fal-ai/flux-pro/kontext/max/multi",
     category="image",
     label="Kontext Keyframe",
-    input_keys=["prompt", "reference_images", "aspect_ratio"],
+    input_keys=["prompt", "ref_1", "ref_2", "ref_3", "ref_4", "aspect_ratio"],
+    output_keys=["url"],
+    cost_flat=0.04,
+)
+
+_register(
+    "kontext_edit",
+    endpoint="fal-ai/flux-pro/kontext/max",
+    category="image",
+    label="Kontext Edit",
+    input_keys=["prompt", "image", "aspect_ratio"],
     output_keys=["url"],
     cost_flat=0.04,
 )
@@ -175,26 +185,28 @@ _register(
     cost_flat=0.02,
 )
 
-# ── Content nodes (editable scene/transition configs, no fal.ai call) ────
+# ── Input / source nodes (no fal.ai call, provide data to downstream nodes) ──
 
 _register(
-    "scene",
+    "character_ref",
     endpoint=None,
     category="content",
-    label="Scene",
-    input_keys=["visual_description", "camera", "duration", "speed", "text_overlay", "beat", "character_present"],
-    output_keys=["keyframe_url", "clip_url", "clip_path"],
+    label="Character Reference",
+    input_keys=[],
+    output_keys=["url"],
     local=True,
 )
 
+# ── Content nodes (editable scene/transition configs, no fal.ai call) ────
+
 _register(
     "transition",
-    endpoint=None,
-    category="content",
+    endpoint="fal-ai/kling-video/v3/pro/image-to-video",
+    category="video",
     label="Transition",
-    input_keys=["prompt", "duration", "speed", "transition_type"],
-    output_keys=["clip_url", "clip_path"],
-    local=True,
+    input_keys=["from_clip", "to_clip", "start_image", "end_image", "prompt", "duration"],
+    output_keys=["url"],
+    cost_per_second=0.14,
 )
 
 # ── Local operations (no fal.ai call) ────────────────────────────────────
@@ -245,6 +257,17 @@ _register(
     category="local",
     label="Text Overlay",
     input_keys=["video", "text_items"],
+    output_keys=["path"],
+    local=True,
+)
+
+
+_register(
+    "video_stitch",
+    endpoint=None,
+    category="local",
+    label="Stitch & Render",
+    input_keys=["clips"],
     output_keys=["path"],
     local=True,
 )
