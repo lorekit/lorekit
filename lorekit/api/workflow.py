@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from lorekit import db
 from lorekit.auth.user import get_current_user, CurrentUser
@@ -21,6 +22,20 @@ router = APIRouter(prefix="/api/workflow", tags=["workflow"])
 
 
 # ── Request models ────────────────────────────────────────────────────────
+
+# Input references must be "node_id.outputs.key" format
+_INPUT_REF_RE = re.compile(r"^[a-zA-Z0-9_-]+\.outputs\.\w+$")
+
+
+def _validate_input_refs(v: dict[str, str]) -> dict[str, str]:
+    for key, ref in v.items():
+        if "." in ref and not _INPUT_REF_RE.match(ref):
+            raise ValueError(
+                f"Invalid input reference '{ref}' for '{key}'. "
+                f"Must be '<node_id>.outputs.<key>' (e.g. 'abc123.outputs.url')"
+            )
+    return v
+
 
 class CreateWorkflowRequest(BaseModel):
     project_id: str
@@ -35,6 +50,11 @@ class AddNodeRequest(BaseModel):
     inputs: dict[str, str] = {}
     position: dict[str, float] = {}
 
+    @field_validator("inputs")
+    @classmethod
+    def check_input_refs(cls, v: dict[str, str]) -> dict[str, str]:
+        return _validate_input_refs(v)
+
 
 class UpdateNodeRequest(BaseModel):
     workflow_id: str
@@ -43,6 +63,13 @@ class UpdateNodeRequest(BaseModel):
     label: str | None = None
     inputs: dict[str, str] | None = None
     position: dict[str, float] | None = None
+
+    @field_validator("inputs")
+    @classmethod
+    def check_input_refs(cls, v: dict[str, str] | None) -> dict[str, str] | None:
+        if v is not None:
+            _validate_input_refs(v)
+        return v
 
 
 class ConnectRequest(BaseModel):
@@ -421,14 +448,15 @@ async def _sync_workflow_to_timeline(
         if not isinstance(item, SceneItem):
             continue
 
-        # Sync keyframe
+        # Sync keyframe — remote URL means new/retried generation to download
         kf_node = wf.nodes.get(item.keyframe_node_id or "")
         if kf_node and kf_node.status == "completed" and kf_node.outputs.get("url"):
-            existing = timeline.materials.get(item.keyframe_material_id or "")
-            if not existing or not existing.path:
+            output_url = kf_node.outputs["url"]
+            if output_url.startswith("http"):
                 try:
                     kf_path = project_keyframe_path(project_id, item.scene_id)
-                    await _download_image(kf_node.outputs["url"], store, kf_path)
+                    await _download_image(output_url, store, kf_path)
+                    # Preserve previous generation in history
                     if item.keyframe_material_id:
                         item.keyframe_history.append(item.keyframe_material_id)
                     local_url = f"/files/{kf_path}"
@@ -441,14 +469,14 @@ async def _sync_workflow_to_timeline(
                 except Exception as exc:
                     logger.warning("Failed to download keyframe for scene %d: %s", item.scene_id, exc)
 
-        # Sync clip
+        # Sync clip — remote URL means new/retried generation to download
         clip_node = wf.nodes.get(item.clip_node_id or "")
         if clip_node and clip_node.status == "completed" and clip_node.outputs.get("url"):
-            existing = timeline.materials.get(item.clip_material_id or "")
-            if not existing or not existing.path:
+            output_url = clip_node.outputs["url"]
+            if output_url.startswith("http"):
                 try:
                     clip_path = project_clip_path(project_id, item.scene_id)
-                    await _download_clip(clip_node.outputs["url"], store, clip_path, fal_key)
+                    await _download_clip(output_url, store, clip_path, fal_key)
                     local_url = f"/files/{clip_path}"
                     mat = Material(type="video", path=clip_path,
                                    name=f"scene_{item.scene_id}_clip")
