@@ -118,6 +118,9 @@ async def execute_node(
             if key not in resolved_inputs:
                 resolved_inputs[key] = val
 
+        # Inject project_id so executors can look up timeline scene data
+        resolved_inputs["_project_id"] = workflow.project_id
+
         # Get and call the executor
         executor = get_executor(node.type)
         logger.info("Executing node %s (type=%s, label=%s)", node_id, node.type, node.label)

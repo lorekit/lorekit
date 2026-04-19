@@ -228,7 +228,7 @@ def _collect_sfx_entries(scenes: list[Scene], index: dict) -> list[dict]:
                 })
 
         # Text reveal SFX
-        if scene.audio.text_reveal_sfx and scene.text_overlay:
+        if scene.audio.text_reveal_sfx and scene.narration:
             cue = scene.audio.text_reveal_sfx
             path = get_sfx(index, "text_reveal", cue.sound)
             if path:

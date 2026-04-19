@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -75,6 +76,44 @@ async def _load_workflow(project_id: str, org_id: str | None = None) -> Workflow
     return Workflow.model_validate(data)
 
 
+NODE_W = 280   # approximate card width in React Flow pixels
+NODE_H = 200   # approximate card height
+H_GAP  = 120   # horizontal gutter between cards
+V_GAP  =  50   # vertical gutter between cards
+
+
+def _auto_position(wf: Workflow, inputs: dict[str, str]) -> dict[str, float]:
+    """Place a new node to the right of its inputs, avoiding all overlaps."""
+
+    # 1. Ideal anchor position
+    if inputs:
+        source_ids = {ref.split(".")[0] for ref in inputs.values()}
+        sources = [wf.nodes[sid] for sid in source_ids if sid in wf.nodes]
+    else:
+        sources = []
+
+    if sources:
+        x = max(s.position.get("x", 0) for s in sources) + NODE_W + H_GAP
+        y = sum(s.position.get("y", 0) for s in sources) / len(sources)
+    else:
+        all_y = [n.position.get("y", 0) for n in wf.nodes.values()]
+        x = 0.0
+        y = (max(all_y) + NODE_H + V_GAP) if all_y else 0.0
+
+    # 2. Nudge down until no bounding-box overlap
+    others = sorted(wf.nodes.values(), key=lambda n: n.position.get("y", 0))
+    for _ in range(len(others) + 1):
+        if not any(
+            abs(n.position.get("x", 0) - x) < NODE_W + H_GAP
+            and abs(n.position.get("y", 0) - y) < NODE_H + V_GAP
+            for n in others
+        ):
+            break
+        y += NODE_H + V_GAP
+
+    return {"x": float(x), "y": float(y)}
+
+
 async def _save_workflow(workflow: Workflow, org_id: str | None = None) -> None:
     """Save workflow to project's workflow_json column."""
     await db.update_project(
@@ -96,9 +135,15 @@ def _load_timeline(project: dict) -> Timeline | None:
 async def _link_node_to_scene(
     node: WorkflowNode, project_id: str, org_id: str | None = None,
 ) -> None:
-    """If a node has scene_id in params, auto-link it to the matching SceneItem."""
-    scene_id = node.params.get("scene_id")
-    if scene_id is None:
+    """Auto-link a keyframe/video node to the matching SceneItem.
+
+    If scene_id is in node params, links to that specific scene.
+    If no scene_id and only one scene exists, links automatically.
+    """
+    # Only link image/video generation nodes
+    is_keyframe = node.type in ("kontext_keyframe", "kontext_edit", "nano_banana")
+    is_video = "kling" in node.type or "wan" in node.type or "minimax" in node.type
+    if not is_keyframe and not is_video:
         return
 
     project = await db.get_project(project_id, org_id=org_id)
@@ -108,15 +153,24 @@ async def _link_node_to_scene(
     if not timeline:
         return
 
-    for item in timeline.get_video_track().items:
-        if not isinstance(item, SceneItem) or item.scene_id != scene_id:
+    scenes = [i for i in timeline.get_video_track().items if isinstance(i, SceneItem)]
+    scene_id = node.params.get("scene_id")
+
+    # Auto-detect: if no scene_id and only one scene, use it
+    if scene_id is None and len(scenes) == 1:
+        scene_id = scenes[0].scene_id
+        node.params["scene_id"] = scene_id
+
+    if scene_id is None:
+        return
+
+    for item in scenes:
+        if item.scene_id != scene_id:
             continue
-        if node.type in ("kontext_keyframe", "kontext_edit", "nano_banana"):
+        if is_keyframe:
             item.keyframe_node_id = node.id
-        elif "kling" in node.type or "wan" in node.type or "minimax" in node.type:
+        elif is_video:
             item.clip_node_id = node.id
-        else:
-            continue
         await db.update_project(
             project_id, org_id=org_id,
             timeline_json=json.dumps(timeline.model_dump()),
@@ -149,7 +203,7 @@ async def create_workflow(body: CreateWorkflowRequest, user: CurrentUser = Depen
             kf = WorkflowNode(
                 type="kontext_keyframe",
                 label=f"Scene {s.scene_id}",
-                params={"scene_id": s.scene_id, "prompt": s.visual_description},
+                params={"scene_id": s.scene_id},
                 position={"x": 100, "y": y},
             )
             kf_mat = timeline.materials.get(s.keyframe_material_id or "")
@@ -228,12 +282,17 @@ async def add_node(body: AddNodeRequest, user: CurrentUser = Depends(get_current
     if not wf:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
+    position = body.position
+    if not position:
+        # Auto-layout: place node in a column based on dependency depth
+        position = _auto_position(wf, body.inputs)
+
     node = WorkflowNode(
         type=body.type,
         label=body.label,
         params=body.params,
         inputs=body.inputs,
-        position=body.position,
+        position=position,
     )
     wf.add_node(node)
     await _save_workflow(wf, org_id=user.org_id)
@@ -299,7 +358,8 @@ async def execute_workflow_endpoint(body: ExecuteRequest, user: CurrentUser = De
     if not wf:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
-    job_id = await db.create_job(wf.project_id + "_wf", wf.project_id, "workflow")
+    job_id = f"{wf.project_id}_wf_{uuid.uuid4().hex[:8]}"
+    await db.create_job(job_id, wf.project_id, "workflow")
 
     from lorekit.tasks import get_task_runner
     runner = get_task_runner()
@@ -371,10 +431,12 @@ async def _sync_workflow_to_timeline(
                     await _download_image(kf_node.outputs["url"], store, kf_path)
                     if item.keyframe_material_id:
                         item.keyframe_history.append(item.keyframe_material_id)
-                    mat = Material(type="image", path=kf_path, url=kf_node.outputs["url"],
+                    local_url = f"/files/{kf_path}"
+                    mat = Material(type="image", path=kf_path, url=local_url,
                                    name=f"scene_{item.scene_id}_keyframe")
                     timeline.add_material(mat)
                     item.keyframe_material_id = mat.id
+                    kf_node.outputs["url"] = local_url
                     changed = True
                 except Exception as exc:
                     logger.warning("Failed to download keyframe for scene %d: %s", item.scene_id, exc)
@@ -387,10 +449,12 @@ async def _sync_workflow_to_timeline(
                 try:
                     clip_path = project_clip_path(project_id, item.scene_id)
                     await _download_clip(clip_node.outputs["url"], store, clip_path, fal_key)
+                    local_url = f"/files/{clip_path}"
                     mat = Material(type="video", path=clip_path,
                                    name=f"scene_{item.scene_id}_clip")
                     timeline.add_material(mat)
                     item.clip_material_id = mat.id
+                    clip_node.outputs["url"] = local_url
                     changed = True
                 except Exception as exc:
                     logger.warning("Failed to download clip for scene %d: %s", item.scene_id, exc)
@@ -398,6 +462,7 @@ async def _sync_workflow_to_timeline(
     if changed:
         await db.update_project(project_id, org_id=org_id,
                                 timeline_json=json.dumps(timeline.model_dump()))
+        await _save_workflow(wf, org_id=org_id)
         logger.info("Synced workflow outputs to timeline for project %s", project_id)
 
 
@@ -434,7 +499,7 @@ async def _execute_workflow_task(
         status = "completed" if wf.status == "completed" else "failed"
         await db.update_job(
             job_id, status=status,
-            progress=100 if status == "completed" else None,
+            progress=100.0 if status == "completed" else 0.0,
             message=f"Workflow {wf.status}",
         )
 

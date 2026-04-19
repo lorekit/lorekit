@@ -21,7 +21,7 @@ def _make_scene(**overrides) -> SceneItem:
     defaults = dict(
         scene_id=1, beat="reaction", duration_frames=120,
         visual_description="Person reacts with surprise to their phone.",
-        camera="Static selfie angle", text_overlay="wait what?!",
+        camera="Static selfie angle", narration="wait what?!",
         text_attribution=None, character_present=True,
     )
     defaults.update(overrides)

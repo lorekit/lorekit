@@ -119,7 +119,7 @@ OPTIONAL BEATS (insert between conflict and stillness if needed):
 RULES:
 1. Total duration MUST be {min_duration}-{max_duration} seconds, {min_scenes}-{max_scenes} scenes, no scene exceeds {max_scene_duration} seconds
 2. Something visually new every 3 seconds
-3. EVERY scene MUST have a text_overlay — this is narration that tells the story throughout the video. The text should flow as a continuous narrative across all scenes, like a voiceover script broken into scene-sized pieces.
+3. EVERY scene MUST have a narration — this is narration that tells the story throughout the video. The text should flow as a continuous narrative across all scenes, like a voiceover script broken into scene-sized pieces.
 4. The HOOK scene text should grab attention with the hook quote or a compelling opening line
 5. The TRUTH scene text should deliver the main quote / wisdom payoff
 6. Other scenes should have short narration (1-2 sentences) that bridges the story — describing what's happening, adding context, building toward the truth. Think of it as a storyteller guiding the viewer through the journey.
@@ -165,7 +165,7 @@ RULES:
 1. Total duration MUST be {min_duration}-{max_duration} seconds
 2. {min_scenes}-{max_scenes} scenes, each {max_scene_duration} seconds or less
 3. EVERY scene is an "impact" beat — a single powerful image
-4. text_overlay for each scene is ONE WORD or a very short phrase (1-3 words MAX)
+4. narration for each scene is ONE WORD or a very short phrase (1-3 words MAX)
    - The words across all scenes should form a complete quote or message when read in sequence
    - Example: scene 1 "discipline.", scene 2 "is", scene 3 "freedom."
    - Or repeat a single powerful word: scene 1 "power.", scene 2 "power.", scene 3 "power."
@@ -247,7 +247,7 @@ RULES:
 3. Camera: STATIC selfie angle — phone held at arm's length, slightly above eye level. NO camera movement. Steady shot, no shake.
 4. NATURAL, SUBTLE reactions only. Think real person, not actor. Small shifts: a slight eyebrow raise, a knowing smirk, a slow nod, eyes narrowing then relaxing, a quiet "huh" expression. Do NOT write exaggerated reactions like jaw dropping, eyes popping wide, mouth hanging open, lunging at camera — those read as fake AI content. Match the energy to the character's personality.
 5. visual_description MUST describe ONLY: the person's facial expression, body language, and their immediate real-world environment (room, car, desk, etc). DO NOT describe what they are reacting to. DO NOT put text, words, screens, apps, notifications, pop-ups, or UI elements in the visual description. The reaction content will be added separately by the user in their video editor.
-6. text_overlay MUST be empty string ""
+6. narration MUST be empty string ""
 7. Environment should feel like a real place — bedroom, living room, car, office, gym, balcony. Simple background, nothing distracting.
 8. DO NOT describe cinematic elements — this is raw iPhone selfie footage
 9. cta_scene MUST be false
@@ -328,7 +328,7 @@ STORY ARC:
 RULES:
 1. Total duration MUST be {row.get('min_duration', 30)}-{row.get('max_duration', 50)} seconds, {row.get('min_scenes', 5)}-{row.get('max_scenes', 8)} scenes, no scene exceeds {row.get('max_scene_duration', 8)} seconds
 2. Something visually new every 3 seconds
-3. EVERY scene MUST have a text_overlay
+3. EVERY scene MUST have a narration
 4. Camera movements: slow push-in, orbital, crane, tracking shots"""
 
 

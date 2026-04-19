@@ -115,7 +115,7 @@ class SceneItem(BaseItem):
     beat: str = ""
     visual_description: str = ""
     camera: str = ""
-    text_overlay: str = ""
+    narration: str = ""
     character_present: bool = False
     speed: float = 1.0
     # Material references (IDs into Timeline.materials)

@@ -28,7 +28,7 @@ async def execute_download(node: WorkflowNode, inputs: dict[str, Any]) -> dict[s
         await store.write(dest_path, resp.content)
 
     logger.info("Downloaded %s → %s (%d bytes)", url[:80], dest_path, len(resp.content))
-    return {"path": dest_path, "url": url}
+    return {"path": dest_path, "url": f"/files/{dest_path}"}
 
 
 async def execute_extract_frames(node: WorkflowNode, inputs: dict[str, Any]) -> dict[str, Any]:

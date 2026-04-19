@@ -435,7 +435,7 @@ async def _generate_keyframe_kontext(
     Kontext preserves character identity and visual style from reference images
     while creating new scene compositions based on the prompt.
     Always uses Max Multi (even for 1 image) since Pro I2I only edits in-place.
-    Supports up to 5 reference images.
+    Supports up to 4 reference images.
     """
     headers = _fal_headers(fal_key)
 
@@ -452,7 +452,7 @@ async def _generate_keyframe_kontext(
         "safety_tolerance": 6,
     }
 
-    label = f"Kontext Max Multi keyframe ({len(reference_image_urls[:5])} refs)"
+    label = f"Kontext Max Multi keyframe ({len(reference_image_urls[:4])} refs)"
     logger.info("Generating keyframe with Kontext Max Multi (%d refs)", len(reference_image_urls))
     return await _submit_and_get_image(FAL_KONTEXT_MAX_MULTI, payload, headers, label)
 
@@ -649,7 +649,7 @@ async def _submit_and_get_video(
     label: str = "",
 ) -> str:
     """Submit a fal.ai video job, poll until done, return the video URL."""
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=600.0) as client:
         response = await client.post(endpoint, json=payload, headers=headers)
         response.raise_for_status()
         job = response.json()

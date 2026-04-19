@@ -121,6 +121,17 @@ _register(
     cost_per_second=0.10,
 )
 
+_register(
+    "lipsync",
+    endpoint="fal-ai/sync-lipsync/v3",
+    category="video",
+    label="Lip Sync",
+    input_keys=["video", "audio"],
+    output_keys=["url"],
+    cost_flat=0.0,
+    cost_per_second=0.13,
+)
+
 # ── Audio ─────────────────────────────────────────────────────────────────
 
 _register(

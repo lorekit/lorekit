@@ -27,7 +27,7 @@ function formatSceneText(scene: Scene, index: number): string {
   parts.push(`Scene ${index + 1}: ${scene.beat.toUpperCase()} (${formatDuration(scene.duration)})`);
   parts.push(`Visual: ${scene.visual_description}`);
   if (scene.camera) parts.push(`Camera: ${scene.camera}`);
-  if (scene.text_overlay) parts.push(`Text: ${scene.text_overlay}`);
+  if (scene.narration) parts.push(`Narration: ${scene.narration}`);
   return parts.join("\n");
 }
 
@@ -149,7 +149,7 @@ export function StoryOverview({ scenes, totalDuration }: StoryOverviewProps) {
                           >
                             {scene.beat}
                           </span>
-                          {scene.text_overlay?.includes("{{CTA}}") && (
+                          {scene.narration?.includes("{{CTA}}") && (
                             <span className="text-[9px] px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-400 border border-pink-500/30">
                               CTA
                             </span>
@@ -200,14 +200,14 @@ export function StoryOverview({ scenes, totalDuration }: StoryOverviewProps) {
                           </div>
                         )}
 
-                        {/* Text overlay */}
-                        {scene.text_overlay && (
+                        {/* Narration */}
+                        {scene.narration && (
                           <div>
                             <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1">
-                              Text Overlay
+                              Narration
                             </p>
                             <p className="text-xs text-amber-400/80 italic leading-relaxed">
-                              &ldquo;{scene.text_overlay}&rdquo;
+                              &ldquo;{scene.narration}&rdquo;
                             </p>
                           </div>
                         )}

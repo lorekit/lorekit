@@ -137,17 +137,17 @@ export function SceneDetail({
 
       {/* Text Overlay */}
       <div className="space-y-2">
-        <Label htmlFor="text-overlay" className="text-slate-300">
-          Text Overlay
+        <Label htmlFor="narration" className="text-slate-300">
+          Narration
         </Label>
         <Textarea
-          id="text-overlay"
+          id="narration"
           rows={3}
-          value={scene.text_overlay ?? ""}
+          value={scene.narration ?? ""}
           onChange={(e) =>
-            onUpdate(scene.id, { text_overlay: e.target.value })
+            onUpdate(scene.id, { narration: e.target.value })
           }
-          placeholder="Text to display on screen..."
+          placeholder="What the character says (drives TTS audio)..."
           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 resize-none"
         />
       </div>

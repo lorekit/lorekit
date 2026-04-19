@@ -96,7 +96,7 @@ def _scene_to_response(scene: SceneItem, timeline: Timeline) -> dict:
         "beat": scene.beat,
         "visual_description": scene.visual_description,
         "camera": scene.camera,
-        "text_overlay": scene.text_overlay,
+        "narration": scene.narration,
         "character_present": scene.character_present,
         "speed": scene.speed,
         "duration": scene.duration_frames / FPS,
@@ -216,7 +216,7 @@ def _recalc_frames(timeline: Timeline) -> None:
 class SceneUpdate(BaseModel):
     visual_description: str | None = None
     camera: str | None = None
-    text_overlay: str | None = None
+    narration: str | None = None
     text_attribution: str | None = None
     duration: float | None = None  # seconds (3-15s)
     character_present: bool | None = None
@@ -352,7 +352,7 @@ class SceneAdd(BaseModel):
     beat: str = "reaction"
     duration: float = 5.0  # seconds
     character_present: bool = True
-    text_overlay: str = ""
+    narration: str = ""
     after_scene_id: int | None = None  # None = append at end
 
 
@@ -380,7 +380,7 @@ async def add_scene(
         visual_description=body.visual_description,
         camera=body.camera,
         character_present=body.character_present,
-        text_overlay=body.text_overlay,
+        narration=body.narration,
         duration_frames=_seconds_to_frames(max(3, min(15, body.duration))),
     )
 

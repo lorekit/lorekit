@@ -24,6 +24,18 @@ async def execute_tts(node: WorkflowNode, inputs: dict[str, Any]) -> dict[str, A
     from lorekit.config import get_settings
 
     text = inputs.get("text", "")
+
+    # Auto-load narration from scene if scene_id is set and no explicit text
+    scene_id = inputs.get("scene_id")
+    if scene_id and not text:
+        from lorekit.workflow.nodes.image import _load_scene_data
+        scene_data = await _load_scene_data(inputs, int(scene_id))
+        if scene_data:
+            text = scene_data.get("narration", "")
+
+    if not text:
+        raise ValueError("TTS requires text input — set narration on the scene or pass text directly")
+
     voice_id = inputs.get("voice_id") or None
     model = TTS_MODELS.get(node.type, "fal-ai/minimax/speech-2.6-turbo")
 

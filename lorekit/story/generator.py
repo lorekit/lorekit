@@ -141,7 +141,7 @@ QUOTE 2: "{truth_quote.text}"
 - Theme: {truth_quote.theme}
 - Suggested visual: {truth_quote.pair_with_visual}
 
-You can use one quote broken into words, combine key words from both, or repeat a single powerful word. Each scene's text_overlay should be 1-3 words MAX."""
+You can use one quote broken into words, combine key words from both, or repeat a single powerful word. Each scene's narration should be 1-3 words MAX."""
     else:
         quote_instruction = f"""HOOK QUOTE (displayed in scene 1): "{hook_quote.text}"
 - Theme: {hook_quote.theme}
@@ -164,7 +164,7 @@ Return ONLY valid JSON matching this exact schema — no markdown, no commentary
             "duration": {arc.beats[0]['duration_range'][1]}.0,
             "visual_description": "detailed description of what the viewer sees",
             "camera": "camera movement description",
-            "text_overlay": "text for this scene (REQUIRED for every scene)",
+            "narration": "text for this scene (REQUIRED for every scene)",
             "text_attribution": "— Character Name (only for scenes with direct quotes, null otherwise)",
             "character_present": true,
             "cta_scene": false,
@@ -210,7 +210,7 @@ def _parse_scene(raw: dict[str, Any], character_name: str) -> SceneItem:
         duration_frames=_seconds_to_frames(duration_sec),
         visual_description=raw["visual_description"],
         camera=raw["camera"],
-        text_overlay=raw.get("text_overlay") or "",
+        narration=raw.get("narration") or "",
         character_present=raw.get("character_present", False),
     )
 

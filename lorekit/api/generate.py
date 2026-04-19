@@ -517,7 +517,7 @@ async def _generate_clips_task(job_id: str, project_id: str, org_id: str | None 
 
             # Generate the main clip (Subscribe variant if CTA scene)
             gen_scene = scene_item
-            if scene_item.text_overlay and "{{CTA}}" in scene_item.text_overlay:
+            if scene_item.narration and "{{CTA}}" in scene_item.narration:
                 gen_scene = scene_item.model_copy(
                     update={"visual_description": scene_item.visual_description.replace("{{CTA}}", "Subscribe")}
                 )
@@ -558,7 +558,7 @@ async def _generate_clips_task(job_id: str, project_id: str, org_id: str | None 
             await db.update_project(project_id, org_id=org_id, timeline_json=_save_timeline(timeline))
 
             # Generate "Follow" variant for CTA scenes
-            if scene_item.text_overlay and "{{CTA}}" in scene_item.text_overlay:
+            if scene_item.narration and "{{CTA}}" in scene_item.narration:
                 await db.update_job(
                     job_id,
                     progress=(gen_idx / total_gens) * 100,
@@ -1584,7 +1584,7 @@ async def _render_task(
                     )
                     # Deduct TTS credits based on narration text length
                     total_chars = sum(
-                        len(getattr(s, "narration_text", "") or getattr(s, "text_overlay", "") or "")
+                        len(getattr(s, "narration", "") or "")
                         for s in ordered_scenes
                     )
                     if total_chars > 0:

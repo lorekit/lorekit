@@ -15,7 +15,7 @@ class SceneLike(Protocol):
     scene_id: int
     beat: str
     duration: float
-    text_overlay: str
+    narration: str
 
 
 def validate_scenes(
@@ -25,7 +25,7 @@ def validate_scenes(
     """Returns list of issues. Empty = valid.
 
     Accepts any scene-like objects (SceneItem, old Scene, etc.)
-    as long as they have scene_id, beat, duration, text_overlay.
+    as long as they have scene_id, beat, duration, narration.
     """
     issues: list[str] = []
     total_duration = sum(s.duration for s in scenes)
@@ -93,9 +93,11 @@ def validate_scenes(
                     f"outside range [{lo}-{hi}s]"
                 )
 
+    # UGC reaction clips don't need text overlays — user adds those in their editor
+    narration_required = arc is None or arc.id not in ("ugc_reaction",)
     for s in scenes:
-        if not s.text_overlay:
-            issues.append(f"Scene {s.scene_id} ({s.beat}) missing text_overlay")
+        if narration_required and not s.narration:
+            issues.append(f"Scene {s.scene_id} ({s.beat}) missing narration")
 
     return issues
 

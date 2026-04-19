@@ -95,6 +95,14 @@ app = FastAPI(
 )
 app.mount("/mcp", _mcp_app)
 
+# Mount well-known OAuth discovery routes at the app root (RFC 8414/9728).
+# These must be at /.well-known/... not /mcp/.well-known/... for clients
+# to discover them. Only present when cloud auth is enabled.
+_mcp_auth = get_mcp_auth()
+if _mcp_auth is not None:
+    for route in _mcp_auth.get_well_known_routes(mcp_path="/mcp"):
+        app.routes.insert(0, route)
+
 # CORS for Next.js frontend
 cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:3001").split(",")
 app.add_middleware(

@@ -445,11 +445,11 @@ async def lorekit_scene_update(
     scene_id: int,
     visual_description: str | None = None,
     camera: str | None = None,
-    text_overlay: str | None = None,
+    narration: str | None = None,
     duration: float | None = None,
 ) -> str:
-    """Edit a scene's visual description, camera angle, text overlay, or duration."""
-    fields = {k: v for k, v in {"visual_description": visual_description, "camera": camera, "text_overlay": text_overlay, "duration": duration}.items() if v is not None}
+    """Edit a scene's visual description, camera angle, narration (dialogue/voiceover), or duration."""
+    fields = {k: v for k, v in {"visual_description": visual_description, "camera": camera, "narration": narration, "duration": duration}.items() if v is not None}
     return await tools.scene_update(project_id, scene_id, **fields)
 
 
@@ -461,7 +461,7 @@ async def lorekit_scene_add(
     beat: str = "reaction",
     duration: float = 5.0,
     character_present: bool = True,
-    text_overlay: str = "",
+    narration: str = "",
     after_scene_id: int | None = None,
 ) -> str:
     """Add a new scene to a project. Inserts after after_scene_id (or appends at end).
@@ -474,7 +474,7 @@ async def lorekit_scene_add(
         "beat": beat,
         "duration": duration,
         "character_present": character_present,
-        "text_overlay": text_overlay,
+        "narration": narration,
     }
     if after_scene_id is not None:
         fields["after_scene_id"] = after_scene_id
@@ -773,9 +773,11 @@ async def lorekit_workflow_add_node(
 ) -> str:
     """Add a node to a project's workflow.
 
-    type: node type (kontext_keyframe, kling_v3_pro, kling_o3, face_swap, download, etc.)
-    params: JSON string of model-specific parameters
-    inputs: JSON string mapping input names to upstream refs (e.g. {"image": "node_abc.outputs.url"})
+    type: node type (kontext_keyframe, kling_v3_pro, kling_o3, lipsync, tts_minimax, tts_orpheus, tts_elevenlabs, face_swap, download, etc.)
+    params: JSON string of model-specific parameters. Include "scene_id": N to auto-link
+            keyframe/video nodes to a timeline scene (required for multi-scene projects,
+            auto-detected for single-scene projects).
+    inputs: JSON string mapping input names to upstream refs (e.g. {"ref_1": "node_abc.outputs.url"})
     """
     return await wf_tools.workflow_add_node(project_id, type, label, params, inputs)
 

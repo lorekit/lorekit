@@ -47,7 +47,7 @@ export interface Scene {
   from_frame: number;
   duration_frames: number;
   visual_description: string;
-  text_overlay: string;
+  narration: string;
   camera: string;
   clip_path: string | null;
   clip_url: string | null;
