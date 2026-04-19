@@ -130,6 +130,7 @@ export interface Project {
   character_image_path: string | null;
   audio_mode?: string;
   uploaded_audio_path?: string;
+  character_ids_json?: string | null;
   timeline?: Record<string, unknown>;
 }
 

@@ -1065,7 +1065,7 @@ async def get_character_voice(
 
 
 async def update_character_voice(
-    voice_id: str,
+    record_id: str,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """Update character voice fields. Returns updated voice."""
@@ -1079,12 +1079,12 @@ async def update_character_voice(
             sets.append(f"{key} = ${idx}")
             params.append(val)
             idx += 1
-    params.append(voice_id)
+    params.append(record_id)
     await pool.execute(
         f"UPDATE character_voices SET {', '.join(sets)} WHERE id = ${idx}",
         *params,
     )
-    row = await pool.fetchrow("SELECT * FROM character_voices WHERE id = $1", voice_id)
+    row = await pool.fetchrow("SELECT * FROM character_voices WHERE id = $1", record_id)
     return _row_to_dict(row)
 
 

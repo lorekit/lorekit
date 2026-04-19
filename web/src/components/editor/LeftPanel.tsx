@@ -11,18 +11,21 @@ import {
   Download,
   Type,
   Plus,
+  Users,
 } from "lucide-react";
 import type { Scene, RenderRecord, TextItem } from "@/lib/api";
 import { clipUrl, API_BASE } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { CharactersPanel } from "./CharactersPanel";
 
 /* ------------------------------------------------------------------ */
 /*  Tab types                                                          */
 /* ------------------------------------------------------------------ */
 
-export type LeftPanelTab = "media" | "audio" | "renders" | "text";
+export type LeftPanelTab = "media" | "audio" | "renders" | "text" | "characters";
 
 const TABS: Array<{ key: LeftPanelTab; label: string; icon: React.ElementType }> = [
+  { key: "characters", label: "Characters", icon: Users },
   { key: "media", label: "Media", icon: ImageIcon },
   { key: "audio", label: "Audio", icon: Music },
   { key: "renders", label: "Renders", icon: Clapperboard },
@@ -58,6 +61,13 @@ interface LeftPanelProps {
   onSelectText?: (id: string) => void;
   onAddText?: () => void;
   onDeleteText?: (id: string) => void;
+
+  // Characters
+  universeId?: string;
+  projectId?: string;
+  characterId?: string;
+  characterIdsJson?: string | null;
+  onCharacterIdsChange?: (ids: string[]) => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -79,6 +89,11 @@ export function LeftPanel({
   onSelectText,
   onAddText,
   onDeleteText,
+  universeId,
+  projectId,
+  characterId,
+  characterIdsJson,
+  onCharacterIdsChange,
 }: LeftPanelProps) {
   return (
     <div className="flex flex-col h-full">
@@ -174,6 +189,16 @@ export function LeftPanel({
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === "characters" && universeId && projectId && characterId && (
+          <CharactersPanel
+            universeId={universeId}
+            projectId={projectId}
+            characterId={characterId}
+            characterIdsJson={characterIdsJson}
+            onCharacterIdsChange={onCharacterIdsChange}
+          />
         )}
       </div>
     </div>

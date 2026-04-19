@@ -22,7 +22,6 @@ import {
   Palette,
   Type,
   Trash2,
-  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWorkflowStore } from "@/stores/workflow-store";
@@ -36,6 +35,7 @@ function resolveFileUrl(val: string): string {
   return clipUrl(normalized.startsWith("/files/") ? normalized : `/files${normalized}`);
 }
 import { Slider } from "@/components/ui/slider";
+import { VoicePicker } from "@/components/ui/VoicePicker";
 import type { ClipJobState } from "@/hooks/use-unified-editor";
 
 // ---------------------------------------------------------------------------
@@ -452,125 +452,6 @@ function ClipInspector({ node, scene }: { node: WorkflowNode; scene?: Scene | nu
 // TTS Inspector — narration text, voice, audio preview
 // ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// Voice Picker — list with play buttons for previewing samples
-// ---------------------------------------------------------------------------
-
-function VoicePicker({
-  voices,
-  selectedId,
-  onSelect,
-}: {
-  voices: { id: string; name: string; sample?: string }[];
-  selectedId?: string;
-  onSelect: (id: string) => void;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const audioRef = React.useRef<HTMLAudioElement | null>(null);
-
-  const selected = voices.find((v) => v.id === selectedId);
-  const displayName = selected?.name ?? "Auto (character voice)";
-  const sampleUrl = selected?.sample;
-
-  const handlePlay = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!sampleUrl) return;
-
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
-
-    if (playing) {
-      setPlaying(false);
-      return;
-    }
-
-    const audio = new Audio(sampleUrl);
-    audio.onended = () => setPlaying(false);
-    audio.onerror = () => setPlaying(false);
-    audio.play().catch(() => setPlaying(false));
-    audioRef.current = audio;
-    setPlaying(true);
-  };
-
-  // Stop on unmount or voice change
-  React.useEffect(() => {
-    setPlaying(false);
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-  }, [selectedId]);
-
-  return (
-    <div className="relative">
-      <label className="text-xs font-medium text-slate-400 block mb-1.5">Voice</label>
-
-      {/* Selected voice row with play button */}
-      <div className="flex items-center gap-1.5">
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="flex-1 flex items-center justify-between bg-slate-800 text-xs text-slate-300 px-3 py-2 rounded-lg border border-slate-700 hover:border-slate-600 outline-none"
-        >
-          <span>{displayName}</span>
-          <ChevronDown className={cn("w-3.5 h-3.5 text-slate-500 transition-transform", isOpen && "rotate-180")} />
-        </button>
-
-        {/* Play button for selected voice */}
-        {sampleUrl && (
-          <button
-            onClick={handlePlay}
-            className={cn(
-              "w-8 h-8 flex items-center justify-center rounded-lg border transition-colors flex-shrink-0",
-              playing
-                ? "bg-amber-500/20 border-amber-500/30 text-amber-400"
-                : "bg-slate-800 border-slate-700 hover:border-slate-600 text-slate-400"
-            )}
-          >
-            {playing ? (
-              <span className="w-2.5 h-2.5 rounded-sm bg-amber-400" />
-            ) : (
-              <Play className="w-3 h-3 ml-0.5" />
-            )}
-          </button>
-        )}
-      </div>
-
-      {/* Dropdown */}
-      {isOpen && (
-        <div className="absolute z-50 mt-1 left-0 right-0 bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-h-52 overflow-y-auto">
-          {/* Auto option */}
-          <button
-            onClick={() => { onSelect(""); setIsOpen(false); }}
-            className={cn(
-              "w-full text-left px-3 py-2 text-xs hover:bg-slate-800 transition-colors flex items-center justify-between",
-              !selectedId ? "text-amber-400" : "text-slate-400"
-            )}
-          >
-            <span>Auto (character voice)</span>
-            {!selectedId && <Check className="w-3 h-3 text-amber-400" />}
-          </button>
-
-          <div className="border-t border-slate-800" />
-
-          {voices.map((v) => (
-            <button
-              key={v.id}
-              onClick={() => { onSelect(v.id); setIsOpen(false); }}
-              className={cn(
-                "w-full text-left px-3 py-2 text-xs hover:bg-slate-800 transition-colors flex items-center justify-between",
-                selectedId === v.id ? "text-amber-400" : "text-slate-300"
-              )}
-            >
-              <span>{v.name}</span>
-              {selectedId === v.id && <Check className="w-3 h-3 text-amber-400" />}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // Map node types to their fal.ai model endpoints for voice lookup
 const TTS_NODE_TO_MODEL: Record<string, string> = {
   tts_minimax: "fal-ai/minimax/speech-2.6-turbo",
@@ -578,7 +459,7 @@ const TTS_NODE_TO_MODEL: Record<string, string> = {
   tts_elevenlabs: "fal-ai/elevenlabs/tts/multilingual-v2",
 };
 
-function TTSInspector({ node, scene }: { node: WorkflowNode; scene?: Scene | null }) {
+function TTSInspector({ node, scene, universeId }: { node: WorkflowNode; scene?: Scene | null; universeId?: string }) {
   const { workflow, updateNodeParams } = useWorkflowStore();
   const p = node.params;
   const statusInfo = STATUS_LABELS[node.status];
@@ -612,7 +493,7 @@ function TTSInspector({ node, scene }: { node: WorkflowNode; scene?: Scene | nul
   React.useEffect(() => { setLocalNarration(sceneNarration); }, [scene?.scene_id]);
 
   // Load available voices for this TTS model
-  const [voices, setVoices] = useState<{ id: string; name: string }[]>([]);
+  const [voices, setVoices] = useState<{ id: string; name: string; sample?: string }[]>([]);
   React.useEffect(() => {
     import("@/lib/api").then(({ getTTSModels }) =>
       getTTSModels().then((models) => {
@@ -623,7 +504,36 @@ function TTSInspector({ node, scene }: { node: WorkflowNode; scene?: Scene | nul
     );
   }, [node.type]);
 
+  // Load project characters for the character selector
+  const [characters, setCharacters] = useState<Array<{ id: string; name: string }>>([]);
+  const [charVoiceName, setCharVoiceName] = useState<string | null>(null);
+  React.useEffect(() => {
+    if (!universeId) return;
+    import("@/lib/api").then(({ getUniverseCharacters }) =>
+      getUniverseCharacters(universeId).then((chars) =>
+        setCharacters(chars.map((c) => ({ id: c.id, name: c.name })))
+      ).catch(console.error)
+    );
+  }, [universeId]);
+
+  // When character changes, load their voice config to show as hint
+  const selectedCharId = p.character_id as string | undefined;
+  React.useEffect(() => {
+    if (!selectedCharId || !universeId) { setCharVoiceName(null); return; }
+    import("@/lib/api").then(({ getCharacterVoice }) =>
+      getCharacterVoice(universeId, selectedCharId).then((voice) => {
+        const modelKey = TTS_NODE_TO_MODEL[node.type];
+        if (voice && voice.tts_model === modelKey) {
+          setCharVoiceName(voice.voice_name || null);
+        } else {
+          setCharVoiceName(null);
+        }
+      }).catch(() => setCharVoiceName(null))
+    );
+  }, [selectedCharId, universeId, node.type]);
+
   const outputUrl = node.outputs?.url as string | undefined;
+  const autoPlaceholder = charVoiceName ? `Auto (${charVoiceName})` : "Auto (character voice)";
 
   return (
     <div className="space-y-4">
@@ -657,6 +567,23 @@ function TTSInspector({ node, scene }: { node: WorkflowNode; scene?: Scene | nul
 
       <div className="border-t border-slate-800" />
 
+      {/* Character selector */}
+      {characters.length > 0 && (
+        <div>
+          <label className="text-xs font-medium text-slate-400 block mb-1.5">Character</label>
+          <select
+            value={selectedCharId ?? ""}
+            onChange={(e) => updateNodeParams(node.id, { character_id: e.target.value || undefined })}
+            className="w-full bg-slate-800 text-xs text-slate-300 px-3 py-2 rounded-lg border border-slate-700 outline-none focus:border-amber-500"
+          >
+            <option value="">None (use project default)</option>
+            {characters.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Narration */}
       <div>
         <label className="text-xs font-medium text-slate-400 block mb-1.5">Narration</label>
@@ -677,6 +604,7 @@ function TTSInspector({ node, scene }: { node: WorkflowNode; scene?: Scene | nul
         voices={voices}
         selectedId={p.voice_id as string | undefined}
         onSelect={(id) => updateNodeParams(node.id, { voice_id: id || undefined })}
+        placeholder={autoPlaceholder}
       />
     </div>
   );
@@ -1523,6 +1451,7 @@ export interface NodeInspectorProps {
   renders?: RenderRecord[];
   onDownloadRender?: (path: string) => void;
   onDeleteRender?: (jobId: string) => void;
+  universeId?: string;
 }
 
 export function NodeInspector({
@@ -1550,6 +1479,7 @@ export function NodeInspector({
   renders,
   onDownloadRender,
   onDeleteRender,
+  universeId,
 }: NodeInspectorProps) {
   const { workflow, selectedNodeId, updateNodeLabel, removeNode } = useWorkflowStore();
   const [editingLabel, setEditingLabel] = useState(false);
@@ -1741,7 +1671,7 @@ export function NodeInspector({
         ) : isClip ? (
           <ClipInspector node={node} scene={matchingScene} />
         ) : isTTS ? (
-          <TTSInspector node={node} scene={matchingScene} />
+          <TTSInspector node={node} scene={matchingScene} universeId={universeId} />
         ) : isTransition ? (
           <TransitionInspector node={node} />
         ) : isGeneration ? (

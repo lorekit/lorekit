@@ -18,13 +18,12 @@ TTS_MODELS = {
 }
 
 
-async def _load_character_voice(project_id: str, scene_id: int) -> dict[str, Any] | None:
-    """Load the character's voice config from the project's character."""
+async def _load_character_voice(character_id: str | None = None, project_id: str | None = None) -> dict[str, Any] | None:
+    """Load voice config for a character. Falls back to project's primary character."""
     from lorekit import db
-    project = await db.get_project(project_id)
-    if not project:
-        return None
-    character_id = project.get("character_id")
+    if not character_id and project_id:
+        project = await db.get_project(project_id)
+        character_id = project.get("character_id") if project else None
     if not character_id:
         return None
     return await db.get_character_voice(character_id)
@@ -54,16 +53,16 @@ async def execute_tts(node: WorkflowNode, inputs: dict[str, Any]) -> dict[str, A
 
     # Resolve voice: explicit param > character voice config > model default
     voice_id = inputs.get("voice_id") or None
+    character_id = inputs.get("character_id") or None
     model = TTS_MODELS.get(node.type, "fal-ai/minimax/speech-2.6-turbo")
 
-    if not voice_id and project_id and scene_id:
-        char_voice = await _load_character_voice(project_id, int(scene_id))
+    if not voice_id:
+        char_voice = await _load_character_voice(character_id=character_id, project_id=project_id)
         if char_voice:
-            voice_id = char_voice.get("voice_id_str") or None
-            # Use character's preferred TTS model if it matches this node type
+            # Use character's voice if their preferred model matches this node type
             char_model = char_voice.get("tts_model", "")
             if char_model == model:
-                voice_id = char_voice.get("voice_id_str") or voice_id
+                voice_id = char_voice.get("voice_id") or None
 
     result = await generate_speech(
         text=text,

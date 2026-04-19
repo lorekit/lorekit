@@ -111,7 +111,7 @@ export default function ProjectEditorPage({
   const editor = useUnifiedEditor(id, universeId);
 
   // Local UI state
-  const [activeLeftTab, setActiveLeftTab] = useState<LeftPanelTab>("media");
+  const [activeLeftTab, setActiveLeftTab] = useState<LeftPanelTab>("characters");
   const [playbackProgress, setPlaybackProgress] = useState<number | null>(null);
   const [actualSegments, setActualSegments] = useState<SegmentTiming[]>();
   const [actualTotalDuration, setActualTotalDuration] = useState<number>();
@@ -236,6 +236,16 @@ export default function ProjectEditorPage({
             onSelectText={(textId) => editor.selectElement({ type: "text", id: textId })}
             onAddText={editor.handleAddText}
             onDeleteText={editor.handleDeleteText}
+            universeId={universeId}
+            projectId={id}
+            characterId={editor.project.character_id}
+            characterIdsJson={editor.project.character_ids_json}
+            onCharacterIdsChange={(ids) => {
+              editor.setProject({
+                ...editor.project!,
+                character_ids_json: JSON.stringify(ids),
+              });
+            }}
           />
         </div>
 
@@ -286,6 +296,7 @@ export default function ProjectEditorPage({
             renders={editor.renders}
             onDownloadRender={editor.handleDownloadRender}
             onDeleteRender={editor.handleDeleteRender}
+            universeId={universeId}
           />
         </div>
       </div>
