@@ -822,10 +822,17 @@ export interface AudioAnalysis {
   }>;
 }
 
+export interface TTSVoice {
+  id: string;
+  name: string;
+  sample?: string;
+}
+
 export interface TTSModel {
   name: string;
   supports_voice_id: boolean;
   supports_reference_audio: boolean;
+  voices?: TTSVoice[];
 }
 
 export const getCharacterVoice = (universeId: string, characterId: string) =>

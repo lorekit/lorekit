@@ -18,15 +18,31 @@ TTS_MODELS = {
 }
 
 
+async def _load_character_voice(project_id: str, scene_id: int) -> dict[str, Any] | None:
+    """Load the character's voice config from the project's character."""
+    from lorekit import db
+    project = await db.get_project(project_id)
+    if not project:
+        return None
+    character_id = project.get("character_id")
+    if not character_id:
+        return None
+    return await db.get_character_voice(character_id)
+
+
 async def execute_tts(node: WorkflowNode, inputs: dict[str, Any]) -> dict[str, Any]:
-    """Generate speech using a fal.ai TTS model."""
+    """Generate speech using a fal.ai TTS model.
+
+    Auto-loads narration from scene and voice from character config.
+    """
     from lorekit.audio.tts import generate_speech
     from lorekit.config import get_settings
 
     text = inputs.get("text", "")
-
-    # Auto-load narration from scene if scene_id is set and no explicit text
     scene_id = inputs.get("scene_id")
+    project_id = inputs.get("_project_id", "")
+
+    # Auto-load narration from scene
     if scene_id and not text:
         from lorekit.workflow.nodes.image import _load_scene_data
         scene_data = await _load_scene_data(inputs, int(scene_id))
@@ -36,8 +52,18 @@ async def execute_tts(node: WorkflowNode, inputs: dict[str, Any]) -> dict[str, A
     if not text:
         raise ValueError("TTS requires text input — set narration on the scene or pass text directly")
 
+    # Resolve voice: explicit param > character voice config > model default
     voice_id = inputs.get("voice_id") or None
     model = TTS_MODELS.get(node.type, "fal-ai/minimax/speech-2.6-turbo")
+
+    if not voice_id and project_id and scene_id:
+        char_voice = await _load_character_voice(project_id, int(scene_id))
+        if char_voice:
+            voice_id = char_voice.get("voice_id_str") or None
+            # Use character's preferred TTS model if it matches this node type
+            char_model = char_voice.get("tts_model", "")
+            if char_model == model:
+                voice_id = char_voice.get("voice_id_str") or voice_id
 
     result = await generate_speech(
         text=text,
