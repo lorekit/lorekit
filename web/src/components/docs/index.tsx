@@ -1,3 +1,5 @@
+"use client";
+
 import { cn } from "@/lib/utils";
 import { Copy, Check, Info, AlertTriangle, Lightbulb } from "lucide-react";
 
