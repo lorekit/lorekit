@@ -1,47 +1,113 @@
+"use client";
+
 import Link from "next/link";
-import type { Metadata } from "next";
+import { usePathname } from "next/navigation";
+import { BookOpen, Rocket, Terminal, Boxes, Server } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { PublicHeader } from "@/components/layout/PublicHeader";
 import { PublicFooter } from "@/components/layout/PublicFooter";
 
-export const metadata: Metadata = {
-  title: "LoreKit Docs — AI Video Generation Platform",
-  description:
-    "Documentation for LoreKit: MCP tools, API reference, self-hosting guide, and getting started.",
-};
-
 const DOC_NAV = [
-  { href: "/docs", label: "Overview" },
-  { href: "/docs/getting-started", label: "Getting Started" },
-  { href: "/docs/mcp-tools", label: "MCP Tools" },
-  { href: "/docs/nodes", label: "Workflow Nodes" },
-  { href: "/docs/self-hosting", label: "Self-Hosting" },
+  {
+    label: "Getting Started",
+    items: [
+      { href: "/docs", label: "Overview", icon: BookOpen },
+      { href: "/docs/getting-started", label: "Setup Guide", icon: Rocket },
+    ],
+  },
+  {
+    label: "Reference",
+    items: [
+      { href: "/docs/mcp-tools", label: "MCP Tools", icon: Terminal },
+      { href: "/docs/nodes", label: "Workflow Nodes", icon: Boxes },
+    ],
+  },
+  {
+    label: "Deploy",
+    items: [
+      { href: "/docs/self-hosting", label: "Self-Hosting", icon: Server },
+    ],
+  },
 ];
 
-export default function DocsLayout({
-  children,
-}: {
-  children: React.ReactNode;
+function SidebarLink({ href, label, icon: Icon, active }: {
+  href: string; label: string; icon: React.ElementType; active: boolean;
 }) {
   return (
-    <div className="min-h-screen flex flex-col">
+    <Link
+      href={href}
+      className={cn(
+        "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-colors",
+        active
+          ? "text-amber-400 bg-amber-500/10 font-medium"
+          : "text-slate-400 hover:text-white hover:bg-slate-800/50"
+      )}
+    >
+      <Icon className="w-4 h-4 shrink-0" />
+      {label}
+    </Link>
+  );
+}
+
+export default function DocsLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+
+  return (
+    <div className="min-h-screen flex flex-col bg-slate-950">
       <PublicHeader />
 
-      {/* Docs sub-nav */}
-      <nav className="border-b border-slate-800/50 bg-slate-950/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 flex gap-1 overflow-x-auto">
-          {DOC_NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="px-4 py-3 text-sm text-slate-400 hover:text-white transition-colors whitespace-nowrap border-b-2 border-transparent hover:border-amber-500/50"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </div>
-      </nav>
+      <div className="flex-1 flex max-w-7xl mx-auto w-full">
+        {/* Sidebar */}
+        <aside className="w-60 shrink-0 border-r border-slate-800/50 sticky top-0 h-screen overflow-y-auto py-8 px-4 hidden md:block">
+          <nav className="space-y-6">
+            {DOC_NAV.map((group) => (
+              <div key={group.label}>
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 mb-2">
+                  {group.label}
+                </p>
+                <div className="space-y-0.5">
+                  {group.items.map((item) => (
+                    <SidebarLink
+                      key={item.href}
+                      href={item.href}
+                      label={item.label}
+                      icon={item.icon}
+                      active={pathname === item.href}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </nav>
+        </aside>
 
-      <main className="flex-1">{children}</main>
+        {/* Mobile nav */}
+        <nav className="md:hidden border-b border-slate-800/50 bg-slate-950/80 backdrop-blur-sm sticky top-0 z-10 w-full">
+          <div className="flex gap-1 overflow-x-auto px-4 py-2">
+            {DOC_NAV.flatMap((g) => g.items).map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "px-3 py-1.5 text-xs rounded-lg whitespace-nowrap transition-colors",
+                  pathname === item.href
+                    ? "text-amber-400 bg-amber-500/10 font-medium"
+                    : "text-slate-400 hover:text-white"
+                )}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </nav>
+
+        {/* Content */}
+        <main className="flex-1 min-w-0 py-8 px-6 lg:px-12">
+          <div className="max-w-3xl">
+            {children}
+          </div>
+        </main>
+      </div>
 
       <PublicFooter />
     </div>
