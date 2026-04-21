@@ -9,12 +9,13 @@ import { cn } from "@/lib/utils";
 import { authClient, isCloud, clearAuthToken } from "@/lib/auth-client";
 import { getSubscription } from "@/lib/api";
 
-const navItems: { href: string; label: string; exact?: boolean }[] = [
+const navItems: { href: string; label: string; exact?: boolean; external?: boolean }[] = [
   { href: "/app", label: "Home", exact: true },
   { href: "/app/universe", label: "Universe" },
   { href: "/app/video", label: "Video" },
   { href: "/app/carousel", label: "Carousel" },
   { href: "/app/image", label: "Image" },
+  { href: "https://www.skool.com/ai-podcast-growth-1899/about", label: "Support", external: true },
 ];
 
 /** User avatar dropdown with settings + logout */
@@ -219,6 +220,19 @@ export function Navbar() {
         {/* Nav pills */}
         <nav className="flex items-center gap-1.5">
           {navItems.map((item) => {
+            if (item.external) {
+              return (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-full px-4 py-1.5 text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+                >
+                  {item.label}
+                </a>
+              );
+            }
             const isActive = item.exact
               ? pathname === item.href
               : item.href === "/app/universe"

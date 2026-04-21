@@ -170,6 +170,22 @@ function KeyframeInspector({
             alt={`Keyframe ${sceneNum}`}
             className="w-full rounded-lg border border-slate-700"
           />
+          <div className="flex items-center gap-2 mt-2">
+            <a
+              href={previewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-amber-500 hover:text-amber-400 flex items-center gap-1"
+            >
+              Open
+            </a>
+            <button
+              onClick={() => navigator.clipboard.writeText(previewUrl)}
+              className="text-[10px] text-slate-500 hover:text-slate-300"
+            >
+              Copy URL
+            </button>
+          </div>
         </div>
       )}
 
@@ -1604,7 +1620,7 @@ export function NodeInspector({
   const isCharacterRef = node.type === "character_ref";
   const isKontextEdit = node.type === "kontext_edit";
   // A node is "keyframe-like" if it has scene_id in params (keyframe nodes from from_story template)
-  const isKeyframe = !isCharacterRef && !isKontextEdit && (node.type === "scene" || (node.params.scene_id != null && node.type.includes("keyframe")));
+  const isKeyframe = !isCharacterRef && !isKontextEdit && (node.type === "scene" || (node.params.scene_id != null && (node.type.includes("keyframe") || node.type === "flux_text_to_image" || node.type === "nano_banana")));
   const isTransition = node.type === "transition";
   // Clip/video generation nodes (kling, wan, etc.) — NOT TTS
   const isTTS = node.type.startsWith("tts_");

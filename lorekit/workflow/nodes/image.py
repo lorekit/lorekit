@@ -78,10 +78,16 @@ async def execute_kontext_keyframe(node: WorkflowNode, inputs: dict[str, Any]) -
 
     ref_images = await _ensure_fal_urls(ref_images[:4])
 
-    payload = {
+    if not ref_images:
+        raise ValueError(
+            "Kontext Keyframe requires at least one reference image. "
+            "Use 'flux_text_to_image' or 'nano_banana' for prompt-only generation."
+        )
+
+    payload: dict[str, Any] = {
         "prompt": prompt,
         "image_urls": ref_images,
-        "aspect_ratio": inputs.get("aspect_ratio", "9:16"),
+        "aspect_ratio": inputs.get("aspect_ratio", "16:9"),
         "output_format": "png",
         "safety_tolerance": 6,
     }
@@ -89,6 +95,33 @@ async def execute_kontext_keyframe(node: WorkflowNode, inputs: dict[str, Any]) -
     url = await _fal_image_job(
         "https://queue.fal.run/fal-ai/flux-pro/kontext/max/multi",
         payload, fal_key, f"Kontext keyframe ({node.label})",
+    )
+    return {"url": url}
+
+
+async def execute_flux_text_to_image(node: WorkflowNode, inputs: dict[str, Any]) -> dict[str, Any]:
+    """Generate an image from text using Flux 2 Pro. No reference images needed."""
+    from lorekit.config import get_settings
+
+    fal_key = get_settings().fal_key
+
+    prompt = inputs.get("prompt", "")
+    scene_id = inputs.get("scene_id")
+    if scene_id and not prompt:
+        scene = await _load_scene_data(inputs, int(scene_id))
+        if scene:
+            prompt = scene.get("visual_description", "")
+
+    payload = {
+        "prompt": prompt,
+        "aspect_ratio": inputs.get("aspect_ratio", "16:9"),
+        "output_format": "png",
+        "safety_tolerance": 5,
+    }
+
+    url = await _fal_image_job(
+        "https://queue.fal.run/fal-ai/flux-2-pro",
+        payload, fal_key, f"Flux 2 Pro ({node.label})",
     )
     return {"url": url}
 
@@ -103,13 +136,14 @@ async def execute_nano_banana(node: WorkflowNode, inputs: dict[str, Any]) -> dic
         image_urls = [image_urls]
     image_urls = await _ensure_fal_urls(image_urls[:14])
 
-    payload = {
+    payload: dict[str, Any] = {
         "prompt": inputs.get("prompt", ""),
-        "image_urls": image_urls,
-        "aspect_ratio": inputs.get("aspect_ratio", "9:16"),
+        "aspect_ratio": inputs.get("aspect_ratio", "16:9"),
         "output_format": "png",
         "safety_tolerance": 6,
     }
+    if image_urls:
+        payload["image_urls"] = image_urls
 
     url = await _fal_image_job(
         "https://queue.fal.run/fal-ai/nano-banana-2",
@@ -133,7 +167,7 @@ async def execute_kontext_edit(node: WorkflowNode, inputs: dict[str, Any]) -> di
     payload = {
         "prompt": inputs.get("prompt", ""),
         "image_url": image_url,
-        "aspect_ratio": inputs.get("aspect_ratio", "9:16"),
+        "aspect_ratio": inputs.get("aspect_ratio", "16:9"),
         "output_format": "png",
         "safety_tolerance": 6,
     }
@@ -149,3 +183,4 @@ async def execute_kontext_edit(node: WorkflowNode, inputs: dict[str, Any]) -> di
 register_executor("kontext_keyframe", execute_kontext_keyframe)
 register_executor("kontext_edit", execute_kontext_edit)
 register_executor("nano_banana", execute_nano_banana)
+register_executor("flux_text_to_image", execute_flux_text_to_image)

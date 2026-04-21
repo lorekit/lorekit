@@ -150,21 +150,21 @@ export function PublicHeader() {
             </Link>
           ))}
           <a
-            href="https://www.aivideofunnel.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-shimmer rounded-full px-4 py-1.5 text-sm font-medium text-slate-950 shadow-[0_0_12px_rgba(245,158,11,0.3)]"
-          >
-            Free UGC Library
-          </a>
-          <a
             href="https://github.com/lorekit/lorekit"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 rounded-full border border-slate-700 hover:border-slate-600 px-3 py-1.5 text-xs text-slate-400 hover:text-white transition-colors"
           >
             <Star className="h-3.5 w-3.5" />
-            {starCount != null ? starCount.toLocaleString() : "Star"}
+            Star
+          </a>
+          <a
+            href="https://www.aivideofunnel.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-shimmer rounded-full px-4 py-1.5 text-sm font-medium text-slate-950 shadow-[0_0_12px_rgba(245,158,11,0.3)]"
+          >
+            Free UGC Library
           </a>
         </div>
 

@@ -234,8 +234,54 @@ async def execute_lipsync(node: WorkflowNode, inputs: dict[str, Any]) -> dict[st
     return {"url": url}
 
 
+async def execute_kling_v3_pro_t2v(node: WorkflowNode, inputs: dict[str, Any]) -> dict[str, Any]:
+    """Generate video from text prompt using Kling V3 Pro (no image input needed)."""
+    from lorekit.config import get_settings
+    from lorekit.video.generator import _submit_and_get_video, _fal_headers
+
+    fal_key = get_settings().fal_key
+    headers = _fal_headers(fal_key)
+
+    prompt = inputs.get("prompt", "")
+    scene_id = inputs.get("scene_id")
+    if scene_id and not prompt:
+        from lorekit.workflow.nodes.image import _load_scene_data
+        scene_data = await _load_scene_data(inputs, int(scene_id))
+        if scene_data:
+            parts = []
+            if scene_data.get("visual_description"):
+                parts.append(scene_data["visual_description"])
+            if scene_data.get("camera"):
+                parts.append(scene_data["camera"])
+            prompt = ". ".join(parts)
+
+    duration = inputs.get("duration", 5)
+    duration_str = str(max(3, min(15, int(round(duration)))))
+
+    payload: dict = {
+        "prompt": str(prompt)[:2500],
+        "duration": duration_str,
+        "aspect_ratio": inputs.get("aspect_ratio", "16:9"),
+        "generate_audio": False,
+        "negative_prompt": inputs.get(
+            "negative_prompt",
+            "static, frozen, text, subtitles, watermarks, logos, words, blurry, distorted",
+        ),
+        "cfg_scale": inputs.get("cfg_scale", 0.5),
+    }
+
+    url = await _submit_and_get_video(
+        "https://queue.fal.run/fal-ai/kling-video/v3/pro/text-to-video",
+        payload, headers, f"Kling V3 Pro T2V ({node.label})",
+    )
+
+    node.cost = duration * 0.112
+    return {"url": url}
+
+
 # Register executors
 register_executor("kling_v3_pro", execute_kling_v3_pro)
 register_executor("kling_o3", execute_kling_o3)
+register_executor("kling_v3_pro_t2v", execute_kling_v3_pro_t2v)
 register_executor("transition", execute_transition)
 register_executor("lipsync", execute_lipsync)

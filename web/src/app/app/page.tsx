@@ -9,31 +9,17 @@ import {
   Terminal,
   BookOpen,
   Settings,
-  Wallet,
-  TrendingDown,
 } from "lucide-react";
-import { getStats } from "@/lib/api";
-import type { Stats } from "@/lib/api";
-import { cn } from "@/lib/utils";
 import { TOTAL_TOOLS } from "@/lib/mcp-tools";
 
 const GUIDE_KEY = "lorekit_hide_getting_started";
 
 export default function AppHomePage() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [loading, setLoading] = useState(true);
   const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => {
     const hidden = localStorage.getItem(GUIDE_KEY) === "1";
     setShowGuide(!hidden);
-  }, []);
-
-  useEffect(() => {
-    getStats()
-      .then(setStats)
-      .catch(() => {})
-      .finally(() => setLoading(false));
   }, []);
 
   function hideGuide() {
@@ -51,9 +37,14 @@ export default function AppHomePage() {
     }
   }
 
-  // Credit balance and spend — placeholder until billing (Phase 5) is built
-  const creditBalance = 0;
-  const creditSpent7d = stats?.videos?.total_cost ?? 0;
+  const [roadmapItems, setRoadmapItems] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch("/roadmap.json")
+      .then((r) => r.json())
+      .then(setRoadmapItems)
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="p-8 space-y-8">
@@ -97,8 +88,8 @@ export default function AppHomePage() {
               </div>
               <div className="space-y-3">
                 {[
-                  { icon: Terminal, label: "Connect Claude Code", href: "/docs/getting-started", newTab: true },
-                  { icon: BookOpen, label: "Go to documentation", href: "/docs", newTab: true },
+                  { icon: Terminal, label: "Connect Claude Code", href: "https://lorekit.ai/docs/getting-started", newTab: true },
+                  { icon: BookOpen, label: "Go to documentation", href: "https://lorekit.ai/docs", newTab: true },
                   { icon: Settings, label: "Configure API keys", href: "/app/settings" },
                 ].map((item) => (
                   <Link
@@ -126,7 +117,7 @@ export default function AppHomePage() {
                 {[
                   { icon: Globe, label: "Create a universe", href: "/app/universes/new" },
                   { icon: Film, label: "Browse your projects", href: "/app/projects" },
-                  { icon: Sparkles, label: `${TOTAL_TOOLS} MCP tools available`, href: "/docs/mcp-tools", newTab: true },
+                  { icon: Sparkles, label: `${TOTAL_TOOLS} MCP tools available`, href: "https://lorekit.ai/docs/mcp-tools", newTab: true },
                 ].map((item) => (
                   <Link
                     key={item.label}
@@ -144,44 +135,16 @@ export default function AppHomePage() {
         </div>
       )}
 
-      {/* Credit Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-400">Credit Balance</p>
-              <p
-                className={cn(
-                  "text-2xl font-bold mt-1",
-                  loading ? "text-slate-500 animate-pulse" : "text-white"
-                )}
-              >
-                {loading ? "\u2014" : creditBalance.toLocaleString()}
-              </p>
-              <p className="text-xs text-slate-500 mt-1">credits</p>
+      {/* Roadmap */}
+      <div className="bg-slate-900 rounded-xl border border-slate-800 p-6">
+        <h2 className="text-lg font-semibold text-white mb-4">Roadmap</h2>
+        <div className="space-y-2">
+          {roadmapItems.map((item, i) => (
+            <div key={i} className="flex items-start gap-3">
+              <span className="text-amber-500 mt-0.5">&#8226;</span>
+              <span className="text-sm text-slate-300">{item}</span>
             </div>
-            <div className="h-10 w-10 rounded-lg bg-slate-800 flex items-center justify-center">
-              <Wallet className="h-5 w-5 text-amber-500" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-400">Credits Spent (last 7 days)</p>
-              <p
-                className={cn(
-                  "text-2xl font-bold mt-1",
-                  loading ? "text-slate-500 animate-pulse" : "text-white"
-                )}
-              >
-                {loading ? "\u2014" : `$${creditSpent7d.toFixed(2)}`}
-              </p>
-            </div>
-            <div className="h-10 w-10 rounded-lg bg-slate-800 flex items-center justify-center">
-              <TrendingDown className="h-5 w-5 text-amber-500" />
-            </div>
-          </div>
+          ))}
         </div>
       </div>
     </div>

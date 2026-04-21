@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Globe, Film, Mic, Code, ArrowRight, ScrollText, Sparkles, Rocket } from "lucide-react";
 import { PublicHeader } from "@/components/layout/PublicHeader";
 import { getCtaHref } from "@/lib/mode";
+import { HeroVideo } from "@/components/landing/HeroVideo";
 import { PublicFooter } from "@/components/layout/PublicFooter";
 
 // Fixed sparkle positions (no Math.random — SSR safe)
@@ -38,15 +39,8 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="relative min-h-[70vh] sm:min-h-[80vh] flex flex-col items-center justify-center text-center px-4 sm:px-6 py-16 sm:py-24 overflow-hidden">
-        {/* Background video */}
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          className="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none"
-          src="/hero.mp4"
-        />
+        {/* Background video reel */}
+        <HeroVideo />
 
         {/* Radial glow */}
         <div
@@ -379,7 +373,7 @@ export default function LandingPage() {
             Start driving results
           </h2>
           <p className="text-sm sm:text-base text-slate-400 mb-8 max-w-lg px-2">
-            Build your brand universe, generate your first video ad, and see what converts. Free and open source.
+            Build your brand universe, test 100+ ads per week, and see what converts. Free and open source.
           </p>
           <Link
             href={getCtaHref()}

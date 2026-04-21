@@ -168,7 +168,7 @@ async def _link_node_to_scene(
     If no scene_id and only one scene exists, links automatically.
     """
     # Only link image/video generation nodes
-    is_keyframe = node.type in ("kontext_keyframe", "kontext_edit", "nano_banana")
+    is_keyframe = node.type in ("kontext_keyframe", "kontext_edit", "nano_banana", "flux_text_to_image")
     is_video = "kling" in node.type or "wan" in node.type or "minimax" in node.type
     if not is_keyframe and not is_video:
         return
@@ -221,6 +221,8 @@ async def create_workflow(body: CreateWorkflowRequest, user: CurrentUser = Depen
     wf = Workflow(project_id=body.project_id, name=body.name)
     timeline = _load_timeline(project)
 
+    ar = project.get("aspect_ratio", "16:9")
+
     if timeline:
         scene_items = [i for i in timeline.get_video_track().items if isinstance(i, SceneItem)]
         for idx, s in enumerate(scene_items):
@@ -230,7 +232,7 @@ async def create_workflow(body: CreateWorkflowRequest, user: CurrentUser = Depen
             kf = WorkflowNode(
                 type="kontext_keyframe",
                 label=f"Scene {s.scene_id}",
-                params={"scene_id": s.scene_id},
+                params={"scene_id": s.scene_id, "aspect_ratio": ar},
                 position={"x": 100, "y": y},
             )
             kf_mat = timeline.materials.get(s.keyframe_material_id or "")
@@ -244,7 +246,7 @@ async def create_workflow(body: CreateWorkflowRequest, user: CurrentUser = Depen
             clip = WorkflowNode(
                 type="kling_v3_pro",
                 label=f"Clip {s.scene_id}",
-                params={"scene_id": s.scene_id, "duration": s.duration},
+                params={"scene_id": s.scene_id, "duration": s.duration, "aspect_ratio": ar},
                 inputs={"start_image": f"{kf.id}.outputs.url"},
                 position={"x": 500, "y": y},
             )
@@ -444,19 +446,37 @@ async def _sync_workflow_to_timeline(
     fal_key = get_settings().fal_key
     changed = False
 
+    _KEYFRAME_TYPES = {"kontext_keyframe", "nano_banana", "flux_text_to_image"}
+    _VIDEO_TYPES = {"kling_v3_pro", "kling_o3", "kling_v3_pro_t2v", "transition"}
+
+    def _find_node(scene_id: int, node_types: set[str], linked_id: str | None) -> WorkflowNode | None:
+        """Find a completed node for a scene: first by linked ID, then by scene_id match."""
+        # Try linked ID first
+        node = wf.nodes.get(linked_id or "")
+        if node and node.status == "completed" and node.outputs.get("url"):
+            return node
+        # Fallback: scan by scene_id + type
+        for n in wf.nodes.values():
+            if (n.params.get("scene_id") == scene_id
+                    and n.type in node_types
+                    and n.status == "completed"
+                    and n.outputs.get("url", "").startswith("http")):
+                return n
+        return None
+
     for item in timeline.get_video_track().items:
         if not isinstance(item, SceneItem):
             continue
 
         # Sync keyframe — remote URL means new/retried generation to download
-        kf_node = wf.nodes.get(item.keyframe_node_id or "")
-        if kf_node and kf_node.status == "completed" and kf_node.outputs.get("url"):
+        kf_node = _find_node(item.scene_id, _KEYFRAME_TYPES, item.keyframe_node_id)
+        if kf_node:
+            item.keyframe_node_id = kf_node.id
             output_url = kf_node.outputs["url"]
             if output_url.startswith("http"):
                 try:
                     kf_path = project_keyframe_path(project_id, item.scene_id)
                     await _download_image(output_url, store, kf_path)
-                    # Preserve previous generation in history
                     if item.keyframe_material_id:
                         item.keyframe_history.append(item.keyframe_material_id)
                     local_url = f"/files/{kf_path}"
@@ -470,8 +490,9 @@ async def _sync_workflow_to_timeline(
                     logger.warning("Failed to download keyframe for scene %d: %s", item.scene_id, exc)
 
         # Sync clip — remote URL means new/retried generation to download
-        clip_node = wf.nodes.get(item.clip_node_id or "")
-        if clip_node and clip_node.status == "completed" and clip_node.outputs.get("url"):
+        clip_node = _find_node(item.scene_id, _VIDEO_TYPES, item.clip_node_id)
+        if clip_node:
+            item.clip_node_id = clip_node.id
             output_url = clip_node.outputs["url"]
             if output_url.startswith("http"):
                 try:
@@ -486,6 +507,29 @@ async def _sync_workflow_to_timeline(
                     changed = True
                 except Exception as exc:
                     logger.warning("Failed to download clip for scene %d: %s", item.scene_id, exc)
+
+    # Second pass: download any remaining remote outputs (nodes not linked to scenes)
+    from lorekit.workflow.registry import NODE_TYPES
+    for node in wf.nodes.values():
+        if node.status != "completed":
+            continue
+        output_url = node.outputs.get("url", "")
+        if not output_url.startswith("http"):
+            continue
+        node_type_def = NODE_TYPES.get(node.type)
+        is_image = node_type_def and node_type_def.category == "image"
+        scene_id = node.params.get("scene_id", 0)
+        try:
+            if is_image:
+                dl_path = project_keyframe_path(project_id, scene_id)
+                await _download_image(output_url, store, dl_path)
+            else:
+                dl_path = project_clip_path(project_id, scene_id)
+                await _download_clip(output_url, store, dl_path, fal_key)
+            node.outputs["url"] = f"/files/{dl_path}"
+            changed = True
+        except Exception as exc:
+            logger.warning("Failed to download node %s output: %s", node.id, exc)
 
     if changed:
         await db.update_project(project_id, org_id=org_id,

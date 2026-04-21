@@ -97,6 +97,16 @@ _register(
     cost_flat=0.04,
 )
 
+_register(
+    "flux_text_to_image",
+    endpoint="fal-ai/flux-2-pro",
+    category="image",
+    label="Flux 2 Pro (Text-to-Image)",
+    input_keys=["prompt", "aspect_ratio"],
+    output_keys=["url"],
+    cost_flat=0.03,
+)
+
 # ── Video generation ──────────────────────────────────────────────────────
 
 _register(
@@ -108,6 +118,17 @@ _register(
     output_keys=["url"],
     cost_flat=0.0,
     cost_per_second=0.14,
+)
+
+_register(
+    "kling_v3_pro_t2v",
+    endpoint="fal-ai/kling-video/v3/pro/text-to-video",
+    category="video",
+    label="Kling V3 Pro (Text-to-Video)",
+    input_keys=["prompt", "duration", "aspect_ratio", "negative_prompt", "cfg_scale"],
+    output_keys=["url"],
+    cost_flat=0.0,
+    cost_per_second=0.112,
 )
 
 _register(

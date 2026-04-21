@@ -94,6 +94,10 @@ async def execute_node(
         logger.info("Node %s already completed, skipping", node_id)
         return
 
+    if node.status == "running":
+        logger.info("Node %s already running, skipping (another execution)", node_id)
+        return
+
     if node.status == "failed":
         logger.info("Node %s previously failed, skipping", node_id)
         return
