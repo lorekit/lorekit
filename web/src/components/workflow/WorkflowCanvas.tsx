@@ -324,9 +324,7 @@ function WorkflowNodeComponent({ data, selected }: NodeProps<Node<WorkflowNodeDa
 
       {/* Footer: cost + status + run button */}
       <div className="flex items-center justify-between px-3 py-1.5">
-        <span className="text-[10px] text-slate-500">
-          {workflowNode.cost > 0 ? `${workflowNode.cost} credits` : ""}
-        </span>
+        <span />
         <div className="flex items-center gap-2">
           {/* Run button — visible on hover for pending nodes */}
           {isHovering && workflowNode.status === "pending" && onExecuteNode && (
@@ -732,13 +730,26 @@ function CanvasToolbar({
       if (!workflow) return;
       setShowAddMenu(false);
       try {
+        const NODE_W = 280, NODE_H = 200, H_GAP = 120, V_GAP = 50;
         const existingNodes = Object.values(workflow.nodes);
-        let x = 200, y = 200;
+        let x = 0, y = 0;
         if (existingNodes.length > 0) {
+          // Place to the right of the rightmost node, vertically centered
           const maxX = Math.max(...existingNodes.map((n) => n.position?.x ?? 0));
           const avgY = existingNodes.reduce((s, n) => s + (n.position?.y ?? 0), 0) / existingNodes.length;
-          x = maxX + 350;
+          x = maxX + NODE_W + H_GAP;
           y = Math.round(avgY);
+        }
+        // Nudge down until no overlap with any existing node
+        const sorted = [...existingNodes].sort((a, b) => (a.position?.y ?? 0) - (b.position?.y ?? 0));
+        for (let i = 0; i <= sorted.length; i++) {
+          const overlaps = sorted.some(
+            (n) =>
+              Math.abs((n.position?.x ?? 0) - x) < NODE_W + H_GAP &&
+              Math.abs((n.position?.y ?? 0) - y) < NODE_H + V_GAP,
+          );
+          if (!overlaps) break;
+          y += NODE_H + V_GAP;
         }
         // Create node client-side and persist via PUT
         const nodeId = crypto.randomUUID().slice(0, 12);

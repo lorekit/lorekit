@@ -436,3 +436,14 @@ export const projectAudioAssets = pgTable("project_audio_assets", {
   pgPolicy("audio_assets_update", { for: "update", to: authenticatedRole, using: projectInUserOrgs }),
   pgPolicy("audio_assets_delete", { for: "delete", to: authenticatedRole, using: projectInUserOrgs }),
 ]);
+
+export const waitlistSignups = pgTable("waitlist_signups", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  signupType: text("signup_type").notNull(),
+  companyName: text("company_name"),
+  role: text("role"),
+  monthlyAdSpend: text("monthly_ad_spend"),
+  source: text("source").notNull().default("pricing_page"),
+  createdAt: text("created_at").notNull(),
+});

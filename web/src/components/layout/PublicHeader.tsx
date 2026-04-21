@@ -24,13 +24,13 @@ const SOLUTIONS_USE_CASES = [
 
 const SOLUTIONS_INDUSTRIES = [
   {
-    href: "/agencies",
-    label: "Content Creators",
+    href: "/marketing-teams",
+    label: "Marketing Teams",
     icon: Video,
     gradient: "from-amber-500/20 via-orange-500/10 to-amber-500/5",
   },
   {
-    href: "/agencies",
+    href: "/brand-studios",
     label: "Brand Studios",
     icon: Brush,
     gradient: "from-cyan-500/20 via-blue-500/10 to-cyan-500/5",
@@ -46,7 +46,6 @@ const SOLUTIONS_INDUSTRIES = [
 const NAV_LINKS = [
   { href: "/docs", label: "Docs" },
   { href: "/pricing", label: "Pricing" },
-  { href: "/enterprise", label: "Enterprise" },
 ];
 
 type DropdownName = "product" | "solutions" | null;
@@ -150,12 +149,14 @@ export function PublicHeader() {
               {link.label}
             </Link>
           ))}
-          <Link
-            href="/app"
+          <a
+            href="https://www.aivideofunnel.com"
+            target="_blank"
+            rel="noopener noreferrer"
             className="btn-shimmer rounded-full px-4 py-1.5 text-sm font-medium text-slate-950 shadow-[0_0_12px_rgba(245,158,11,0.3)]"
           >
-            Get Started
-          </Link>
+            Free UGC Library
+          </a>
           <a
             href="https://github.com/lorekit/lorekit"
             target="_blank"
@@ -169,12 +170,14 @@ export function PublicHeader() {
 
         {/* Mobile: Get Started + hamburger */}
         <div className="flex md:hidden items-center gap-2">
-          <Link
-            href="/app"
+          <a
+            href="https://www.aivideofunnel.com"
+            target="_blank"
+            rel="noopener noreferrer"
             className="btn-shimmer rounded-full px-3 py-1 text-xs font-medium text-slate-950 shadow-[0_0_12px_rgba(245,158,11,0.3)]"
           >
-            Get Started
-          </Link>
+            Free UGC Library
+          </a>
           <button
             onClick={() => setMenuOpen(!menuOpen)}
             className="p-1.5 text-slate-400 hover:text-white transition-colors"
@@ -222,7 +225,7 @@ export function PublicHeader() {
 
             {/* Right: featured card */}
             <div className="flex-1">
-              <Link href="/product" onClick={closeAll} className="group flex flex-col justify-between h-full rounded-xl overflow-hidden bg-gradient-to-br from-amber-500/15 via-cyan-500/10 to-purple-500/15 border border-slate-800 hover:border-slate-700 transition-colors p-6">
+              <a href="https://github.com/lorekit/lorekit" target="_blank" rel="noopener noreferrer" onClick={closeAll} className="group flex flex-col justify-between h-full rounded-xl overflow-hidden bg-gradient-to-br from-amber-500/15 via-cyan-500/10 to-purple-500/15 border border-slate-800 hover:border-slate-700 transition-colors p-6">
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <Code className="h-5 w-5 text-amber-400" />
@@ -235,7 +238,7 @@ export function PublicHeader() {
                 <div className="flex items-center justify-end mt-4">
                   <ArrowRight className="h-5 w-5 text-slate-500 group-hover:text-white transition-colors" />
                 </div>
-              </Link>
+              </a>
             </div>
           </div>
         </div>

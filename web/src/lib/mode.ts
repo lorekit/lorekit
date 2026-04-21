@@ -22,3 +22,21 @@ export function getApiBaseUrl(): string {
 export function getMcpHttpUrl(): string {
   return `${getApiBaseUrl()}/mcp/mcp`;
 }
+
+/**
+ * CTA destination for public pages.
+ * Cloud → /pricing (capture leads). Open-source → /app (go straight in).
+ */
+export function getCtaHref(): string {
+  return isCloudMode() ? "/pricing" : "/app";
+}
+
+/**
+ * Whether to show public landing/marketing pages.
+ * Cloud mode always shows them. Open-source hides them
+ * unless NEXT_PUBLIC_SHOW_LANDING=true (for frontend dev).
+ */
+export function showLandingPages(): boolean {
+  if (isCloudMode()) return true;
+  return process.env.NEXT_PUBLIC_SHOW_LANDING === "true";
+}

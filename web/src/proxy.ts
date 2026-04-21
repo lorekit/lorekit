@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function proxy(request: NextRequest) {
+  // Open-source mode: redirect landing page to /app (unless dev override is set)
+  const isCloud = !!process.env.NEXT_PUBLIC_BETTER_AUTH_URL;
+  const showLanding = isCloud || process.env.NEXT_PUBLIC_SHOW_LANDING === "true";
+  if (!showLanding && request.nextUrl.pathname === "/") {
+    return NextResponse.redirect(new URL("/app", request.url));
+  }
+
   const response = NextResponse.next();
 
   // Content Security Policy — mitigates XSS (critical given localStorage token storage)

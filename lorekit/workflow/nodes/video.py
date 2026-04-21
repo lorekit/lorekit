@@ -37,8 +37,14 @@ async def execute_kling_v3_pro(node: WorkflowNode, inputs: dict[str, Any]) -> di
     duration = inputs.get("duration", 5)
     duration_str = str(max(3, min(15, int(round(duration)))))
 
+    # Ensure image URLs are accessible by fal.ai (upload local files)
+    from lorekit.workflow.nodes.image import _ensure_fal_urls
+    start_urls = await _ensure_fal_urls([inputs["start_image"]])
+    if not start_urls:
+        raise ValueError("start_image could not be resolved to a valid URL")
+
     payload: dict = {
-        "start_image_url": inputs["start_image"],
+        "start_image_url": start_urls[0],
         "prompt": str(prompt)[:2500],
         "duration": duration_str,
         "generate_audio": False,
@@ -57,6 +63,9 @@ async def execute_kling_v3_pro(node: WorkflowNode, inputs: dict[str, Any]) -> di
     # End image for loops/transitions
     end_image = inputs.get("end_image")
     if end_image:
+        end_urls = await _ensure_fal_urls([end_image])
+        if end_urls:
+            end_image = end_urls[0]
         payload["end_image_url"] = end_image
 
     url = await _submit_and_get_video(
@@ -79,8 +88,15 @@ async def execute_kling_o3(node: WorkflowNode, inputs: dict[str, Any]) -> dict[s
     duration = inputs.get("duration", 5)
     duration_str = str(max(3, min(15, int(round(duration)))))
 
+    # Ensure image URLs are accessible by fal.ai
+    from lorekit.workflow.nodes.image import _ensure_fal_urls
+    raw_image = inputs.get("image_url") or inputs.get("start_image")
+    image_urls = await _ensure_fal_urls([raw_image]) if raw_image else []
+    if not image_urls:
+        raise ValueError("image_url/start_image could not be resolved to a valid URL")
+
     payload: dict = {
-        "image_url": inputs.get("image_url") or inputs.get("start_image"),
+        "image_url": image_urls[0],
         "prompt": str(inputs.get("prompt", ""))[:2500],
         "duration": duration_str,
         "generate_audio": False,
@@ -88,6 +104,9 @@ async def execute_kling_o3(node: WorkflowNode, inputs: dict[str, Any]) -> dict[s
 
     end_image = inputs.get("end_image")
     if end_image:
+        end_urls = await _ensure_fal_urls([end_image])
+        if end_urls:
+            end_image = end_urls[0]
         payload["end_image_url"] = end_image
 
     url = await _submit_and_get_video(

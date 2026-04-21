@@ -360,7 +360,7 @@ function MediaTab({
                   <img
                     src={src}
                     alt={img.label}
-                    className="w-full aspect-square object-cover"
+                    className="w-full aspect-[3/4] object-cover"
                   />
                   <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-1 py-0.5">
                     <span className="text-[9px] text-white/80">{img.label}</span>
@@ -381,7 +381,7 @@ function MediaTab({
                 <img
                   src={url.startsWith("http") ? url : clipUrl(url)}
                   alt={label}
-                  className="w-full aspect-[9/16] object-cover"
+                  className="w-full aspect-[3/4] object-cover"
                 />
                 <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-1 py-0.5">
                   <span className="text-[9px] text-white/80">{label}</span>
@@ -397,11 +397,23 @@ function MediaTab({
           <p className="text-[11px] font-medium text-slate-500 mb-1.5">Scene Keyframes</p>
           <div className="grid grid-cols-3 gap-1.5">
             {allKeyframes.map(({ url, label, active }, idx) => (
-              <div key={`kf-${idx}`} className="relative rounded-lg overflow-hidden border border-slate-800">
+              <div
+                key={`kf-${idx}`}
+                className="relative rounded-lg overflow-hidden border border-slate-800 cursor-grab active:cursor-grabbing hover:border-amber-500/50 transition-colors"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("application/workflow-image", JSON.stringify({
+                    type: "character_ref",
+                    image_url: url,
+                    label: label || `Keyframe ${idx + 1}`,
+                  }));
+                  e.dataTransfer.effectAllowed = "copy";
+                }}
+              >
                 <img
                   src={url.startsWith("http") ? url : clipUrl(url)}
                   alt={label}
-                  className="w-full aspect-[9/16] object-cover"
+                  className="w-full aspect-[3/4] object-cover"
                 />
                 {active && (
                   <span className="absolute top-1 left-1 text-[7px] bg-emerald-600/90 text-white px-1 rounded">
@@ -426,7 +438,7 @@ function MediaTab({
                 <img
                   src={url.startsWith("http") ? url : clipUrl(url)}
                   alt={label}
-                  className="w-full aspect-[9/16] object-cover"
+                  className="w-full aspect-[3/4] object-cover"
                 />
                 <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-1 py-0.5">
                   <span className="text-[9px] text-white/80">{label}</span>

@@ -144,6 +144,7 @@ class Settings(BaseSettings):
         env_prefix="",
         env_file=os.environ.get("ENV_FILE", ".env"),
         env_file_encoding="utf-8",
+        extra="ignore",
     )
 
     anthropic_api_key: str = ""

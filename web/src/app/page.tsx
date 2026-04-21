@@ -1,33 +1,34 @@
 import Link from "next/link";
 import { Globe, Film, Mic, Code, ArrowRight, ScrollText, Sparkles, Rocket } from "lucide-react";
 import { PublicHeader } from "@/components/layout/PublicHeader";
+import { getCtaHref } from "@/lib/mode";
 import { PublicFooter } from "@/components/layout/PublicFooter";
 
 // Fixed sparkle positions (no Math.random — SSR safe)
 const SPARKLES = [
-  { left: "8%", top: "15%", size: 3, delay: 0, dur: 6, color: "rgba(251,191,36,0.5)" },
-  { left: "15%", top: "70%", size: 2, delay: 1.2, dur: 7, color: "rgba(255,255,255,0.4)" },
-  { left: "22%", top: "35%", size: 4, delay: 2.5, dur: 5.5, color: "rgba(34,211,238,0.4)" },
-  { left: "35%", top: "80%", size: 2, delay: 0.8, dur: 8, color: "rgba(251,191,36,0.3)" },
-  { left: "42%", top: "20%", size: 3, delay: 3.2, dur: 6.5, color: "rgba(255,255,255,0.35)" },
-  { left: "55%", top: "60%", size: 2, delay: 1.5, dur: 7.5, color: "rgba(34,211,238,0.35)" },
-  { left: "62%", top: "25%", size: 3, delay: 4, dur: 5, color: "rgba(251,191,36,0.45)" },
-  { left: "70%", top: "75%", size: 2, delay: 0.5, dur: 6.8, color: "rgba(255,255,255,0.3)" },
-  { left: "78%", top: "40%", size: 4, delay: 2, dur: 7.2, color: "rgba(34,211,238,0.4)" },
-  { left: "85%", top: "15%", size: 2, delay: 3.5, dur: 6, color: "rgba(251,191,36,0.35)" },
-  { left: "92%", top: "55%", size: 3, delay: 1, dur: 5.8, color: "rgba(255,255,255,0.4)" },
-  { left: "18%", top: "50%", size: 2, delay: 4.5, dur: 7, color: "rgba(34,211,238,0.3)" },
-  { left: "48%", top: "45%", size: 3, delay: 2.8, dur: 6.3, color: "rgba(251,191,36,0.4)" },
-  { left: "75%", top: "65%", size: 2, delay: 0.3, dur: 8.2, color: "rgba(255,255,255,0.35)" },
-  { left: "30%", top: "10%", size: 4, delay: 3.8, dur: 5.5, color: "rgba(34,211,238,0.45)" },
+  { left: "8%", top: "30%", size: 3, delay: 0, dur: 6, color: "rgba(251,191,36,0.5)" },
+  { left: "15%", top: "78%", size: 2, delay: 1.2, dur: 7, color: "rgba(255,255,255,0.4)" },
+  { left: "22%", top: "50%", size: 4, delay: 2.5, dur: 5.5, color: "rgba(34,211,238,0.4)" },
+  { left: "35%", top: "88%", size: 2, delay: 0.8, dur: 8, color: "rgba(251,191,36,0.3)" },
+  { left: "42%", top: "35%", size: 3, delay: 3.2, dur: 6.5, color: "rgba(255,255,255,0.35)" },
+  { left: "55%", top: "72%", size: 2, delay: 1.5, dur: 7.5, color: "rgba(34,211,238,0.35)" },
+  { left: "62%", top: "40%", size: 3, delay: 4, dur: 5, color: "rgba(251,191,36,0.45)" },
+  { left: "70%", top: "82%", size: 2, delay: 0.5, dur: 6.8, color: "rgba(255,255,255,0.3)" },
+  { left: "78%", top: "55%", size: 4, delay: 2, dur: 7.2, color: "rgba(34,211,238,0.4)" },
+  { left: "85%", top: "30%", size: 2, delay: 3.5, dur: 6, color: "rgba(251,191,36,0.35)" },
+  { left: "92%", top: "68%", size: 3, delay: 1, dur: 5.8, color: "rgba(255,255,255,0.4)" },
+  { left: "18%", top: "62%", size: 2, delay: 4.5, dur: 7, color: "rgba(34,211,238,0.3)" },
+  { left: "48%", top: "58%", size: 3, delay: 2.8, dur: 6.3, color: "rgba(251,191,36,0.4)" },
+  { left: "75%", top: "75%", size: 2, delay: 0.3, dur: 8.2, color: "rgba(255,255,255,0.35)" },
+  { left: "30%", top: "25%", size: 4, delay: 3.8, dur: 5.5, color: "rgba(34,211,238,0.45)" },
 ];
 
 const DIAMONDS = [
-  { left: "12%", top: "30%", delay: 1, dur: 8, color: "rgba(251,191,36,0.4)" },
-  { left: "88%", top: "20%", delay: 3, dur: 7, color: "rgba(34,211,238,0.35)" },
-  { left: "50%", top: "70%", delay: 5, dur: 9, color: "rgba(251,191,36,0.3)" },
-  { left: "25%", top: "55%", delay: 2, dur: 6, color: "rgba(34,211,238,0.4)" },
-  { left: "72%", top: "45%", delay: 4, dur: 7.5, color: "rgba(255,255,255,0.3)" },
+  { left: "12%", top: "45%", delay: 1, dur: 8, color: "rgba(251,191,36,0.4)" },
+  { left: "88%", top: "35%", delay: 3, dur: 7, color: "rgba(34,211,238,0.35)" },
+  { left: "50%", top: "80%", delay: 5, dur: 9, color: "rgba(251,191,36,0.3)" },
+  { left: "25%", top: "65%", delay: 2, dur: 6, color: "rgba(34,211,238,0.4)" },
+  { left: "72%", top: "58%", delay: 4, dur: 7.5, color: "rgba(255,255,255,0.3)" },
 ];
 
 export default function LandingPage() {
@@ -59,62 +60,38 @@ export default function LandingPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-slate-950/60 via-slate-950/40 to-slate-950" />
 
         <div className="relative z-10">
-          {/*
-           * HERO HOOK OPTIONS — uncomment the one you want to use.
-           * Current: Option D (anti-agency). Others below for A/B testing.
-           */}
-
-          {/* Option A: Performance-focused */}
-          {/* <h1 className="text-3xl sm:text-5xl md:text-6xl font-logo font-bold tracking-wide max-w-4xl leading-tight">
-            <span className="text-white" style={{ textShadow: "0 0 30px rgba(255,255,255,0.1)" }}>AI video ads that{" "}</span>
-            <span className="text-amber-400" style={{ textShadow: "0 0 20px rgba(251,191,36,0.3), 0 0 40px rgba(251,191,36,0.1)" }}>sell.</span>
-          </h1>
-          <p className="mt-4 sm:mt-6 text-base sm:text-xl text-slate-400 max-w-2xl mx-auto px-2">
-            Generate scroll-stopping ads from your brand. Test hooks, iterate fast, scale what works. Open source.
-          </p> */}
-
-          {/* Option B: Volume-focused */}
-          {/* <h1 className="text-3xl sm:text-5xl md:text-6xl font-logo font-bold tracking-wide max-w-4xl leading-tight">
-            <span className="text-amber-400" style={{ textShadow: "0 0 20px rgba(251,191,36,0.3), 0 0 40px rgba(251,191,36,0.1)" }}>10 ads a day.</span>
-            <span className="text-white" style={{ textShadow: "0 0 30px rgba(255,255,255,0.1)" }}>{" "}Zero production{" "}</span>
-            <span className="text-cyan-400" style={{ textShadow: "0 0 20px rgba(34,211,238,0.3), 0 0 40px rgba(34,211,238,0.1)" }}>team.</span>
-          </h1>
-          <p className="mt-4 sm:mt-6 text-base sm:text-xl text-slate-400 max-w-2xl mx-auto px-2">
-            Turn your brand into video ads at scale. AI generates hooks, variants, and formats — you pick the winners. Open source.
-          </p> */}
-
-          {/* Option C: ROI-focused (dental/local business) */}
-          {/* <h1 className="text-3xl sm:text-5xl md:text-6xl font-logo font-bold tracking-wide max-w-4xl leading-tight">
-            <span className="text-white" style={{ textShadow: "0 0 30px rgba(255,255,255,0.1)" }}>Video ads that bring{" "}</span>
-            <span className="text-amber-400" style={{ textShadow: "0 0 20px rgba(251,191,36,0.3), 0 0 40px rgba(251,191,36,0.1)" }}>patients</span>
-            <span className="text-white" style={{ textShadow: "0 0 30px rgba(255,255,255,0.1)" }}>{" "}through the{" "}</span>
-            <span className="text-cyan-400" style={{ textShadow: "0 0 20px rgba(34,211,238,0.3), 0 0 40px rgba(34,211,238,0.1)" }}>door.</span>
-          </h1>
-          <p className="mt-4 sm:mt-6 text-base sm:text-xl text-slate-400 max-w-2xl mx-auto px-2">
-            AI-powered video ads for businesses that need results, not just content. Generate, test, and scale — from brand to conversion. Open source.
-          </p> */}
-
-          {/* Option C1: Revenue-focused (active) */}
           <h1 className="text-3xl sm:text-5xl md:text-6xl font-logo font-bold tracking-wide max-w-4xl leading-tight">
             <span className="text-white" style={{ textShadow: "0 0 30px rgba(255,255,255,0.1)" }}>
-              Video that drives{" "}
+              Stop Guessing.{" "}
+            </span>
+            <br className="hidden sm:block" />
+            <span className="text-white" style={{ textShadow: "0 0 30px rgba(255,255,255,0.1)" }}>
+              Start Scaling{" "}
             </span>
             <span className="text-amber-400" style={{ textShadow: "0 0 20px rgba(251,191,36,0.3), 0 0 40px rgba(251,191,36,0.1)" }}>
-              revenue.
+              Winning Ads.
             </span>
           </h1>
           <p className="mt-4 sm:mt-6 text-base sm:text-xl text-slate-400 max-w-2xl mx-auto px-2">
-            Every brand has a story. LoreKit turns yours into video ads that convert. Generated by AI, guided by you. Scale what works.
+            AI video ads from script to screen. Open source. No agency required.
           </p>
           <div className="mt-8 sm:mt-10 flex items-center gap-4 justify-center">
             <Link
-              href="/app"
+              href="/contact"
               className="btn-shimmer rounded-full px-5 py-2.5 sm:px-6 sm:py-3 text-sm sm:text-base font-semibold text-slate-950 flex items-center gap-2 shadow-[0_0_20px_rgba(245,158,11,0.3)]"
             >
               <Sparkles className="h-4 w-4" />
-              Start Creating
+              See a Demo
               <ArrowRight className="h-4 w-4" />
             </Link>
+            <a
+              href="https://github.com/lorekit/lorekit"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-full px-5 py-2.5 sm:px-6 sm:py-3 text-sm sm:text-base font-semibold text-white border border-slate-700 hover:border-slate-500 transition-colors"
+            >
+              Self-Host Free
+            </a>
           </div>
         </div>
       </section>
@@ -405,7 +382,7 @@ export default function LandingPage() {
             Build your brand universe, generate your first video ad, and see what converts. Free and open source.
           </p>
           <Link
-            href="/app"
+            href={getCtaHref()}
             className="btn-shimmer inline-flex items-center gap-2 rounded-full px-5 py-2.5 sm:px-6 sm:py-3 text-sm sm:text-base font-semibold text-slate-950 shadow-[0_0_20px_rgba(245,158,11,0.3)]"
           >
             <Sparkles className="h-4 w-4" />

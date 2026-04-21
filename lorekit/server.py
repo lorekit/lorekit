@@ -36,6 +36,7 @@ from lorekit.api.voices import router as voices_router
 from lorekit.api.audio import router as audio_router
 from lorekit.api.billing import router as billing_router
 from lorekit.api.effects import router as effects_router
+from lorekit.api.waitlist import router as waitlist_router
 
 
 def _init_cloud_if_present() -> None:
@@ -66,10 +67,7 @@ async def _lorekit_lifespan(app: FastAPI):
     await db.seed_builtin_context_presets()
     from lorekit.auth.user import _user_provider
     if _user_provider is None:
-        logger.warning(
-            "SECURITY: Running without authentication. All API endpoints are "
-            "public. Set BETTER_AUTH_SECRET for production."
-        )
+        logger.info("Running in open-source mode (no auth).")
     yield
     from lorekit.tasks import get_task_runner
     await get_task_runner().shutdown()
@@ -133,6 +131,7 @@ app.include_router(voices_router)
 app.include_router(audio_router)
 app.include_router(billing_router)
 app.include_router(effects_router)
+app.include_router(waitlist_router)
 
 
 @app.get("/api/health")

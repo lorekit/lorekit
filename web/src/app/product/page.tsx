@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { PublicHeader } from "@/components/layout/PublicHeader";
 import { PublicFooter } from "@/components/layout/PublicFooter";
+import { getCtaHref } from "@/lib/mode";
 
 const FEATURES = [
   {
@@ -238,7 +239,7 @@ export default function ProductPage() {
             Pick a tool or use case and generate your first video in minutes. Free and open source.
           </p>
           <Link
-            href="/app"
+            href={getCtaHref()}
             className="btn-shimmer inline-flex items-center gap-2 rounded-full px-5 py-2.5 sm:px-6 sm:py-3 text-sm sm:text-base font-semibold text-slate-950 shadow-[0_0_20px_rgba(245,158,11,0.3)]"
           >
             <Sparkles className="h-4 w-4" />

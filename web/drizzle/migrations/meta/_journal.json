@@ -113,6 +113,20 @@
       "when": 1776315479654,
       "tag": "0015_rainy_switch",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1776786837860,
+      "tag": "0016_good_ted_forrester",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1776787402072,
+      "tag": "0017_square_chamber",
+      "breakpoints": true
     }
   ]
 }

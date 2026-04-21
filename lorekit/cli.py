@@ -218,8 +218,11 @@ def dev(backend_port: int, frontend_port: int):
              "--timeout-graceful-shutdown", "1"],
         ))
 
-        # Start frontend
-        env = {**os.environ, "PORT": str(frontend_port)}
+        # Start frontend — forward NEXT_PUBLIC_* vars from root .env
+        from dotenv import dotenv_values
+        root_env = dotenv_values(Path(__file__).parent.parent / ".env")
+        next_public = {k: v for k, v in root_env.items() if k.startswith("NEXT_PUBLIC_") and v is not None}
+        env = {**os.environ, **next_public, "PORT": str(frontend_port)}
         procs.append(subprocess.Popen(
             ["npm", "run", "dev", "--", "--port", str(frontend_port)],
             cwd=web_dir,
