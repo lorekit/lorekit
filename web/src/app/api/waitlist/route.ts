@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { waitlistSignups } from "@/drizzle/schema";
+import { waitlistSignups } from "../../../drizzle/schema";
 import { randomUUID } from "crypto";
 
 export async function POST(req: Request) {
