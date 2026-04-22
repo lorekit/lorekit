@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Loader2, Shield, Check, X } from "lucide-react";
 import { Logo } from "@/components/Logo";
@@ -15,6 +15,14 @@ const SCOPE_LABELS: Record<string, string> = {
 };
 
 export default function OAuthConsentPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-slate-500" /></div>}>
+      <OAuthConsentContent />
+    </Suspense>
+  );
+}
+
+function OAuthConsentContent() {
   const searchParams = useSearchParams();
   const clientName = searchParams.get("client_name") || "An application";
   const scopeParam = searchParams.get("scope") || "openid profile email";

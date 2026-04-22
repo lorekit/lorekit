@@ -7,7 +7,7 @@ const HERO_CLIPS = ["/hero-1.mp4", "/hero-2.mp4", "/hero-3.mp4", "/hero-4.mp4"];
 export function HeroVideo() {
   const [active, setActive] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const play = useCallback((idx: number) => {
     setActive(idx);

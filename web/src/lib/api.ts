@@ -15,6 +15,8 @@ export interface Character {
   group: string;
   era: string;
   character_description: string;
+  target_audience: string;
+  performance_notes: string;
   character_image_url: string | null;
   character_styles_json: string | null; // {"theme": {"description": "...", "image_url": "...", "image_path": "..."}}
   character_ref_urls: string | null; // JSON array of reference image URLs

@@ -881,7 +881,7 @@ export default function StudioCharacterProfilePage({
           <div className="space-y-1">
             <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Target Audience</span>
             <InlineTextarea
-              value={(character as Record<string, string>).target_audience || ""}
+              value={character.target_audience || ""}
               onSave={(v) => saveCharacterField("target_audience", v)}
               className="text-slate-400 leading-relaxed text-sm"
               placeholder="Who this character represents / speaks to..."
@@ -892,7 +892,7 @@ export default function StudioCharacterProfilePage({
           <div className="space-y-1">
             <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Performance Notes</span>
             <InlineTextarea
-              value={(character as Record<string, string>).performance_notes || ""}
+              value={character.performance_notes || ""}
               onSave={(v) => saveCharacterField("performance_notes", v)}
               className="text-slate-400 leading-relaxed text-sm"
               placeholder="Reaction choreography, mannerisms, acting direction..."

@@ -296,7 +296,7 @@ function MediaTab({
   const characterVariations: Array<{ url: string; label: string }> = [];
   for (const s of scenes) {
     for (const ref of s.reference_images ?? []) {
-      const refUrl = typeof ref === "string" ? ref : ref.url || ref.path;
+      const refUrl = typeof ref === "string" ? ref : (ref as { url?: string; path?: string }).url || (ref as { url?: string; path?: string }).path;
       if (refUrl && !seen.has(refUrl)) {
         seen.add(refUrl);
         characterVariations.push({

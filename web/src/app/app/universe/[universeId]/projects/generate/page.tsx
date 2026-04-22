@@ -17,7 +17,7 @@ import {
   createArcTemplate,
   clipUrl,
 } from "@/lib/api";
-import type { Character, SourceItem, VibePreset, ArcTemplate, CharacterImage, Universe, Script, CharacterVoice, AudioAnalysis } from "@/lib/api";
+import type { Character, SourceItem, VibePreset, ArcTemplate, CharacterImageEntry, Universe, Script, CharacterVoice, AudioAnalysis } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1099,7 +1099,7 @@ export default function GenerateWizardPage({
   const [selectedArc, setSelectedArc] = useState("story");
 
   // Character images for selected character
-  const [charImages, setCharImages] = useState<CharacterImage[]>([]);
+  const [charImages, setCharImages] = useState<CharacterImageEntry[]>([]);
 
   // Aspect ratio state
   const [aspectRatio, setAspectRatio] = useState("9:16");
@@ -1177,25 +1177,25 @@ export default function GenerateWizardPage({
     // Fetch quotes + images + voice for primary character
     Promise.all([
       getSourceItems({ character_id: selectedCharacter.id }),
-      getCharacterImages(selectedCharacter.id).catch(() => ({ images: [] as CharacterImage[] })),
+      getCharacterImages(selectedCharacter.id).catch(() => ({ character_id: "", themes: [] })),
       getCharacterVoice(universeId, selectedCharacter.id).catch(() => null),
     ])
       .then(async ([itemData, charData, voiceData]) => {
         if (cancelled) return;
         setSourceItems(itemData);
-        setCharImages(charData.images);
+        const allImages = charData.themes.flatMap((t) => t.images);
+        setCharImages(allImages);
         setCharacterVoice(voiceData);
 
         // Auto-generate character image if none exists for the universe vibe
-        const hasVibeImage = charData.images.some(
-          (img: CharacterImage) => img.theme === selectedTheme && img.url
+        const hasVibeImage = charData.themes.some(
+          (t) => t.theme === selectedTheme && t.images.some((img) => img.url)
         );
         if (!hasVibeImage && selectedCharacter.character_description) {
           try {
             await generateCharacterForCharacter(selectedCharacter.id, { theme: selectedTheme });
-            // Refresh images after generation
-            const refreshed = await getCharacterImages(selectedCharacter.id).catch(() => ({ images: [] as CharacterImage[] }));
-            if (!cancelled) setCharImages(refreshed.images);
+            const refreshed = await getCharacterImages(selectedCharacter.id).catch(() => ({ character_id: "", themes: [] }));
+            if (!cancelled) setCharImages(refreshed.themes.flatMap((t) => t.images));
           } catch (err) {
             console.error("Auto-generate character image failed:", err);
           }
