@@ -5,8 +5,6 @@ import Link from "next/link";
 import { Check, ArrowRight, Code, Loader2, Sparkles } from "lucide-react";
 import { PublicHeader } from "@/components/layout/PublicHeader";
 import { PublicFooter } from "@/components/layout/PublicFooter";
-import { API_BASE } from "@/lib/api";
-
 type FormStatus = "idle" | "loading" | "success" | "error";
 
 export default function PricingPage() {
@@ -18,7 +16,7 @@ export default function PricingPage() {
     if (!email) return;
     setStatus("loading");
     try {
-      const res = await fetch(`${API_BASE}/api/waitlist`, {
+      const res = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, signup_type: "cloud_signup" }),

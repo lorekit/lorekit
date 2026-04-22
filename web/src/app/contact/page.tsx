@@ -4,8 +4,6 @@ import { useState } from "react";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { PublicHeader } from "@/components/layout/PublicHeader";
 import { PublicFooter } from "@/components/layout/PublicFooter";
-import { API_BASE } from "@/lib/api";
-
 type FormStatus = "idle" | "loading" | "success" | "error";
 
 export default function ContactPage() {
@@ -20,7 +18,7 @@ export default function ContactPage() {
     if (!email) return;
     setStatus("loading");
     try {
-      const res = await fetch(`${API_BASE}/api/waitlist`, {
+      const res = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
