@@ -2,11 +2,17 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function proxy(request: NextRequest) {
-  // Open-source mode: redirect landing page to /app (unless dev override is set)
   const isCloud = !!process.env.NEXT_PUBLIC_BETTER_AUTH_URL;
   const showLanding = isCloud || process.env.NEXT_PUBLIC_SHOW_LANDING === "true";
+
+  // Open-source mode: redirect landing page to /app (unless dev override is set)
   if (!showLanding && request.nextUrl.pathname === "/") {
     return NextResponse.redirect(new URL("/app", request.url));
+  }
+
+  // Cloud mode: block /app routes (no backend deployed yet)
+  if (isCloud && request.nextUrl.pathname.startsWith("/app")) {
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   const response = NextResponse.next();
